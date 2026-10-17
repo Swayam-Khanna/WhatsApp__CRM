@@ -215,6 +215,127 @@ export function buildSpeedPostDispatchMessage(params: {
 }
 
 /**
+ * Automatically crafts a prompt, brand-aligned Prajnaa Market reply
+ * to any customer inquiry without requiring manual typing or template selection.
+ */
+export function generateAutomatedCustomerReply(params: {
+  customerName?: string;
+  customerQuery: string;
+  orderNumber?: string;
+  orderTotal?: number;
+}): string {
+  const query = (params.customerQuery || "").toLowerCase();
+  const name = params.customerName && params.customerName !== "Customer" ? `${params.customerName} ji` : "ji";
+
+  // Case 1: Payment, QR, UPI, Transfer confirmation questions
+  if (
+    query.includes("payment") ||
+    query.includes("pay") ||
+    query.includes("upi") ||
+    query.includes("qr") ||
+    query.includes("screenshot") ||
+    query.includes("utr") ||
+    query.includes("paise") ||
+    query.includes("rupaye") ||
+    query.includes("transferred")
+  ) {
+    return [
+      `Namaste ${name}! 🙏`,
+      ``,
+      `Aapka payment message Prajnaa Market ko mil gaya hai.`,
+      ``,
+      `💳 *Payment Verification Desk:*`,
+      `• Agar aapne UPI ya bank transfer kiya hai, toh kripya uska screenshot ya UTR number isi chat par share kar dijiye.`,
+      `• Official Prajnaa UPI: \`prajnaa@upi\``,
+      ``,
+      `Hamare Store Admin Nishant ji abhi records verify karke aapka order status update kar rahe hain. Verification complete hote hi packaging team ko clearance mil jayegi. 🌿`,
+      ``,
+      `Dhanyavaad ji! 🏔️`,
+      `*Team Prajnaa Market*`,
+    ].join("\n");
+  }
+
+  // Case 2: Delivery, Dispatch, Speed Post Tracking, Courier status
+  if (
+    query.includes("deliver") ||
+    query.includes("dispatch") ||
+    query.includes("track") ||
+    query.includes("status") ||
+    query.includes("kab") ||
+    query.includes("kahan") ||
+    query.includes("speed post") ||
+    query.includes("courier") ||
+    query.includes("aayega") ||
+    query.includes("when") ||
+    query.includes("reach")
+  ) {
+    return [
+      `Namaste ${name}! 🙏`,
+      ``,
+      `Aapke order status ka sandesh prapt hua hai.`,
+      ``,
+      `📦 *Dispatch & Shipping Update:*`,
+      `• Prajnaa Market ke sabhi shuddh Himalayan organic utpaad high-altitude certified pahadi farmers se fresh pack hote hain.`,
+      `• Packaging & quality inspection standard timeline: *2 se 3 working days*.`,
+      `• Jaise hi parcel India Post Speed Post ko handover hoga, aapko tracking consignment number (ED...IN) isi WhatsApp par send kar diya jayega.`,
+      ``,
+      `Hamare Store Concierge Nishant ji dispatch register inspect kar rahe hain. 🚚`,
+      ``,
+      `Dhanyavaad ji! 🌿`,
+      `*Team Prajnaa Market*`,
+    ].join("\n");
+  }
+
+  // Case 3: Quality, Organic, Freshness, Farm origin
+  if (
+    query.includes("organic") ||
+    query.includes("pure") ||
+    query.includes("quality") ||
+    query.includes("asli") ||
+    query.includes("chemical") ||
+    query.includes("farm") ||
+    query.includes("shilajit") ||
+    query.includes("ghee") ||
+    query.includes("apricot") ||
+    query.includes("saffron")
+  ) {
+    return [
+      `Namaste ${name}! 🙏`,
+      ``,
+      `Prajnaa Market ke utpaadon par bharosa jatane ke liye dhanyavaad.`,
+      ``,
+      `🌾 *100% Shuddh Himalayan Guarantee:*`,
+      `• Hum bina kisi middlemen ke direct Uttarakhand, Ladakh aur Kashmir ke traditional farmers se organic harvest source karte hain.`,
+      `• Koi artificial preservatives, chemicals ya blending nahi ki jaati.`,
+      `• Har batch lab-tested aur certified organic standard ke sath dispatch hota hai.`,
+      ``,
+      `Kisi vishesh utpaad ke baare me detail janne ke liye aap sawal pooch sakte hain! ✨`,
+      ``,
+      `Shukriya ji! 🏔️`,
+      `*Team Prajnaa Market*`,
+    ].join("\n");
+  }
+
+  // Case 4: General Automated Acknowledgement & Reassurance (For anything else customer asks)
+  return [
+    `Namaste ${name}! 🙏`,
+    ``,
+    `Prajnaa Market automated support me aapka sandesh mil gaya hai.`,
+    ``,
+    `Aapki query hamare system me securely log ho gayi hai. Store Admin Nishant ji aur hamari concierge team ise review kar rahe hain.`,
+    ``,
+    `🌿 *Helpful Information:*`,
+    `• Order Processing: 2–3 working days (Direct Himalayan packaging)`,
+    `• Shipping Partner: India Post Speed Post`,
+    `• Official Store Contact: +91 76500 65690`,
+    ``,
+    `Nishant ji jald hi aapse judenge aur poori sahayata karenge. Aapka din shubh ho! 🏔️✨`,
+    ``,
+    `*Team Prajnaa Market*`,
+  ].join("\n");
+}
+
+/**
  * Parses inbound webhook event from Meta WhatsApp Cloud API.
  */
 export function parseInboundWebhookPayload(payload: any): {

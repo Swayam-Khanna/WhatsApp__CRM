@@ -49,26 +49,108 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/crm/messages
- * Sends an outbound WhatsApp message from Nishant or a CRM agent to a customer.
+ * Sends a WhatsApp message.
+ * If sender === "customer", records inbound message and immediately fires an automated reply.
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { to, text, customerId, orderNumber } = body;
+    const { to, text, customerId, orderNumber, customerName, sender = "business" } = body;
 
     if (!to || !text) {
       return NextResponse.json({ error: "Recipient phone 'to' and message 'text' are required" }, { status: 400 });
     }
 
-    const result = await sendWhatsAppTextMessage({ to, text });
-
     if (!globalThis.__globalWhatsAppFeed) {
       globalThis.__globalWhatsAppFeed = [];
     }
 
+    let db: any = null;
+    try {
+      db = await getDatabase();
+    } catch (dbErr) {
+      console.warn("[MongoDB] Operating in memory fallback:", dbErr);
+    }
+
+    // SCENARIO A: Inbound Customer Message (Triggers Instant Automated Reply)
+    if (sender === "customer") {
+      const customerMsgRecord = {
+        id: `msg_cust_${Date.now()}`,
+        direction: "inbound",
+        sender: "customer",
+        from: to,
+        to: "917650065690",
+        customerName: customerName || "Customer",
+        text,
+        timestamp: new Date().toISOString(),
+        status: "delivered",
+        customerId,
+        orderNumber,
+        createdAt: new Date(),
+      };
+
+      globalThis.__globalWhatsAppFeed.unshift(customerMsgRecord);
+      if (db) {
+        try {
+          await db.collection("crm_messages").insertOne(customerMsgRecord);
+        } catch (e) {
+          console.warn("[MongoDB] Note: Failed to persist customer msg:", e);
+        }
+      }
+
+      // Automatically construct tailored Prajnaa automated reply without manual typing or templates
+      const { generateAutomatedCustomerReply } = await import("../../../../backend/lib/whatsapp.server.ts");
+      const autoReplyText = generateAutomatedCustomerReply({
+        customerName: customerName || "Customer",
+        customerQuery: text,
+        orderNumber,
+      });
+
+      const replyResult = await sendWhatsAppTextMessage({ to, text: autoReplyText });
+
+      const autoReplyRecord = {
+        id: replyResult.messageId || `msg_auto_${Date.now()}`,
+        direction: "outbound",
+        sender: "business",
+        from: "917650065690",
+        to,
+        customerName: customerName || "Customer",
+        text: autoReplyText,
+        timestamp: new Date().toISOString(),
+        status: "sent",
+        isAutomated: true,
+        customerId,
+        orderNumber,
+        mode: replyResult.mode,
+        whatsappUrl: replyResult.whatsappUrl || null,
+        createdAt: new Date(),
+      };
+
+      globalThis.__globalWhatsAppFeed.unshift(autoReplyRecord);
+      if (db) {
+        try {
+          await db.collection("crm_messages").insertOne(autoReplyRecord);
+        } catch (e) {
+          console.warn("[MongoDB] Note: Failed to persist auto reply msg:", e);
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        inboundMessage: customerMsgRecord,
+        autoReply: autoReplyRecord,
+        storage: db ? "mongodb" : "memory_fallback",
+      });
+    }
+
+    // SCENARIO B: Outbound Staff / Business Message
+    const result = await sendWhatsAppTextMessage({ to, text });
+
     const messageRecord = {
       id: result.messageId || `msg_${Date.now()}`,
       direction: "outbound",
+      sender: "business",
+      from: "917650065690",
       to: result.recipientPhone,
       text,
       timestamp: new Date().toISOString(),
@@ -77,26 +159,25 @@ export async function POST(req: NextRequest) {
       orderNumber,
       mode: result.mode,
       whatsappUrl: result.whatsappUrl || null,
+      createdAt: new Date(),
     };
 
     globalThis.__globalWhatsAppFeed.unshift(messageRecord);
 
     // Save permanently to MongoDB Atlas
-    try {
-      const db = await getDatabase();
-      await db.collection("crm_messages").insertOne({
-        ...messageRecord,
-        createdAt: new Date(),
-      });
-    } catch (dbErr) {
-      console.warn("[MongoDB] Note: Failed to persist outbound message to Atlas:", dbErr);
+    if (db) {
+      try {
+        await db.collection("crm_messages").insertOne(messageRecord);
+      } catch (dbErr) {
+        console.warn("[MongoDB] Note: Failed to persist outbound message to Atlas:", dbErr);
+      }
     }
 
     return NextResponse.json({
       success: true,
       result,
       messageRecord,
-      storage: "mongodb",
+      storage: db ? "mongodb" : "memory_fallback",
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Failed to send WhatsApp message" }, { status: 500 });

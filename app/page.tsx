@@ -77,6 +77,60 @@ interface Message {
   isQr?: boolean;
   qrAmount?: number;
   status: "sent" | "delivered" | "read";
+  isAutomated?: boolean;
+}
+
+// Client-side automated reply generator aligned with Prajnaa Himalayan standard
+function generateClientAutoReply(customerName?: string, queryText: string = ""): string {
+  const query = queryText.toLowerCase();
+  const name = customerName && customerName !== "Customer" ? `${customerName} ji` : "ji";
+
+  if (
+    query.includes("payment") ||
+    query.includes("pay") ||
+    query.includes("upi") ||
+    query.includes("qr") ||
+    query.includes("screenshot") ||
+    query.includes("utr") ||
+    query.includes("paise") ||
+    query.includes("rupaye") ||
+    query.includes("transferred")
+  ) {
+    return `Namaste ${name}! 🙏\n\nAapka payment message Prajnaa Market ko mil gaya hai.\n\n💳 *Payment Verification Desk:*\n• Agar aapne UPI ya bank transfer kiya hai, toh kripya uska screenshot ya UTR number isi chat par share kar dijiye.\n• Official Prajnaa UPI: \`prajnaa@upi\`\n\nHamare Store Admin Nishant ji abhi records verify karke aapka order status update kar rahe hain. Verification complete hote hi packaging team ko clearance mil jayegi. 🌿\n\nDhanyavaad ji! 🏔️\n*Team Prajnaa Market*`;
+  }
+
+  if (
+    query.includes("deliver") ||
+    query.includes("dispatch") ||
+    query.includes("track") ||
+    query.includes("status") ||
+    query.includes("kab") ||
+    query.includes("kahan") ||
+    query.includes("speed post") ||
+    query.includes("courier") ||
+    query.includes("aayega") ||
+    query.includes("when") ||
+    query.includes("reach")
+  ) {
+    return `Namaste ${name}! 🙏\n\nAapke order status ka sandesh prapt hua hai.\n\n📦 *Dispatch & Shipping Update:*\n• Prajnaa Market ke sabhi shuddh Himalayan organic utpaad high-altitude certified pahadi farmers se fresh pack hote hain.\n• Packaging & quality inspection standard timeline: *2 se 3 working days*.\n• Jaise hi parcel India Post Speed Post ko handover hoga, aapko tracking consignment number (ED...IN) isi WhatsApp par send kar diya jayega.\n\nHamare Store Concierge Nishant ji dispatch register inspect kar rahe hain. 🚚\n\nDhanyavaad ji! 🌿\n*Team Prajnaa Market*`;
+  }
+
+  if (
+    query.includes("organic") ||
+    query.includes("pure") ||
+    query.includes("quality") ||
+    query.includes("asli") ||
+    query.includes("chemical") ||
+    query.includes("farm") ||
+    query.includes("shilajit") ||
+    query.includes("ghee") ||
+    query.includes("apricot") ||
+    query.includes("saffron")
+  ) {
+    return `Namaste ${name}! 🙏\n\nPrajnaa Market ke utpaadon par bharosa jatane ke liye dhanyavaad.\n\n🌾 *100% Shuddh Himalayan Guarantee:*\n• Hum bina kisi middlemen ke direct Uttarakhand, Ladakh aur Kashmir ke traditional farmers se organic harvest source karte hain.\n• Koi artificial preservatives, chemicals ya blending nahi ki jaati.\n• Har batch lab-tested aur certified organic standard ke sath dispatch hota hai.\n\nKisi vishesh utpaad ke baare me detail janne ke liye aap sawal pooch sakte hain! ✨\n\nShukriya ji! 🏔️\n*Team Prajnaa Market*`;
+  }
+
+  return `Namaste ${name}! 🙏\n\nPrajnaa Market automated support me aapka sandesh mil gaya hai.\n\nAapki query hamare system me securely log ho gayi hai. Store Admin Nishant ji aur hamari concierge team ise review kar rahe hain.\n\n🌿 *Helpful Information:*\n• Order Processing: 2–3 working days (Direct Himalayan packaging)\n• Shipping Partner: India Post Speed Post\n• Official Store Contact: +91 76500 65690\n\nNishant ji jald hi aapse judenge aur poori sahayata karenge. Aapka din shubh ho! 🏔️✨\n\n*Team Prajnaa Market*`;
 }
 
 interface OrderItem {
@@ -454,57 +508,50 @@ const INITIAL_CUSTOMERS: Customer[] = [
 const INITIAL_MESSAGES_MAP: Record<string, Message[]> = {
   cust_1: [
     {
-      id: "m_1",
+      id: "m_1_order",
+      sender: "business",
+      text: "Namaste Priya Sharma ji! 🙏 Prajnaa Market se connect karne ke liye dhanyawad.\n\nAapne hamare Prajnaa portal se yeh saman order kiya hai:\n\n📦 *Order ID:* #PM2024001234\n🌾 *Saman / Items:* Pahadi Bilona Cow Ghee (1L) × 1, Organic Lakadong Turmeric (500g) × 1\n💰 *Total Amount:* ₹3,420\n📍 *Delivery Address:* Flat 402, Green Glen Layout, Dehradun - 248001\n🚚 *Shipping Mode:* India Post Speed Post (2-3 din me dispatch)\n\nHum aapka order organic farms se pack kar rahe hain. Kisi bhi jaankari ya payment confirmation ke liye aap yahan reply kar sakte hain! 🌿",
+      time: "10:15 AM",
+      status: "delivered",
+    },
+    {
+      id: "m_1_cust",
       sender: "customer",
-      text: "Namaste ji, maine kal order kiya tha.\nOrder ka status kya hai?",
+      text: "Namaste ji, maine kal order kiya tha. Order dispatch kab tak hoga aur payment confirmation mila kya?",
       time: "10:20 AM",
       status: "read",
     },
     {
-      id: "m_2",
+      id: "m_1_auto",
       sender: "business",
-      text: "Namaste ji! 🙏\nAapka order hamare system me confirm ho gaya hai. Abhi processing me hai. 2-3 din me packing complete karke dispatch kar diya jayega.\n\nAapke order ki details niche share kar raha hu.",
-      time: "10:22 AM",
+      text: "Namaste Priya Sharma ji! 🙏\n\nAapke order status ka sandesh prapt hua hai.\n\n📦 *Dispatch & Shipping Update:*\n• Prajnaa Market ke sabhi shuddh Himalayan organic utpaad high-altitude certified pahadi farmers se fresh pack hote hain.\n• Packaging & quality inspection standard timeline: *2 se 3 working days*.\n• Jaise hi parcel India Post Speed Post ko handover hoga, aapko tracking consignment number (ED...IN) isi WhatsApp par send kar diya jayega.\n\nHamare Store Concierge Nishant ji dispatch register inspect kar rahe hain. 🚚\n\nDhanyavaad ji! 🌿\n*Team Prajnaa Market*",
+      time: "10:20 AM",
       status: "read",
-    },
-    {
-      id: "m_3",
-      sender: "customer",
-      text: "Theek hai, mujhe payment ka QR bhi bhej dijiye.",
-      time: "10:23 AM",
-      status: "read",
-    },
-    {
-      id: "m_4",
-      sender: "business",
-      text: "Bilkul ji, yeh raha aapke order ka payment QR.\nTotal Amount: ₹1,240\n\nKripya payment karke screenshot share kar dijiye.",
-      time: "10:24 AM",
-      status: "read",
-    },
-    {
-      id: "m_5",
-      sender: "business",
-      text: "Prajnaa Market UPI Payment",
-      time: "10:24 AM",
-      isQr: true,
-      qrAmount: 1240,
-      status: "read",
+      isAutomated: true,
     },
   ],
   cust_2: [
     {
-      id: "m_21",
+      id: "m_2_order",
+      sender: "business",
+      text: "Namaste Rahul Verma ji! 🙏 Prajnaa Market se connect karne ke liye dhanyawad.\n\nAapne hamare Prajnaa portal se yeh saman order kiya hai:\n\n📦 *Order ID:* #PM2024001233\n🌾 *Saman / Items:* High-Altitude Pure Himalayan Shilajit (20g) × 1\n💰 *Total Amount:* ₹2,150\n📍 *Delivery Address:* 14 Ring Road, Nehru Colony, Dehradun - 248001\n🚚 *Shipping Mode:* India Post Speed Post (2-3 din me dispatch)\n\nHum aapka order organic farms se pack kar rahe hain. Kisi bhi jaankari ya payment confirmation ke liye aap yahan reply kar sakte hain! 🌿",
+      time: "09:50 AM",
+      status: "delivered",
+    },
+    {
+      id: "m_2_cust",
       sender: "customer",
       text: "Payment kar diya hai, check kar lijiye. UTR: 409871239841",
       time: "10:12 AM",
       status: "read",
     },
     {
-      id: "m_22",
+      id: "m_2_auto",
       sender: "business",
-      text: "Dhanyawaad Rahul ji! Payment verify ho gaya hai. Hamare artisan packaging team ko order pass kar diya gaya hai. 2 din me dispatch hoga! 📦",
-      time: "10:14 AM",
+      text: "Namaste Rahul Verma ji! 🙏\n\nAapka payment message Prajnaa Market ko mil gaya hai.\n\n💳 *Payment Verification Desk:*\n• Agar aapne UPI ya bank transfer kiya hai, toh kripya uska screenshot ya UTR number isi chat par share kar dijiye.\n• Official Prajnaa UPI: `prajnaa@upi`\n\nHamare Store Admin Nishant ji abhi records verify karke aapka order status update kar rahe hain. Verification complete hote hi packaging team ko clearance mil jayegi. 🌿\n\nDhanyavaad ji! 🏔️\n*Team Prajnaa Market*",
+      time: "10:12 AM",
       status: "read",
+      isAutomated: true,
     },
   ],
 };
@@ -847,6 +894,9 @@ export default function PrajnaaMasterCrmApp() {
   const [crmOrders, setCrmOrders] = useState<any[]>([]);
   const [showCatalogQuoteMenu, setShowCatalogQuoteMenu] = useState<boolean>(false);
   const [showQuickTemplatesMenu, setShowQuickTemplatesMenu] = useState<boolean>(false);
+  const [chatSenderMode, setChatSenderMode] = useState<"business" | "customer">("business");
+  const [isAutoReplying, setIsAutoReplying] = useState<boolean>(false);
+  const [showSimulateCustomerMenu, setShowSimulateCustomerMenu] = useState<boolean>(false);
 
   // Derived: Permissions for Current User
   const userPermissions = ROLE_PERMISSIONS[currentUser.role] || ROLE_PERMISSIONS["Store Admin"];
@@ -1132,8 +1182,81 @@ export default function PrajnaaMasterCrmApp() {
         } catch {}
       };
 
+      // 3. Sync Live WhatsApp CRM Messages from MongoDB Atlas & Webhooks
+      const syncCrmMessages = async () => {
+        try {
+          const res = await fetch("/api/crm/messages");
+          const json = await res.json();
+          if (json && json.success && Array.isArray(json.messages)) {
+            const dbMsgs = json.messages;
+            setMessagesMap((prevMap) => {
+              let hasChanges = false;
+              const nextMap = { ...prevMap };
+
+              setCustomers((currentCusts) => {
+                currentCusts.forEach((cust) => {
+                  const custPhoneClean = (cust.phone || "").replace(/\D/g, "").slice(-10);
+                  const relevantDbMsgs = dbMsgs.filter((m: any) => {
+                    const toClean = (m.to || "").replace(/\D/g, "").slice(-10);
+                    const fromClean = (m.from || "").replace(/\D/g, "").slice(-10);
+                    return (
+                      m.customerId === cust.id ||
+                      (custPhoneClean && (toClean === custPhoneClean || fromClean === custPhoneClean))
+                    );
+                  });
+
+                  if (relevantDbMsgs.length > 0) {
+                    const currentList = nextMap[cust.id] || [];
+                    const newToAdd: Message[] = [];
+
+                    // Sort chronologically ascending
+                    relevantDbMsgs.sort(
+                      (a: any, b: any) => new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime()
+                    );
+
+                    relevantDbMsgs.forEach((dbM: any) => {
+                      const alreadyExists = currentList.some(
+                        (ex) =>
+                          ex.id === dbM.id ||
+                          (ex.text === dbM.text &&
+                            Math.abs(new Date(ex.time || 0).getTime() - new Date(dbM.timestamp || 0).getTime()) < 60000)
+                      );
+                      if (!alreadyExists) {
+                        const timeStr = dbM.timestamp
+                          ? new Date(dbM.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                          : "Just now";
+                        newToAdd.push({
+                          id: dbM.id || `msg_db_${Date.now()}_${Math.random()}`,
+                          sender: dbM.direction === "inbound" || dbM.sender === "customer" ? "customer" : "business",
+                          text: dbM.text,
+                          time: timeStr,
+                          status: (dbM.status as any) || "delivered",
+                          isAutomated: Boolean(dbM.isAutomated),
+                        });
+                      }
+                    });
+
+                    if (newToAdd.length > 0) {
+                      nextMap[cust.id] = [...currentList, ...newToAdd];
+                      hasChanges = true;
+                    }
+                  }
+                });
+                return currentCusts;
+              });
+
+              return hasChanges ? nextMap : prevMap;
+            });
+          }
+        } catch {}
+      };
+
       syncCrmOrders();
-      const interval = setInterval(syncCrmOrders, 3000);
+      syncCrmMessages();
+      const interval = setInterval(() => {
+        syncCrmOrders();
+        syncCrmMessages();
+      }, 3000);
       window.addEventListener("prajnaa_order_placed", syncCrmOrders);
       window.addEventListener("storage", syncCrmOrders);
 
@@ -1312,10 +1435,113 @@ export default function PrajnaaMasterCrmApp() {
     toast.info("Logged out from Prajnaa WhatsApp CRM");
   };
 
+  // Handle Customer Inbound Query & Automatic Instant Reply
+  const handleSendAsCustomer = (customerQueryText: string) => {
+    if (!customerQueryText.trim()) return;
+    const query = customerQueryText.trim();
+    const custName = currentCustomer?.name || "Customer";
+    const custPhone = currentCustomer?.phone || "+91 99999 99999";
+    const ordNum = currentCustomer?.latestOrder?.orderNumber;
+
+    const newCustomerMsg: Message = {
+      id: `msg_cust_${Date.now()}`,
+      sender: "customer",
+      text: query,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      status: "read",
+    };
+
+    setMessagesMap((prev) => ({
+      ...prev,
+      [selectedCustomerId]: [...(prev[selectedCustomerId] || []), newCustomerMsg],
+    }));
+
+    setIsAutoReplying(true);
+
+    // Call server to persist and auto-reply
+    fetch("/api/crm/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: custPhone,
+        text: query,
+        sender: "customer",
+        customerId: selectedCustomerId,
+        customerName: custName,
+        orderNumber: ordNum,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setTimeout(() => {
+          setIsAutoReplying(false);
+          const autoText =
+            data?.autoReply?.text ||
+            generateClientAutoReply(custName, query);
+
+          const autoMsg: Message = {
+            id: data?.autoReply?.id || `msg_auto_${Date.now()}`,
+            sender: "business",
+            text: autoText,
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            status: "read",
+            isAutomated: true,
+          };
+
+          setMessagesMap((prev) => ({
+            ...prev,
+            [selectedCustomerId]: [...(prev[selectedCustomerId] || []), autoMsg],
+          }));
+
+          toast.success(`⚡ Automated reply sent to ${custName}!`, {
+            description: "Instant response sent automatically without manual typing or templates.",
+          });
+        }, 700);
+      })
+      .catch(() => {
+        setTimeout(() => {
+          setIsAutoReplying(false);
+          const autoText = generateClientAutoReply(custName, query);
+          const autoMsg: Message = {
+            id: `msg_auto_${Date.now()}`,
+            sender: "business",
+            text: autoText,
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            status: "read",
+            isAutomated: true,
+          };
+          setMessagesMap((prev) => ({
+            ...prev,
+            [selectedCustomerId]: [...(prev[selectedCustomerId] || []), autoMsg],
+          }));
+          toast.success(`⚡ Automated reply sent to ${custName}!`);
+        }, 700);
+      });
+  };
+
+  const handleSimulateCustomerInquiry = (queryText?: string) => {
+    const defaultQueries = [
+      "Namaste, mera parcel kab tak dispatch hoga aur speed post tracking kab milegi?",
+      "Maine UPI payment kar di hai, check kar lijiye.",
+      "Kya aapke dry fruits aur honey 100% pure Himalayan organic hain?",
+      "Namaste ji, delivery address check kar lijiye please.",
+    ];
+    const textToSend = queryText || defaultQueries[Math.floor(Math.random() * defaultQueries.length)];
+    handleSendAsCustomer(textToSend);
+    setShowSimulateCustomerMenu(false);
+  };
+
   // Handle Send Text Message via Official WhatsApp API
   const handleSendMessage = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputMessage.trim()) return;
+
+    // If staff is testing in Customer Mode, dispatch query and trigger instant auto-reply
+    if (chatSenderMode === "customer") {
+      handleSendAsCustomer(inputMessage.trim());
+      setInputMessage("");
+      return;
+    }
 
     const messageText = inputMessage.trim();
     const newMsg: Message = {
@@ -2290,6 +2516,24 @@ export default function PrajnaaMasterCrmApp() {
                   </div>
 
                   <div className="flex items-center gap-1 md:gap-2 text-neutral-500">
+                    {/* Auto-Responder Active Badge */}
+                    <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[10px] font-subhead font-bold shadow-2xs">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>Auto-Responder: Active</span>
+                    </div>
+
+                    {/* Simulate Customer Query Button */}
+                    <button
+                      type="button"
+                      onClick={() => setShowSimulateCustomerMenu(true)}
+                      className="px-2 md:px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] md:text-xs font-semibold border border-amber-300 transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                      title="Test customer asking something to see instant automated response"
+                    >
+                      <span>💬</span>
+                      <span className="hidden sm:inline">Simulate Customer Ask</span>
+                      <span className="sm:hidden">Test</span>
+                    </button>
+
                     <button
                       onClick={handleSendPaymentQr}
                       className="px-2 md:px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] md:text-xs font-semibold border border-emerald-200 transition flex items-center gap-1 cursor-pointer shadow-2xs"
@@ -2331,6 +2575,12 @@ export default function PrajnaaMasterCrmApp() {
                               isBusiness ? "bg-[#DCF8C6] text-neutral-900 rounded-tr-xs" : "bg-white text-neutral-900 rounded-tl-xs"
                             }`}
                           >
+                            {msg.isAutomated && (
+                              <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-900 pb-1.5 mb-1 border-b border-emerald-300/70 font-subhead">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                                <span>🤖 Automated Response • Instant</span>
+                              </div>
+                            )}
                             <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
                             <div className="flex items-center justify-end gap-1 text-[9px] text-neutral-500 pt-0.5">
                               <span>{msg.time}</span>
@@ -2396,12 +2646,45 @@ export default function PrajnaaMasterCrmApp() {
                       </div>
                     );
                   })}
+
+                  {/* Auto-Responder Realtime Processing Indicator */}
+                  {isAutoReplying && (
+                    <div className="flex justify-end animate-in fade-in duration-200">
+                      <div className="bg-[#DCF8C6]/90 text-neutral-800 rounded-2xl rounded-tr-xs px-4 py-2.5 shadow-2xs flex items-center gap-2 text-xs border border-emerald-300/70">
+                        <div className="flex gap-1 items-center">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-bounce" style={{ animationDelay: "0ms" }} />
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-bounce" style={{ animationDelay: "150ms" }} />
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-bounce" style={{ animationDelay: "300ms" }} />
+                        </div>
+                        <span className="text-[11px] font-semibold text-emerald-950 font-subhead">
+                          Prajnaa Auto-Responder sending reply...
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   <div ref={messagesEndRef} />
                 </div>
 
                 {/* Quick Reply Pills Bar Above Input */}
                 <div className="px-4 py-2 bg-neutral-50/90 border-t border-neutral-200/60 flex items-center gap-2 overflow-x-auto text-[11px] shrink-0 text-neutral-800">
-                  <span className="text-neutral-400 font-bold text-[10px] uppercase">Quick:</span>
+                  <span className="text-neutral-400 font-bold text-[10px] uppercase font-mono">Test Query:</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSimulateCustomerInquiry("Namaste, mera parcel kab tak dispatch hoga?")}
+                    className="px-2.5 py-1 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-semibold text-[11px] shrink-0 cursor-pointer transition flex items-center gap-1 shadow-2xs"
+                    title="Simulate customer asking about parcel dispatch"
+                  >
+                    <span>⚡ "Kab tak dispatch hoga?"</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSimulateCustomerInquiry("Maine UPI payment kar di hai, check kar lijiye")}
+                    className="px-2.5 py-1 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-semibold text-[11px] shrink-0 cursor-pointer transition flex items-center gap-1 shadow-2xs"
+                    title="Simulate customer asking about payment confirmation"
+                  >
+                    <span>⚡ "Payment kar di hai"</span>
+                  </button>
                   <button
                     type="button"
                     onClick={handleSendPaymentQr}
@@ -2583,22 +2866,144 @@ export default function PrajnaaMasterCrmApp() {
                   </div>
                 )}
 
+                {/* MODAL 3: Simulate Customer Query Modal */}
+                {showSimulateCustomerMenu && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+                    onClick={() => setShowSimulateCustomerMenu(false)}
+                  >
+                    <div
+                      className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-neutral-200 dark:border-slate-800 p-5 w-full max-w-lg flex flex-col gap-4 overflow-hidden text-neutral-900 dark:text-white"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-slate-800">
+                        <div>
+                          <h3 className="text-base font-bold flex items-center gap-2">
+                            <span>💬</span> Simulate Customer Inquiry
+                          </h3>
+                          <p className="text-xs text-neutral-500 mt-0.5">
+                            Pick or type what the customer asks. Prajnaa Auto-Responder will answer automatically without typing or templates.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowSimulateCustomerMenu(false)}
+                          className="p-1.5 rounded-full hover:bg-neutral-100 dark:hover:bg-slate-800 text-neutral-400 hover:text-neutral-700 transition cursor-pointer"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider font-mono">Common Questions From Customer</p>
+                        <div
+                          onClick={() => handleSimulateCustomerInquiry("Namaste, mera parcel kab tak dispatch hoga aur speed post tracking kab milegi?")}
+                          className="p-3 rounded-2xl border border-neutral-200 hover:border-amber-500 hover:bg-amber-50/60 transition cursor-pointer space-y-1"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-xs text-neutral-900">📦 Order Dispatch & Speed Post Timeline</span>
+                            <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full">Dispatch</span>
+                          </div>
+                          <p className="text-xs text-neutral-600 font-mono">"Namaste, mera parcel kab tak dispatch hoga aur speed post tracking kab milegi?"</p>
+                        </div>
+
+                        <div
+                          onClick={() => handleSimulateCustomerInquiry("Maine UPI payment kar di hai, check kar lijiye. UTR: 409871239841")}
+                          className="p-3 rounded-2xl border border-neutral-200 hover:border-amber-500 hover:bg-amber-50/60 transition cursor-pointer space-y-1"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-xs text-neutral-900">💳 UPI Payment Done & Verification</span>
+                            <span className="text-[10px] bg-emerald-100 text-emerald-900 font-bold px-2 py-0.5 rounded-full">Payment</span>
+                          </div>
+                          <p className="text-xs text-neutral-600 font-mono">"Maine UPI payment kar di hai, check kar lijiye. UTR: 409871239841"</p>
+                        </div>
+
+                        <div
+                          onClick={() => handleSimulateCustomerInquiry("Kya aapke Shilajit aur Badri cow ghee 100% pure organic hain?")}
+                          className="p-3 rounded-2xl border border-neutral-200 hover:border-amber-500 hover:bg-amber-50/60 transition cursor-pointer space-y-1"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-xs text-neutral-900">🌾 Purity & Himalayan Organic Certificate</span>
+                            <span className="text-[10px] bg-sky-100 text-sky-900 font-bold px-2 py-0.5 rounded-full">Organic</span>
+                          </div>
+                          <p className="text-xs text-neutral-600 font-mono">"Kya aapke Shilajit aur Badri cow ghee 100% pure organic hain?"</p>
+                        </div>
+
+                        <div
+                          onClick={() => handleSimulateCustomerInquiry("Namaste ji, can you please verify my delivery address?")}
+                          className="p-3 rounded-2xl border border-neutral-200 hover:border-amber-500 hover:bg-amber-50/60 transition cursor-pointer space-y-1"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-xs text-neutral-900">📍 General Inquiry / Address Verification</span>
+                            <span className="text-[10px] bg-purple-100 text-purple-900 font-bold px-2 py-0.5 rounded-full">Concierge</span>
+                          </div>
+                          <p className="text-xs text-neutral-600 font-mono">"Namaste ji, can you please verify my delivery address?"</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Chat Bottom Input Bar */}
                 <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-neutral-200/80 flex items-center gap-2 shrink-0">
+                  {/* Sender Mode Toggle */}
+                  <div className="flex items-center gap-0.5 p-0.5 rounded-xl border border-neutral-200 bg-neutral-100/90 shrink-0 text-[11px] font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setChatSenderMode("business")}
+                      className={`px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                        chatSenderMode === "business"
+                          ? "bg-[#0A2E22] text-[#E8A317] font-bold shadow-2xs"
+                          : "text-neutral-500 hover:text-neutral-900"
+                      }`}
+                      title="Send message as Store Concierge Nishant"
+                    >
+                      <span>Store</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChatSenderMode("customer")}
+                      className={`px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                        chatSenderMode === "customer"
+                          ? "bg-amber-600 text-white font-bold shadow-2xs"
+                          : "text-neutral-500 hover:text-neutral-900"
+                      }`}
+                      title="Switch to customer mode to ask anything and test instant automated reply"
+                    >
+                      <span>👤 Customer</span>
+                    </button>
+                  </div>
+
                   <button type="button" className="p-2 rounded-xl text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition cursor-pointer">
                     <Smile className="h-5 w-5" />
                   </button>
                   <input
                     type="text"
-                    placeholder="Type a message..."
+                    placeholder={
+                      chatSenderMode === "customer"
+                        ? `Ask anything as ${currentCustomer?.name || "Customer"} (Auto-reply triggers instantly)...`
+                        : "Type a message as Store..."
+                    }
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
-                    className="flex-1 py-2 px-4 rounded-xl bg-neutral-100/80 border border-neutral-200/60 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition text-neutral-900"
+                    className={`flex-1 py-2 px-4 rounded-xl border text-xs focus:outline-none transition text-neutral-900 ${
+                      chatSenderMode === "customer"
+                        ? "bg-amber-50/50 border-amber-300 focus:ring-2 focus:ring-amber-400/30 focus:border-amber-500"
+                        : "bg-neutral-100/80 border-neutral-200/60 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    }`}
                   />
                   <button type="button" className="p-2 rounded-xl text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition cursor-pointer">
                     <Paperclip className="h-5 w-5" />
                   </button>
-                  <button type="submit" className="h-9 w-9 rounded-full bg-[#0A2E22] hover:bg-[#0E3D2E] text-[#E8A317] flex items-center justify-center shadow-md transition cursor-pointer shrink-0">
+                  <button
+                    type="submit"
+                    className={`h-9 w-9 rounded-full flex items-center justify-center shadow-md transition cursor-pointer shrink-0 ${
+                      chatSenderMode === "customer"
+                        ? "bg-amber-600 hover:bg-amber-700 text-white"
+                        : "bg-[#0A2E22] hover:bg-[#0E3D2E] text-[#E8A317]"
+                    }`}
+                    title={chatSenderMode === "customer" ? "Send customer question" : "Send message"}
+                  >
                     <Send className="h-4 w-4 ml-0.5 text-white" />
                   </button>
                 </form>

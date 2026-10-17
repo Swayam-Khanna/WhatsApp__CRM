@@ -3,7 +3,10 @@ import {
   verifyWebhookSignature,
   parseInboundWebhookPayload,
   getWhatsAppIntegrationStatus,
+  sendWhatsAppTextMessage,
+  generateAutomatedCustomerReply,
 } from "../../../../backend/lib/whatsapp.server.ts";
+import { getDatabase } from "@/lib/mongodb";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +58,7 @@ export async function GET(req: NextRequest) {
 /**
  * POST /api/webhooks/whatsapp
  * Receives inbound customer messages and delivery receipts from Meta WhatsApp Cloud API.
+ * Automatically dispatches instant, template-free replies back to the customer.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -76,18 +80,77 @@ export async function POST(req: NextRequest) {
       globalThis.__globalWhatsAppFeed = [];
     }
 
-    // Process inbound messages
+    let db: any = null;
+    try {
+      db = await getDatabase();
+    } catch (dbErr) {
+      console.warn("[MongoDB] Note: Operating in memory fallback:", dbErr);
+    }
+
+    // 3. Process each inbound customer message & trigger instant automated response
     for (const msg of messages) {
-      console.log(`[WhatsApp Webhook] Received message from ${msg.fromPhone}: ${msg.text}`);
-      globalThis.__globalWhatsAppFeed.unshift({
+      console.log(`[WhatsApp Webhook] Inbound from ${msg.fromPhone}: ${msg.text}`);
+
+      const inboundRecord = {
         id: msg.id,
         direction: "inbound",
+        sender: "customer",
         from: msg.fromPhone,
-        customerName: msg.customerName,
+        to: "917650065690",
+        customerName: msg.customerName || "Customer",
         text: msg.text,
         timestamp: msg.timestamp,
         status: "delivered",
+        createdAt: new Date(),
+      };
+
+      globalThis.__globalWhatsAppFeed.unshift(inboundRecord);
+
+      if (db) {
+        try {
+          await db.collection("crm_messages").insertOne(inboundRecord);
+        } catch (e) {
+          console.warn("[MongoDB] Failed to persist inbound msg:", e);
+        }
+      }
+
+      // Automatically construct tailored Prajnaa automated reply (No manual typing, no template needed)
+      const autoReplyText = generateAutomatedCustomerReply({
+        customerName: msg.customerName,
+        customerQuery: msg.text,
       });
+
+      console.log(`[WhatsApp Webhook] Auto-replying to ${msg.fromPhone}...`);
+      const sendResult = await sendWhatsAppTextMessage({
+        to: msg.fromPhone,
+        text: autoReplyText,
+      });
+
+      const autoReplyRecord = {
+        id: sendResult.messageId || `msg_auto_${Date.now()}`,
+        direction: "outbound",
+        sender: "business",
+        from: "917650065690",
+        to: msg.fromPhone,
+        customerName: msg.customerName || "Customer",
+        text: autoReplyText,
+        timestamp: new Date().toISOString(),
+        status: "sent",
+        isAutomated: true,
+        mode: sendResult.mode,
+        whatsappUrl: sendResult.whatsappUrl || null,
+        createdAt: new Date(),
+      };
+
+      globalThis.__globalWhatsAppFeed.unshift(autoReplyRecord);
+
+      if (db) {
+        try {
+          await db.collection("crm_messages").insertOne(autoReplyRecord);
+        } catch (e) {
+          console.warn("[MongoDB] Failed to persist auto-reply msg:", e);
+        }
+      }
     }
 
     // Process delivery status updates (sent, delivered, read, failed)
@@ -97,10 +160,22 @@ export async function POST(req: NextRequest) {
       if (existing) {
         existing.status = st.status;
       }
+      if (db) {
+        try {
+          await db.collection("crm_messages").updateOne(
+            { id: st.messageId },
+            { $set: { status: st.status, updatedAt: new Date() } }
+          );
+        } catch {}
+      }
     }
 
     // Return 200 OK immediately as required by Meta webhook contract
-    return NextResponse.json({ status: "EVENT_RECEIVED", processedMessages: messages.length });
+    return NextResponse.json({
+      status: "EVENT_RECEIVED",
+      processedMessages: messages.length,
+      autoRepliesSent: messages.length,
+    });
   } catch (err: any) {
     console.error("[WhatsApp Webhook] Error processing event:", err);
     return NextResponse.json({ error: err.message || "Webhook processing failed" }, { status: 500 });
