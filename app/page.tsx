@@ -736,19 +736,19 @@ export default function PrajnaaMasterCrmApp() {
   const [currentTheme, setCurrentTheme] = useState<ThemeMode>("forest");
   const [showThemeMenu, setShowThemeMenu] = useState<boolean>(false);
 
-  // Authentication State
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  // Authentication State (MANDATORY LOGIN: Users MUST authenticate before accessing CRM)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
 
-  // Current Logged-in User (Defaults to Admin)
+  // Current Logged-in User
   const [currentUser, setCurrentUser] = useState<TeamMember>(INITIAL_TEAM[0]);
 
-  // Auth Form State
-  const [authEmail, setAuthEmail] = useState("admin@prajnaamarket.com");
-  const [authPassword, setAuthPassword] = useState("adminPrajnaa#2024");
-  const [rememberMe, setRememberMe] = useState(true);
+  // Auth Form State (Empty by default for clean staff login)
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
 
   // Navigation (Filtered by User's Work Area / Role)
   const [activeNav, setActiveNav] = useState<string>("dashboard");
@@ -1578,32 +1578,12 @@ export default function PrajnaaMasterCrmApp() {
               </div>
               <h3 className="text-2xl font-bold tracking-tight font-display">Staff Sign In</h3>
               <p className="text-xs text-neutral-500 font-sans">
-                Only users registered in the CRM team can sign in
+                Enter your authorized credentials to access your CRM workspace
               </p>
             </div>
 
-            {/* Quick Demo Switcher (For Testing Each Work Area) */}
-            <div className="space-y-1.5 bg-neutral-50 p-3 rounded-2xl border border-neutral-200">
-              <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">
-                ⚡ Test Work Area Sign-In (Select Role):
-              </span>
-              <div className="grid grid-cols-2 gap-1.5 text-[11px] font-semibold">
-                {teamMembers.slice(0, 4).map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => handleQuickLoginAs(m)}
-                    className="p-2 rounded-xl bg-white hover:bg-emerald-50 hover:text-emerald-900 border border-neutral-200 text-left transition truncate cursor-pointer shadow-2xs"
-                  >
-                    <span className="font-bold block truncate">{m.name}</span>
-                    <span className="text-[10px] text-neutral-500 block truncate">{m.role}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Login Form */}
-            <form onSubmit={handleAuthSubmit} className="space-y-3.5 text-xs">
+            <form onSubmit={handleAuthSubmit} className="space-y-4 text-xs">
               <div className="space-y-1">
                 <label className="font-bold text-neutral-700">Team Email Address</label>
                 <div className="relative">
