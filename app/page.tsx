@@ -1519,17 +1519,11 @@ export default function PrajnaaMasterCrmApp() {
 
           {/* Top Brand Logo */}
           <div className="relative z-10 flex items-center gap-3.5">
-            <div className="h-12 w-12 rounded-2xl bg-white shadow-xl flex items-center justify-center border border-emerald-100">
-              <span className="text-2xl">🌿</span>
-            </div>
-            <div>
-              <h1 className="font-serif font-extrabold text-2xl tracking-tight text-white flex items-center gap-2">
-                Prajnaa Market
-              </h1>
-              <p className="text-xs text-amber-200/90 font-medium tracking-wide">
-                Pure from the Himalayas
-              </p>
-            </div>
+            <img
+              src="/prajnaa-logo.png"
+              alt="Prajnaa Market Logo"
+              className="h-14 w-auto object-contain filter drop-shadow-md brightness-105"
+            />
           </div>
 
           {/* Center Hero Heading */}
@@ -1538,7 +1532,7 @@ export default function PrajnaaMasterCrmApp() {
               <ShieldCheck className="h-3.5 w-3.5 text-amber-300" />
               <span>Team-Only Access Control Active</span>
             </div>
-            <h2 className="font-serif text-4xl xl:text-5xl font-extrabold text-white leading-[1.15] tracking-tight">
+            <h2 className="font-display text-4xl xl:text-5xl font-extrabold text-white leading-[1.15] tracking-tight">
               Prajnaa Market <br />
               <span className="text-amber-300">WhatsApp CRM</span>
             </h2>
@@ -1574,12 +1568,16 @@ export default function PrajnaaMasterCrmApp() {
         {/* Right Side: Auth Form Card */}
         <div className="w-full lg:w-5/12 flex flex-col justify-center items-center p-8 sm:p-12 overflow-y-auto">
           <div className="w-full max-w-md bg-white rounded-3xl p-8 sm:p-10 shadow-xl border border-neutral-200/80 space-y-5 text-neutral-900">
-            <div className="text-center space-y-1">
-              <div className="inline-flex p-3 rounded-2xl bg-emerald-50 text-emerald-700 mb-1 border border-emerald-100">
-                <Lock className="h-6 w-6" />
+            <div className="text-center space-y-2">
+              <div className="flex justify-center mb-1">
+                <img
+                  src="/prajnaa-logo.png"
+                  alt="Prajnaa Market Logo"
+                  className="h-10 w-auto object-contain"
+                />
               </div>
-              <h3 className="text-2xl font-bold tracking-tight font-serif">Staff Sign In</h3>
-              <p className="text-xs text-neutral-500">
+              <h3 className="text-2xl font-bold tracking-tight font-display">Staff Sign In</h3>
+              <p className="text-xs text-neutral-500 font-sans">
                 Only users registered in the CRM team can sign in
               </p>
             </div>
@@ -1713,22 +1711,16 @@ export default function PrajnaaMasterCrmApp() {
         <div className="flex flex-col flex-1 overflow-y-auto">
           {/* Brand Header with Mobile Close Button */}
           <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-xl bg-white flex items-center justify-center shadow-md shrink-0">
-                <span className="text-xl">🌿</span>
-              </div>
-              <div>
-                <h1 className="font-serif font-bold text-base leading-tight tracking-tight text-white flex items-center gap-1.5">
-                  Prajnaa Market
-                </h1>
-                <p className="text-[10px] text-amber-200/80 font-medium tracking-wide">
-                  Pure from the Himalayas
-                </p>
-              </div>
+            <div className="flex items-center gap-2.5">
+              <img
+                src="/prajnaa-logo.png"
+                alt="Prajnaa Market Logo"
+                className="h-9 w-auto max-w-[170px] object-contain filter brightness-110 drop-shadow-xs"
+              />
             </div>
             <button
               onClick={() => setMobileMenuOpen(false)}
-              className="md:hidden p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition"
+              className="md:hidden p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition cursor-pointer"
               title="Close menu"
             >
               <X className="h-5 w-5" />
@@ -1897,10 +1889,10 @@ export default function PrajnaaMasterCrmApp() {
           </div>
 
           <div className="text-center relative z-10 space-y-0.5">
-            <p className="text-[10px] font-medium text-amber-200/90 tracking-wider uppercase font-serif">
+            <p className="text-[10px] font-semibold text-amber-200/90 tracking-wider uppercase font-subhead">
               Natural Products
             </p>
-            <p className="text-[9px] text-emerald-200/70">
+            <p className="text-[9px] text-emerald-200/70 font-sans">
               Healthy Living • Stronger Communities
             </p>
           </div>
@@ -1921,9 +1913,12 @@ export default function PrajnaaMasterCrmApp() {
             >
               <Menu className="h-5 w-5" />
             </button>
-            <div className="md:hidden flex items-center gap-1.5 font-bold text-xs text-neutral-900">
-              <span className="text-base">🌿</span>
-              <span className="truncate max-w-[100px]">Prajnaa CRM</span>
+            <div className="md:hidden flex items-center">
+              <img
+                src="/prajnaa-logo.png"
+                alt="Prajnaa Market"
+                className="h-7 w-auto object-contain"
+              />
             </div>
             <div className="relative hidden sm:block w-[220px] md:w-[320px]">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
