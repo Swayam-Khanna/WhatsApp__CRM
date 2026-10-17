@@ -2460,142 +2460,161 @@ export default function PrajnaaMasterCrmApp() {
                   >
                     🚚 Send Speed Post ID
                   </button>
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setShowCatalogQuoteMenu(!showCatalogQuoteMenu)}
-                      className="px-2.5 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold text-xs shrink-0 cursor-pointer transition flex items-center gap-1 shadow-2xs"
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCatalogQuoteMenu(true);
+                      setShowQuickTemplatesMenu(false);
+                    }}
+                    className="px-2.5 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold text-xs shrink-0 cursor-pointer transition flex items-center gap-1 shadow-2xs"
+                  >
+                    🍯 Quick Quote ({productsList.length} Products) ▾
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQuickTemplatesMenu(true);
+                      setShowCatalogQuoteMenu(false);
+                    }}
+                    className="px-2.5 py-1 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-semibold text-xs shrink-0 cursor-pointer transition flex items-center gap-1 shadow-2xs"
+                  >
+                    ⚡ Templates ({templatesList.length}) ▾
+                  </button>
+                </div>
+
+                {/* MODAL 1: Quick Product Quote Dialog (Fixed viewport overlay, never clipped) */}
+                {showCatalogQuoteMenu && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+                    onClick={() => setShowCatalogQuoteMenu(false)}
+                  >
+                    <div
+                      className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-neutral-200 dark:border-slate-800 p-4 sm:p-5 w-full max-w-lg max-h-[85vh] flex flex-col gap-3 overflow-hidden text-neutral-900 dark:text-white"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      🍯 Quick Quote (14 Products) ▾
-                    </button>
-
-                    {showCatalogQuoteMenu && (
-                      <div className="fixed sm:absolute bottom-16 sm:bottom-full left-4 sm:left-0 mb-2 w-[calc(100vw-32px)] sm:w-80 max-h-80 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-neutral-200 dark:border-slate-800 p-2.5 z-50 flex flex-col gap-1.5 overflow-hidden">
-                        <div className="flex items-center justify-between pb-1.5 border-b border-neutral-100 dark:border-slate-800">
-                          <span className="text-[11px] font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1">
-                            🌿 Authoritative Himalayan Catalogue
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setShowCatalogQuoteMenu(false)}
-                            className="text-neutral-400 hover:text-neutral-600 text-xs font-bold"
-                          >
-                            ✕
-                          </button>
+                      <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-slate-800">
+                        <div>
+                          <h3 className="text-sm sm:text-base font-bold flex items-center gap-2">
+                            <span>🌿</span> Himalayan Harvest Catalogue ({productsList.length} Products)
+                          </h3>
+                          <p className="text-[11px] text-neutral-500 mt-0.5">
+                            Tap any product to insert an authoritative WhatsApp quote into chat
+                          </p>
                         </div>
-
-                        <div className="overflow-y-auto max-h-64 space-y-1 pr-1">
-                          {productsList.map((p) => (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() => {
-                                setInputMessage(
-                                  `Namaste ${currentCustomer.name} ji! Hamare ${p.name} (${p.origin}) ka price ₹${p.price} (${p.weight || "500g"}) hai. Current Availability: ${p.stock} (${p.unitsLeft} units left). Pure Himalayan harvest direct from our farms! 🙏`
-                                );
-                                setShowCatalogQuoteMenu(false);
-                                toast.success(`Quoted ${p.name} (₹${p.price}) in chat!`);
-                              }}
-                              className="w-full text-left p-2 rounded-xl hover:bg-emerald-50/80 dark:hover:bg-slate-800 transition flex items-center justify-between gap-2 border border-transparent hover:border-emerald-200 group cursor-pointer"
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-base">{p.image}</span>
-                                <div className="truncate">
-                                  <p className="text-xs font-bold text-neutral-900 dark:text-white truncate group-hover:text-emerald-800">
-                                    {p.name}
-                                  </p>
-                                  <p className="text-[10px] text-neutral-500 truncate">
-                                    {p.weight || "500g"} • {p.origin}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="text-right shrink-0">
-                                <span className="text-xs font-extrabold text-neutral-900 dark:text-white block">
-                                  ₹{p.price}
-                                </span>
-                                <span
-                                  className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                                    p.stock === "In Stock"
-                                      ? "bg-emerald-100 text-emerald-800"
-                                      : p.stock === "Pre-Order"
-                                      ? "bg-purple-100 text-purple-800"
-                                      : "bg-rose-100 text-rose-800"
-                                  }`}
-                                >
-                                  {p.stock}
-                                </span>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowCatalogQuoteMenu(false)}
+                          className="p-1.5 rounded-full hover:bg-neutral-100 dark:hover:bg-slate-800 text-neutral-400 hover:text-neutral-700 transition cursor-pointer"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
                       </div>
-                    )}
-                  </div>
 
-                    {/* Quick Templates Popover */}
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowQuickTemplatesMenu(!showQuickTemplatesMenu);
-                          setShowCatalogQuoteMenu(false);
-                        }}
-                        className="px-2.5 py-1 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-semibold text-xs shrink-0 cursor-pointer transition flex items-center gap-1 shadow-2xs"
-                      >
-                        ⚡ Templates ({templatesList.length}) ▾
-                      </button>
-
-                      {showQuickTemplatesMenu && (
-                        <div className="fixed sm:absolute bottom-16 sm:bottom-full left-4 sm:left-0 mb-2 w-[calc(100vw-32px)] sm:w-96 max-h-96 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-neutral-200 dark:border-slate-800 p-3 z-50 flex flex-col gap-2 overflow-hidden">
-                          <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-slate-800">
-                            <div>
-                              <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5">
-                                📋 Pre-Approved WhatsApp Templates
-                              </span>
-                              <p className="text-[10px] text-neutral-500">
-                                Auto-interpolates order #{currentCustomer.latestOrder.orderNumber} & customer name
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setShowQuickTemplatesMenu(false)}
-                              className="text-neutral-400 hover:text-neutral-600 text-xs font-bold p-1"
-                            >
-                              ✕
-                            </button>
-                          </div>
-
-                          <div className="overflow-y-auto max-h-72 space-y-1.5 pr-1">
-                            {templatesList.map((tpl) => (
-                              <button
-                                key={tpl.id}
-                                type="button"
-                                onClick={() => {
-                                  const personalized = interpolateCustomerTemplate(tpl.message, currentCustomer);
-                                  setInputMessage(personalized);
-                                  setShowQuickTemplatesMenu(false);
-                                  toast.success(`Inserted "${tpl.name}" into message input!`);
-                                }}
-                                className="w-full text-left p-2.5 rounded-xl border border-neutral-100 dark:border-slate-800 hover:border-emerald-300 hover:bg-emerald-50/50 dark:hover:bg-slate-800/80 transition space-y-1 cursor-pointer group"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs font-bold text-neutral-900 dark:text-white group-hover:text-emerald-800">
-                                    {tpl.name}
-                                  </span>
-                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-neutral-100 dark:bg-slate-800 text-neutral-600 dark:text-slate-400">
-                                    {tpl.category}
-                                  </span>
-                                </div>
-                                <p className="text-[11px] text-neutral-600 dark:text-slate-300 line-clamp-2 leading-relaxed">
-                                  {interpolateCustomerTemplate(tpl.message, currentCustomer)}
+                      <div className="overflow-y-auto max-h-[65vh] space-y-2 pr-1 divide-y divide-neutral-100 dark:divide-slate-800">
+                        {productsList.map((p) => (
+                          <div
+                            key={p.id}
+                            onClick={() => {
+                              setInputMessage(
+                                `Namaste ${currentCustomer.name} ji! Hamare ${p.name} (${p.origin}) ka price ₹${p.price} (${p.weight || "Pack"}) hai. Current Availability: ${p.stock} (${p.unitsLeft} units left). Pure Himalayan harvest direct from our farms! 🙏`
+                              );
+                              setShowCatalogQuoteMenu(false);
+                              toast.success(`Inserted quote for ${p.name} into WhatsApp message!`);
+                            }}
+                            className="pt-2 first:pt-0 p-2 rounded-2xl hover:bg-emerald-50/70 dark:hover:bg-slate-800/60 transition flex items-center justify-between gap-3 cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className="text-3xl shrink-0 p-1.5 rounded-xl bg-neutral-100 dark:bg-slate-800">{p.image}</span>
+                              <div className="truncate">
+                                <p className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400">
+                                  {p.name}
                                 </p>
-                              </button>
-                            ))}
+                                <p className="text-[11px] text-neutral-500 dark:text-slate-400 truncate">
+                                  {p.weight || "500g"} • {p.origin}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-sm font-extrabold text-neutral-900 dark:text-white block font-mono">
+                                ₹{p.price}
+                              </span>
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  p.stock === "In Stock"
+                                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
+                                    : p.stock === "Pre-Order"
+                                    ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300"
+                                    : "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300"
+                                }`}
+                              >
+                                {p.stock}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        ))}
+                      </div>
                     </div>
                   </div>
+                )}
+
+                {/* MODAL 2: Quick Templates Dialog (Fixed viewport overlay, never clipped) */}
+                {showQuickTemplatesMenu && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+                    onClick={() => setShowQuickTemplatesMenu(false)}
+                  >
+                    <div
+                      className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-neutral-200 dark:border-slate-800 p-4 sm:p-5 w-full max-w-lg max-h-[85vh] flex flex-col gap-3 overflow-hidden text-neutral-900 dark:text-white"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-slate-800">
+                        <div>
+                          <h3 className="text-sm sm:text-base font-bold flex items-center gap-2">
+                            <span>📋</span> WhatsApp Templates ({templatesList.length})
+                          </h3>
+                          <p className="text-[11px] text-neutral-500 mt-0.5">
+                            Auto-personalized for {currentCustomer.name} (#{currentCustomer.latestOrder.orderNumber})
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowQuickTemplatesMenu(false)}
+                          className="p-1.5 rounded-full hover:bg-neutral-100 dark:hover:bg-slate-800 text-neutral-400 hover:text-neutral-700 transition cursor-pointer"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
+                      </div>
+
+                      <div className="overflow-y-auto max-h-[65vh] space-y-2.5 pr-1">
+                        {templatesList.map((tpl) => (
+                          <div
+                            key={tpl.id}
+                            onClick={() => {
+                              const personalized = interpolateCustomerTemplate(tpl.message, currentCustomer);
+                              setInputMessage(personalized);
+                              setShowQuickTemplatesMenu(false);
+                              toast.success(`Inserted "${tpl.name}" into WhatsApp message!`);
+                            }}
+                            className="p-3 rounded-2xl border border-neutral-200 dark:border-slate-800 hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-slate-800/80 transition space-y-1.5 cursor-pointer group"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-400">
+                                {tpl.name}
+                              </span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-slate-800 text-neutral-600 dark:text-slate-300">
+                                {tpl.category}
+                              </span>
+                            </div>
+                            <p className="text-xs text-neutral-600 dark:text-slate-300 line-clamp-3 leading-relaxed whitespace-pre-line">
+                              {interpolateCustomerTemplate(tpl.message, currentCustomer)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Chat Bottom Input Bar */}
                 <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-neutral-200/80 flex items-center gap-2 shrink-0">
