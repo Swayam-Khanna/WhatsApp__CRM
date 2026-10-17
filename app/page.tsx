@@ -1462,15 +1462,15 @@ export default function PrajnaaMasterCrmApp() {
   // Theme Styling Classes Configuration
   const themeStyles = {
     forest: {
-      sidebarBg: "bg-[#0E382B] text-white border-[#09281F]",
-      sidebarHover: "hover:bg-white/10 text-emerald-100/70",
-      sidebarActive: "bg-white/15 text-white shadow-xs font-bold",
-      mainBg: "bg-[#F8F9FA] text-[#1F2937]",
-      headerBg: "bg-white/95 backdrop-blur-md border-neutral-200/80",
-      cardBg: "bg-white border-neutral-200/80",
-      accentPill: "bg-emerald-600 text-white",
-      badgeText: "text-emerald-700",
-      name: "Himalayan Forest (Default)",
+      sidebarBg: "bg-[#0F3D2E] text-white border-[#0B2E23]",
+      sidebarHover: "hover:bg-white/10 text-emerald-100/80",
+      sidebarActive: "bg-white/15 text-white shadow-xs font-semibold",
+      mainBg: "bg-[#F7F3EE] text-[#111827]",
+      headerBg: "bg-white/95 backdrop-blur-md border-[#EAE4DC]",
+      cardBg: "bg-white border-[#EAE4DC]",
+      accentPill: "bg-[#0F3D2E] text-white",
+      badgeText: "text-[#0F3D2E]",
+      name: "Prajnaa Forest & Cream (Default)",
     },
     dark: {
       sidebarBg: "bg-[#0B141A] text-slate-100 border-slate-800",
@@ -1514,8 +1514,8 @@ export default function PrajnaaMasterCrmApp() {
     return (
       <div className={`flex min-h-screen w-screen ${themeStyles.mainBg} font-sans antialiased overflow-hidden`}>
         {/* Left Side: Himalayan Landscape & Prajnaa Brand Hero */}
-        <div className="hidden lg:flex lg:w-7/12 relative flex-col justify-between p-12 overflow-hidden bg-gradient-to-br from-[#0B3527] via-[#0E4231] to-[#061F16] text-white">
-          <div className="absolute inset-0 pointer-events-none opacity-40 mix-blend-screen bg-[radial-gradient(#FBBF24_1px,transparent_1px)] [background-size:24px_24px]" />
+        <div className="hidden lg:flex lg:w-7/12 relative flex-col justify-between p-12 overflow-hidden bg-gradient-to-br from-[#0F3D2E] via-[#144A39] to-[#0A261D] text-white">
+          <div className="absolute inset-0 pointer-events-none opacity-40 mix-blend-screen bg-[radial-gradient(#E8A317_1px,transparent_1px)] [background-size:24px_24px]" />
 
           {/* Top Brand Logo */}
           <div className="relative z-10 flex items-center gap-3.5">
@@ -1665,7 +1665,7 @@ export default function PrajnaaMasterCrmApp() {
 
               <button
                 type="submit"
-                className="w-full py-3 bg-[#0E382B] hover:bg-[#144C3B] text-white rounded-xl text-xs font-bold transition shadow-md flex items-center justify-center gap-2 cursor-pointer mt-1"
+                className="w-full py-3 bg-[#0F3D2E] hover:bg-[#154E3B] text-white rounded-xl text-xs font-semibold font-subhead transition shadow-md flex items-center justify-center gap-2 cursor-pointer mt-1"
               >
                 <span>Sign In to Your Work Area</span>
                 <ArrowRight className="h-4 w-4" />
