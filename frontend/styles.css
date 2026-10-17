@@ -381,28 +381,14 @@
   scrollbar-width: none !important;
 }
 
-/* Visible, smooth custom scrollbars */
-.custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(15, 61, 46, 0.35) rgba(0, 0, 0, 0.04);
-}
-
-.custom-scrollbar::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.03);
-  border-radius: 9999px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(15, 61, 46, 0.3);
-  border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(15, 61, 46, 0.55);
+/* Hide Next.js Development Indicator Badge ('N' icon / route inspector) */
+nextjs-portal,
+#__next-build-watcher,
+[data-nextjs-dev-indicators],
+[data-nextjs-toast],
+div[data-nextjs-dialog-overlay] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }

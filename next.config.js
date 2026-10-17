@@ -21,6 +21,7 @@ if (!appUrl || appUrl.includes("localhost") || appUrl.includes("127.0.0.1")) {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  devIndicators: false,
   output: process.env.DOCKER_BUILD === "true" ? "standalone" : undefined,
   serverExternalPackages: ["pdfkit", "jwks-rsa"],
   env: {
