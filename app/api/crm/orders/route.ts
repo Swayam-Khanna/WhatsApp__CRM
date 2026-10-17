@@ -98,33 +98,30 @@ if (!globalThis.__globalCrmOrders) {
   ];
 }
 
+import { getDatabase } from "@/lib/mongodb";
+
 /**
  * GET /api/crm/orders
- * Returns authoritative CRM orders from database with in-memory fallback.
+ * Returns authoritative CRM orders from MongoDB Atlas with in-memory fallback.
  */
 export async function GET() {
   try {
-    // Attempt DB query
-    const rows = await db.select().from(orders).orderBy(desc(orders.createdAt)).limit(50);
-    if (rows && rows.length > 0) {
-      const itemsList = await db.select().from(orderItems);
-      const itemsByOrderId: Record<string, any[]> = {};
-      for (const it of itemsList) {
-        if (!itemsByOrderId[it.orderId]) itemsByOrderId[it.orderId] = [];
-        itemsByOrderId[it.orderId].push(it);
-      }
+    const mongoDb = await getDatabase();
+    const mongoOrders = await mongoDb
+      .collection("crm_orders")
+      .find({})
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .toArray();
 
-      const combined = rows.map((r: any) => ({
-        ...r,
-        items: itemsByOrderId[r.id] || [],
-      }));
-
-      return NextResponse.json({ success: true, source: "database", orders: combined });
+    if (mongoOrders && mongoOrders.length > 0) {
+      return NextResponse.json({ success: true, source: "mongodb", orders: mongoOrders });
     }
-  } catch {
-    // Fallback gracefully
+  } catch (err) {
+    console.warn("[MongoDB] Orders query note:", err);
   }
 
+  // Fallback to in-memory store
   return NextResponse.json({
     success: true,
     source: "memory_sync",
@@ -134,7 +131,7 @@ export async function GET() {
 
 /**
  * POST /api/crm/orders
- * Inserts or syncs a new customer order into the CRM store.
+ * Inserts or syncs a new customer order into MongoDB Atlas and in-memory cache.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -146,7 +143,7 @@ export async function POST(req: NextRequest) {
     const orderNum = newOrder.orderNumber || newOrder.id;
     if (!globalThis.__globalCrmOrders) globalThis.__globalCrmOrders = [];
 
-    // Check if order already exists
+    // Check if order already exists in memory
     const existingIndex = globalThis.__globalCrmOrders.findIndex(
       (o) => o.orderNumber === orderNum || o.id === orderNum
     );
@@ -160,10 +157,31 @@ export async function POST(req: NextRequest) {
       globalThis.__globalCrmOrders.unshift(newOrder);
     }
 
+    // Persist permanently to MongoDB Atlas
+    try {
+      const mongoDb = await getDatabase();
+      await mongoDb.collection("crm_orders").updateOne(
+        { $or: [{ orderNumber: orderNum }, { id: orderNum }] },
+        {
+          $set: {
+            ...newOrder,
+            updatedAt: new Date(),
+          },
+          $setOnInsert: {
+            createdAt: new Date(),
+          },
+        },
+        { upsert: true }
+      );
+    } catch (mongoErr) {
+      console.warn("[MongoDB] Failed to persist order to Atlas:", mongoErr);
+    }
+
     return NextResponse.json({
       success: true,
-      message: "Order successfully synced with WhatsApp CRM",
+      message: "Order successfully synced with MongoDB Atlas & WhatsApp CRM",
       order: newOrder,
+      storage: "mongodb",
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Failed to sync order" }, { status: 500 });

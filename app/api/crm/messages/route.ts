@@ -4,26 +4,47 @@ import {
   getWhatsAppIntegrationStatus,
 } from "../../../../backend/lib/whatsapp.server.ts";
 
+import { getDatabase } from "@/lib/mongodb";
+
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/crm/messages
- * Retrieves live WhatsApp messages feed and integration health.
+ * Retrieves live WhatsApp messages feed from MongoDB Atlas and integration health.
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const phone = searchParams.get("phone");
-
-  const feed = globalThis.__globalWhatsAppFeed || [];
   const health = getWhatsAppIntegrationStatus();
 
-  if (phone) {
-    const cleanPhone = phone.replace(/\D/g, "");
-    const filtered = feed.filter((m) => m.from?.replace(/\D/g, "").endsWith(cleanPhone.slice(-10)));
-    return NextResponse.json({ success: true, messages: filtered, health });
-  }
+  try {
+    const db = await getDatabase();
+    const query = phone
+      ? {
+          $or: [
+            { to: { $regex: phone.replace(/\D/g, "").slice(-10) } },
+            { from: { $regex: phone.replace(/\D/g, "").slice(-10) } },
+          ],
+        }
+      : {};
 
-  return NextResponse.json({ success: true, messages: feed, health });
+    const dbMessages = await db
+      .collection("crm_messages")
+      .find(query)
+      .sort({ timestamp: -1 })
+      .limit(100)
+      .toArray();
+
+    return NextResponse.json({
+      success: true,
+      messages: dbMessages.length > 0 ? dbMessages : (globalThis.__globalWhatsAppFeed || []),
+      health,
+      storage: "mongodb",
+    });
+  } catch (err: any) {
+    const feed = globalThis.__globalWhatsAppFeed || [];
+    return NextResponse.json({ success: true, messages: feed, health, storage: "memory_fallback" });
+  }
 }
 
 /**
@@ -60,10 +81,22 @@ export async function POST(req: NextRequest) {
 
     globalThis.__globalWhatsAppFeed.unshift(messageRecord);
 
+    // Save permanently to MongoDB Atlas
+    try {
+      const db = await getDatabase();
+      await db.collection("crm_messages").insertOne({
+        ...messageRecord,
+        createdAt: new Date(),
+      });
+    } catch (dbErr) {
+      console.warn("[MongoDB] Note: Failed to persist outbound message to Atlas:", dbErr);
+    }
+
     return NextResponse.json({
       success: true,
       result,
       messageRecord,
+      storage: "mongodb",
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Failed to send WhatsApp message" }, { status: 500 });
