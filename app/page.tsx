@@ -4092,9 +4092,9 @@ export default function PrajnaaMasterCrmApp() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-100">
-                      {shipments.map((s) => (
+                      {shipments.map((s, idx) => (
                         <tr
-                          key={s.trackingId}
+                          key={`${s.orderId || "ship"}_${s.trackingId}_${idx}`}
                           onClick={() => setSelectedShipment(s)}
                           className={`hover:bg-neutral-50 cursor-pointer transition ${
                             selectedShipment.trackingId === s.trackingId ? "bg-emerald-50/60" : ""

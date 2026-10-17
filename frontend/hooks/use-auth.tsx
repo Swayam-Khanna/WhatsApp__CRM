@@ -91,8 +91,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           void useWishlist.getState().setUser(null);
         } catch (e) {}
       }
-    } catch (err) {
-      console.warn("[Neon Auth] Session fetch error:", err);
+    } catch (err: any) {
+      // Clean fallback if auth endpoint is unconfigured or returns 404
+      if (err?.status !== 404 && err?.statusCode !== 404) {
+        console.debug("[Neon Auth] Session status:", err?.message || err);
+      }
       setUserProfile(null);
     } finally {
       setLoading(false);
