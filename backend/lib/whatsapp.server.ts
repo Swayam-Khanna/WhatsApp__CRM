@@ -224,115 +224,101 @@ export function generateAutomatedCustomerReply(params: {
   orderNumber?: string;
   orderTotal?: number;
 }): string {
-  const query = (params.customerQuery || "").toLowerCase();
+  const query = (params.customerQuery || "").toLowerCase().trim();
   const name = params.customerName && params.customerName !== "Customer" ? `${params.customerName} ji` : "ji";
 
-  // Case 1: Payment, QR, UPI, Transfer confirmation questions
+  // 1. Order Cancellation
+  if (query.includes("cancel") || query.includes("radd")) {
+    return `Namaste ${name}! 🙏 Agar aapka parcel abhi dispatch nahi hua hai, toh order cancel ho sakta hai. Kripya apna Order ID confirm kar dijiye, hum turant cancellation update kar denge.`;
+  }
+
+  // 2. Address Change / Update
+  if (query.includes("address") || query.includes("pata") || query.includes("location") || query.includes("pincode change") || query.includes("galat address")) {
+    return `Namaste ${name}! 🙏 Ji bilkul, agar parcel dispatch nahi hua hai toh address update ho jayega. Kripya apna naya complete delivery address aur pincode yahan send kar dijiye.`;
+  }
+
+  // 3. Cash on Delivery (COD)
+  if (query.includes("cod") || query.includes("cash on delivery") || query.includes("pay on delivery") || query.includes("deliver hone par paise")) {
+    return `Namaste ${name}! 🙏 Selected pincodes par Cash on Delivery (COD) uplabdh hai. Aap apna delivery pincode share kar dijiye, hum turant check karke bata denge.`;
+  }
+
+  // 4. Refund / Return / Money Back
+  if (query.includes("refund") || query.includes("wapas") || query.includes("return") || query.includes("money back")) {
+    return `Namaste ${name}! 🙏 Refund approve hone ke baad 3–5 working days ke andar aapke original bank account ya UPI source me paise credit ho jate hain.`;
+  }
+
+  // 5. Payment, Screenshot, UPI confirmation
   if (
     query.includes("payment") ||
-    query.includes("pay") ||
+    query.includes("screenshot") ||
     query.includes("upi") ||
     query.includes("qr") ||
-    query.includes("screenshot") ||
     query.includes("utr") ||
+    query.includes("pay") ||
     query.includes("paise") ||
-    query.includes("rupaye") ||
     query.includes("transferred")
   ) {
-    return [
-      `Namaste ${name}! 🙏`,
-      ``,
-      `Aapka payment message Prajnaa Market ko mil gaya hai.`,
-      ``,
-      `💳 *Payment Verification Desk:*`,
-      `• Agar aapne UPI ya bank transfer kiya hai, toh kripya uska screenshot ya UTR number isi chat par share kar dijiye.`,
-      `• Official Prajnaa UPI: \`prajnaa@upi\``,
-      ``,
-      `Hamare Store Admin Nishant ji abhi records verify karke aapka order status update kar rahe hain. Verification complete hote hi packaging team ko clearance mil jayegi. 🌿`,
-      ``,
-      `Dhanyavaad ji! 🏔️`,
-      `*Team Prajnaa Market*`,
-    ].join("\n");
+    return `Namaste ${name}! 🙏 Agar aapne payment kar di hai, toh kripya payment ka screenshot ya transaction UTR number isi chat par share kar dijiye. Nishant ji verify karke turant confirm kar denge. (Official UPI: prajnaa@upi)`;
   }
 
-  // Case 2: Delivery, Dispatch, Speed Post Tracking, Courier status
+  // 6. Delivery Timeline ("Kab aayega?" / "Kitne din lagenge?")
   if (
+    query.includes("kab tak") ||
+    query.includes("when will") ||
+    query.includes("kab aayega") ||
+    query.includes("aayega") ||
     query.includes("deliver") ||
+    query.includes("reach") ||
+    query.includes("kitne din") ||
+    query.includes("delivery time")
+  ) {
+    return `Namaste ${name}! 🙏 Prajnaa organic products ki fresh artisan packing me 2–3 din lagte hain, aur dispatch hone ke baad 3–5 working days me Speed Post se parcel aapke address par deliver ho jata hai.`;
+  }
+
+  // 7. Dispatch Status & Tracking ("Dispatch hua kya?" / "Tracking number")
+  if (
     query.includes("dispatch") ||
     query.includes("track") ||
-    query.includes("status") ||
-    query.includes("kab") ||
-    query.includes("kahan") ||
+    query.includes("tracking") ||
     query.includes("speed post") ||
-    query.includes("courier") ||
-    query.includes("aayega") ||
-    query.includes("when") ||
-    query.includes("reach")
+    query.includes("consignment") ||
+    query.includes("courier")
   ) {
-    return [
-      `Namaste ${name}! 🙏`,
-      ``,
-      `Aapke order status ka sandesh prapt hua hai.`,
-      ``,
-      `📦 *Dispatch & Shipping Update:*`,
-      `• Prajnaa Market ke sabhi shuddh Himalayan organic utpaad high-altitude certified pahadi farmers se fresh pack hote hain.`,
-      `• Packaging & quality inspection standard timeline: *2 se 3 working days*.`,
-      `• Jaise hi parcel India Post Speed Post ko handover hoga, aapko tracking consignment number (ED...IN) isi WhatsApp par send kar diya jayega.`,
-      ``,
-      `Hamare Store Concierge Nishant ji dispatch register inspect kar rahe hain. 🚚`,
-      ``,
-      `Dhanyavaad ji! 🌿`,
-      `*Team Prajnaa Market*`,
-    ].join("\n");
+    return `Namaste ${name}! 🙏 Jaise hi parcel dispatch hota hai, India Post Speed Post tracking number (ED...IN) automatically aapko isi WhatsApp par mil jayega, jise aap indiapost.gov.in par live track kar sakte hain.`;
   }
 
-  // Case 3: Quality, Organic, Freshness, Farm origin
+  // 8. Product Purity, Organic Quality, Farm Origin
   if (
     query.includes("organic") ||
     query.includes("pure") ||
-    query.includes("quality") ||
     query.includes("asli") ||
     query.includes("chemical") ||
-    query.includes("farm") ||
+    query.includes("quality") ||
     query.includes("shilajit") ||
     query.includes("ghee") ||
     query.includes("apricot") ||
     query.includes("saffron")
   ) {
-    return [
-      `Namaste ${name}! 🙏`,
-      ``,
-      `Prajnaa Market ke utpaadon par bharosa jatane ke liye dhanyavaad.`,
-      ``,
-      `🌾 *100% Shuddh Himalayan Guarantee:*`,
-      `• Hum bina kisi middlemen ke direct Uttarakhand, Ladakh aur Kashmir ke traditional farmers se organic harvest source karte hain.`,
-      `• Koi artificial preservatives, chemicals ya blending nahi ki jaati.`,
-      `• Har batch lab-tested aur certified organic standard ke sath dispatch hota hai.`,
-      ``,
-      `Kisi vishesh utpaad ke baare me detail janne ke liye aap sawal pooch sakte hain! ✨`,
-      ``,
-      `Shukriya ji! 🏔️`,
-      `*Team Prajnaa Market*`,
-    ].join("\n");
+    return `Namaste ${name}! 🙏 Prajnaa Market ke sabhi products 100% certified organic aur natural hain, jo direct Himalayan mountain farmers se aate hain. Inme koi chemical ya preservatives nahi milaye jate aur har batch lab-tested hota hai.`;
   }
 
-  // Case 4: General Automated Acknowledgement & Reassurance (For anything else customer asks)
-  return [
-    `Namaste ${name}! 🙏`,
-    ``,
-    `Prajnaa Market automated support me aapka sandesh mil gaya hai.`,
-    ``,
-    `Aapki query hamare system me securely log ho gayi hai. Store Admin Nishant ji aur hamari concierge team ise review kar rahe hain.`,
-    ``,
-    `🌿 *Helpful Information:*`,
-    `• Order Processing: 2–3 working days (Direct Himalayan packaging)`,
-    `• Shipping Partner: India Post Speed Post`,
-    `• Official Store Contact: +91 76500 65690`,
-    ``,
-    `Nishant ji jald hi aapse judenge aur poori sahayata karenge. Aapka din shubh ho! 🏔️✨`,
-    ``,
-    `*Team Prajnaa Market*`,
-  ].join("\n");
+  // 9. Customer Care / Call / Phone Contact
+  if (query.includes("contact") || query.includes("number") || query.includes("call") || query.includes("phone") || query.includes("helpline") || query.includes("baat")) {
+    return `Namaste ${name}! 🙏 Hamara official customer support number +91 76500 65690 hai. Store Concierge Nishant ji isi number par directly available hain.`;
+  }
+
+  // 10. Thank You / Appreciation
+  if (query.includes("thank") || query.includes("dhanyawad") || query.includes("shukriya") || query.includes("thanks")) {
+    return `Aapka bahut-bahut dhanyavaad ${name}! 🙏 Prajnaa Market ke sath judne ke liye shukriya. Agar koi aur sawal ho toh batayein.`;
+  }
+
+  // 11. Greeting
+  if (query === "hi" || query === "hello" || query === "namaste" || query === "hey" || query === "pranam") {
+    return `Namaste ${name}! 🙏 Prajnaa Market me aapka swagat hai. Batayein, aaj hum aapki kya sahayata kar sakte hain?`;
+  }
+
+  // 12. Fallback: Concise & Direct
+  return `Namaste ${name}! 🙏 Aapka sawal Prajnaa support team ko mil gaya hai. Store Concierge Nishant ji ise review karke jald hi aapse direct connect karenge.`;
 }
 
 /**

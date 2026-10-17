@@ -80,57 +80,103 @@ interface Message {
   isAutomated?: boolean;
 }
 
-// Client-side automated reply generator aligned with Prajnaa Himalayan standard
+// Client-side automated reply generator strictly focused on the customer's specific question
 function generateClientAutoReply(customerName?: string, queryText: string = ""): string {
-  const query = queryText.toLowerCase();
+  const query = queryText.toLowerCase().trim();
   const name = customerName && customerName !== "Customer" ? `${customerName} ji` : "ji";
 
+  // 1. Order Cancellation
+  if (query.includes("cancel") || query.includes("radd")) {
+    return `Namaste ${name}! 🙏 Agar aapka parcel abhi dispatch nahi hua hai, toh order cancel ho sakta hai. Kripya apna Order ID confirm kar dijiye, hum turant cancellation update kar denge.`;
+  }
+
+  // 2. Address Change / Update
+  if (query.includes("address") || query.includes("pata") || query.includes("location") || query.includes("pincode change") || query.includes("galat address")) {
+    return `Namaste ${name}! 🙏 Ji bilkul, agar parcel dispatch nahi hua hai toh address update ho jayega. Kripya apna naya complete delivery address aur pincode yahan send kar dijiye.`;
+  }
+
+  // 3. Cash on Delivery (COD)
+  if (query.includes("cod") || query.includes("cash on delivery") || query.includes("pay on delivery") || query.includes("deliver hone par paise")) {
+    return `Namaste ${name}! 🙏 Selected pincodes par Cash on Delivery (COD) uplabdh hai. Aap apna delivery pincode share kar dijiye, hum turant check karke bata denge.`;
+  }
+
+  // 4. Refund / Return / Money Back
+  if (query.includes("refund") || query.includes("wapas") || query.includes("return") || query.includes("money back")) {
+    return `Namaste ${name}! 🙏 Refund approve hone ke baad 3–5 working days ke andar aapke original bank account ya UPI source me paise credit ho jate hain.`;
+  }
+
+  // 5. Payment, Screenshot, UPI confirmation
   if (
     query.includes("payment") ||
-    query.includes("pay") ||
+    query.includes("screenshot") ||
     query.includes("upi") ||
     query.includes("qr") ||
-    query.includes("screenshot") ||
     query.includes("utr") ||
+    query.includes("pay") ||
     query.includes("paise") ||
-    query.includes("rupaye") ||
     query.includes("transferred")
   ) {
-    return `Namaste ${name}! 🙏\n\nAapka payment message Prajnaa Market ko mil gaya hai.\n\n💳 *Payment Verification Desk:*\n• Agar aapne UPI ya bank transfer kiya hai, toh kripya uska screenshot ya UTR number isi chat par share kar dijiye.\n• Official Prajnaa UPI: \`prajnaa@upi\`\n\nHamare Store Admin Nishant ji abhi records verify karke aapka order status update kar rahe hain. Verification complete hote hi packaging team ko clearance mil jayegi. 🌿\n\nDhanyavaad ji! 🏔️\n*Team Prajnaa Market*`;
+    return `Namaste ${name}! 🙏 Agar aapne payment kar di hai, toh kripya payment ka screenshot ya transaction UTR number isi chat par share kar dijiye. Nishant ji verify karke turant confirm kar denge. (Official UPI: prajnaa@upi)`;
   }
 
+  // 6. Delivery Timeline ("Kab aayega?" / "Kitne din lagenge?")
   if (
+    query.includes("kab tak") ||
+    query.includes("when will") ||
+    query.includes("kab aayega") ||
+    query.includes("aayega") ||
     query.includes("deliver") ||
+    query.includes("reach") ||
+    query.includes("kitne din") ||
+    query.includes("delivery time")
+  ) {
+    return `Namaste ${name}! 🙏 Prajnaa organic products ki fresh artisan packing me 2–3 din lagte hain, aur dispatch hone ke baad 3–5 working days me Speed Post se parcel aapke address par deliver ho jata hai.`;
+  }
+
+  // 7. Dispatch Status & Tracking ("Dispatch hua kya?" / "Tracking number")
+  if (
     query.includes("dispatch") ||
     query.includes("track") ||
-    query.includes("status") ||
-    query.includes("kab") ||
-    query.includes("kahan") ||
+    query.includes("tracking") ||
     query.includes("speed post") ||
-    query.includes("courier") ||
-    query.includes("aayega") ||
-    query.includes("when") ||
-    query.includes("reach")
+    query.includes("consignment") ||
+    query.includes("courier")
   ) {
-    return `Namaste ${name}! 🙏\n\nAapke order status ka sandesh prapt hua hai.\n\n📦 *Dispatch & Shipping Update:*\n• Prajnaa Market ke sabhi shuddh Himalayan organic utpaad high-altitude certified pahadi farmers se fresh pack hote hain.\n• Packaging & quality inspection standard timeline: *2 se 3 working days*.\n• Jaise hi parcel India Post Speed Post ko handover hoga, aapko tracking consignment number (ED...IN) isi WhatsApp par send kar diya jayega.\n\nHamare Store Concierge Nishant ji dispatch register inspect kar rahe hain. 🚚\n\nDhanyavaad ji! 🌿\n*Team Prajnaa Market*`;
+    return `Namaste ${name}! 🙏 Jaise hi parcel dispatch hota hai, India Post Speed Post tracking number (ED...IN) automatically aapko isi WhatsApp par mil jayega, jise aap indiapost.gov.in par live track kar sakte hain.`;
   }
 
+  // 8. Product Purity, Organic Quality, Farm Origin
   if (
     query.includes("organic") ||
     query.includes("pure") ||
-    query.includes("quality") ||
     query.includes("asli") ||
     query.includes("chemical") ||
-    query.includes("farm") ||
+    query.includes("quality") ||
     query.includes("shilajit") ||
     query.includes("ghee") ||
     query.includes("apricot") ||
     query.includes("saffron")
   ) {
-    return `Namaste ${name}! 🙏\n\nPrajnaa Market ke utpaadon par bharosa jatane ke liye dhanyavaad.\n\n🌾 *100% Shuddh Himalayan Guarantee:*\n• Hum bina kisi middlemen ke direct Uttarakhand, Ladakh aur Kashmir ke traditional farmers se organic harvest source karte hain.\n• Koi artificial preservatives, chemicals ya blending nahi ki jaati.\n• Har batch lab-tested aur certified organic standard ke sath dispatch hota hai.\n\nKisi vishesh utpaad ke baare me detail janne ke liye aap sawal pooch sakte hain! ✨\n\nShukriya ji! 🏔️\n*Team Prajnaa Market*`;
+    return `Namaste ${name}! 🙏 Prajnaa Market ke sabhi products 100% certified organic aur natural hain, jo direct Himalayan mountain farmers se aate hain. Inme koi chemical ya preservatives nahi milaye jate aur har batch lab-tested hota hai.`;
   }
 
-  return `Namaste ${name}! 🙏\n\nPrajnaa Market automated support me aapka sandesh mil gaya hai.\n\nAapki query hamare system me securely log ho gayi hai. Store Admin Nishant ji aur hamari concierge team ise review kar rahe hain.\n\n🌿 *Helpful Information:*\n• Order Processing: 2–3 working days (Direct Himalayan packaging)\n• Shipping Partner: India Post Speed Post\n• Official Store Contact: +91 76500 65690\n\nNishant ji jald hi aapse judenge aur poori sahayata karenge. Aapka din shubh ho! 🏔️✨\n\n*Team Prajnaa Market*`;
+  // 9. Customer Care / Call / Phone Contact
+  if (query.includes("contact") || query.includes("number") || query.includes("call") || query.includes("phone") || query.includes("helpline") || query.includes("baat")) {
+    return `Namaste ${name}! 🙏 Hamara official customer support number +91 76500 65690 hai. Store Concierge Nishant ji isi number par directly available hain.`;
+  }
+
+  // 10. Thank You / Appreciation
+  if (query.includes("thank") || query.includes("dhanyawad") || query.includes("shukriya") || query.includes("thanks")) {
+    return `Aapka bahut-bahut dhanyavaad ${name}! 🙏 Prajnaa Market ke sath judne ke liye shukriya. Agar koi aur sawal ho toh batayein.`;
+  }
+
+  // 11. Greeting
+  if (query === "hi" || query === "hello" || query === "namaste" || query === "hey" || query === "pranam") {
+    return `Namaste ${name}! 🙏 Prajnaa Market me aapka swagat hai. Batayein, aaj hum aapki kya sahayata kar sakte hain?`;
+  }
+
+  // 12. Fallback: Concise & Direct
+  return `Namaste ${name}! 🙏 Aapka sawal Prajnaa support team ko mil gaya hai. Store Concierge Nishant ji ise review karke jald hi aapse direct connect karenge.`;
 }
 
 interface OrderItem {
@@ -517,14 +563,14 @@ const INITIAL_MESSAGES_MAP: Record<string, Message[]> = {
     {
       id: "m_1_cust",
       sender: "customer",
-      text: "Namaste ji, maine kal order kiya tha. Order dispatch kab tak hoga aur payment confirmation mila kya?",
+      text: "Namaste ji, mera order kab tak dispatch hoga aur kitne din me aayega?",
       time: "10:20 AM",
       status: "read",
     },
     {
       id: "m_1_auto",
       sender: "business",
-      text: "Namaste Priya Sharma ji! 🙏\n\nAapke order status ka sandesh prapt hua hai.\n\n📦 *Dispatch & Shipping Update:*\n• Prajnaa Market ke sabhi shuddh Himalayan organic utpaad high-altitude certified pahadi farmers se fresh pack hote hain.\n• Packaging & quality inspection standard timeline: *2 se 3 working days*.\n• Jaise hi parcel India Post Speed Post ko handover hoga, aapko tracking consignment number (ED...IN) isi WhatsApp par send kar diya jayega.\n\nHamare Store Concierge Nishant ji dispatch register inspect kar rahe hain. 🚚\n\nDhanyavaad ji! 🌿\n*Team Prajnaa Market*",
+      text: "Namaste Priya Sharma ji! 🙏 Prajnaa organic products ki fresh artisan packing me 2–3 din lagte hain, aur dispatch hone ke baad 3–5 working days me Speed Post se parcel aapke address par deliver ho jata hai.",
       time: "10:20 AM",
       status: "read",
       isAutomated: true,
@@ -548,7 +594,7 @@ const INITIAL_MESSAGES_MAP: Record<string, Message[]> = {
     {
       id: "m_2_auto",
       sender: "business",
-      text: "Namaste Rahul Verma ji! 🙏\n\nAapka payment message Prajnaa Market ko mil gaya hai.\n\n💳 *Payment Verification Desk:*\n• Agar aapne UPI ya bank transfer kiya hai, toh kripya uska screenshot ya UTR number isi chat par share kar dijiye.\n• Official Prajnaa UPI: `prajnaa@upi`\n\nHamare Store Admin Nishant ji abhi records verify karke aapka order status update kar rahe hain. Verification complete hote hi packaging team ko clearance mil jayegi. 🌿\n\nDhanyavaad ji! 🏔️\n*Team Prajnaa Market*",
+      text: "Namaste Rahul Verma ji! 🙏 Agar aapne payment kar di hai, toh kripya payment ka screenshot ya transaction UTR number isi chat par share kar dijiye. Nishant ji verify karke turant confirm kar denge. (Official UPI: prajnaa@upi)",
       time: "10:12 AM",
       status: "read",
       isAutomated: true,
@@ -2894,17 +2940,18 @@ export default function PrajnaaMasterCrmApp() {
                         </button>
                       </div>
 
-                      <div className="space-y-2">
-                        <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider font-mono">Common Questions From Customer</p>
+                      <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+                        <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider font-mono">Select a Customer Question to Test Auto-Reply</p>
+
                         <div
-                          onClick={() => handleSimulateCustomerInquiry("Namaste, mera parcel kab tak dispatch hoga aur speed post tracking kab milegi?")}
+                          onClick={() => handleSimulateCustomerInquiry("Mera parcel kab tak aayega aur kitne din me deliver hoga?")}
                           className="p-3 rounded-2xl border border-neutral-200 hover:border-amber-500 hover:bg-amber-50/60 transition cursor-pointer space-y-1"
                         >
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-xs text-neutral-900">📦 Order Dispatch & Speed Post Timeline</span>
-                            <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full">Dispatch</span>
+                            <span className="font-bold text-xs text-neutral-900">📦 Delivery Timeline Query</span>
+                            <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full">Delivery</span>
                           </div>
-                          <p className="text-xs text-neutral-600 font-mono">"Namaste, mera parcel kab tak dispatch hoga aur speed post tracking kab milegi?"</p>
+                          <p className="text-xs text-neutral-600 font-mono">"Mera parcel kab tak aayega aur kitne din me deliver hoga?"</p>
                         </div>
 
                         <div
@@ -2912,32 +2959,54 @@ export default function PrajnaaMasterCrmApp() {
                           className="p-3 rounded-2xl border border-neutral-200 hover:border-amber-500 hover:bg-amber-50/60 transition cursor-pointer space-y-1"
                         >
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-xs text-neutral-900">💳 UPI Payment Done & Verification</span>
+                            <span className="font-bold text-xs text-neutral-900">💳 Payment & Screenshot Query</span>
                             <span className="text-[10px] bg-emerald-100 text-emerald-900 font-bold px-2 py-0.5 rounded-full">Payment</span>
                           </div>
                           <p className="text-xs text-neutral-600 font-mono">"Maine UPI payment kar di hai, check kar lijiye. UTR: 409871239841"</p>
                         </div>
 
                         <div
-                          onClick={() => handleSimulateCustomerInquiry("Kya aapke Shilajit aur Badri cow ghee 100% pure organic hain?")}
-                          className="p-3 rounded-2xl border border-neutral-200 hover:border-amber-500 hover:bg-amber-50/60 transition cursor-pointer space-y-1"
+                          onClick={() => handleSimulateCustomerInquiry("Order cancel ho sakta hai kya?")}
+                          className="p-3 rounded-2xl border border-neutral-200 hover:border-rose-500 hover:bg-rose-50/60 transition cursor-pointer space-y-1"
                         >
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-xs text-neutral-900">🌾 Purity & Himalayan Organic Certificate</span>
-                            <span className="text-[10px] bg-sky-100 text-sky-900 font-bold px-2 py-0.5 rounded-full">Organic</span>
+                            <span className="font-bold text-xs text-neutral-900">🚫 Cancellation Query</span>
+                            <span className="text-[10px] bg-rose-100 text-rose-900 font-bold px-2 py-0.5 rounded-full">Cancel</span>
                           </div>
-                          <p className="text-xs text-neutral-600 font-mono">"Kya aapke Shilajit aur Badri cow ghee 100% pure organic hain?"</p>
+                          <p className="text-xs text-neutral-600 font-mono">"Order cancel ho sakta hai kya?"</p>
                         </div>
 
                         <div
-                          onClick={() => handleSimulateCustomerInquiry("Namaste ji, can you please verify my delivery address?")}
-                          className="p-3 rounded-2xl border border-neutral-200 hover:border-amber-500 hover:bg-amber-50/60 transition cursor-pointer space-y-1"
+                          onClick={() => handleSimulateCustomerInquiry("Mera delivery address change ho sakta hai kya?")}
+                          className="p-3 rounded-2xl border border-neutral-200 hover:border-sky-500 hover:bg-sky-50/60 transition cursor-pointer space-y-1"
                         >
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-xs text-neutral-900">📍 General Inquiry / Address Verification</span>
-                            <span className="text-[10px] bg-purple-100 text-purple-900 font-bold px-2 py-0.5 rounded-full">Concierge</span>
+                            <span className="font-bold text-xs text-neutral-900">📍 Address Update Query</span>
+                            <span className="text-[10px] bg-sky-100 text-sky-900 font-bold px-2 py-0.5 rounded-full">Address</span>
                           </div>
-                          <p className="text-xs text-neutral-600 font-mono">"Namaste ji, can you please verify my delivery address?"</p>
+                          <p className="text-xs text-neutral-600 font-mono">"Mera delivery address change ho sakta hai kya?"</p>
+                        </div>
+
+                        <div
+                          onClick={() => handleSimulateCustomerInquiry("Cash on delivery (COD) available hai kya?")}
+                          className="p-3 rounded-2xl border border-neutral-200 hover:border-indigo-500 hover:bg-indigo-50/60 transition cursor-pointer space-y-1"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-xs text-neutral-900">💵 Cash on Delivery (COD) Query</span>
+                            <span className="text-[10px] bg-indigo-100 text-indigo-900 font-bold px-2 py-0.5 rounded-full">COD</span>
+                          </div>
+                          <p className="text-xs text-neutral-600 font-mono">"Cash on delivery (COD) available hai kya?"</p>
+                        </div>
+
+                        <div
+                          onClick={() => handleSimulateCustomerInquiry("Kya aapka Shilajit aur Badri cow ghee 100% pure organic hai?")}
+                          className="p-3 rounded-2xl border border-neutral-200 hover:border-emerald-500 hover:bg-emerald-50/60 transition cursor-pointer space-y-1"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-xs text-neutral-900">🌾 Purity & Himalayan Quality Query</span>
+                            <span className="text-[10px] bg-emerald-100 text-emerald-900 font-bold px-2 py-0.5 rounded-full">Organic</span>
+                          </div>
+                          <p className="text-xs text-neutral-600 font-mono">"Kya aapka Shilajit aur Badri cow ghee 100% pure organic hai?"</p>
                         </div>
                       </div>
                     </div>
