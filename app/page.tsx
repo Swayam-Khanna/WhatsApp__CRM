@@ -42,6 +42,9 @@ import {
   HelpCircle,
   X,
   Phone,
+  Menu,
+  ArrowLeft,
+  Info,
   Layers,
   ChevronDown,
   LogOut,
@@ -749,6 +752,8 @@ export default function PrajnaaMasterCrmApp() {
 
   // Navigation (Filtered by User's Work Area / Role)
   const [activeNav, setActiveNav] = useState<string>("dashboard");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const [mobileChatView, setMobileChatView] = useState<"list" | "chat" | "details">("list");
 
   // State: Team Members (Stored in State & Loaded from LocalStorage)
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(INITIAL_TEAM);
@@ -1689,24 +1694,45 @@ export default function PrajnaaMasterCrmApp() {
   // =========================================================
   return (
     <div className={`flex h-screen w-screen overflow-hidden ${themeStyles.mainBg} font-sans antialiased`}>
+      {/* Mobile Drawer Backdrop Overlay */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-xs transition-opacity duration-300"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* ========================================================= */}
-      {/* 1. LEFT SIDEBAR (Filtered by Role Permissions)            */}
+      {/* 1. LEFT SIDEBAR (Desktop Fixed + Mobile Slide-over Drawer) */}
       {/* ========================================================= */}
-      <aside className={`w-[240px] shrink-0 ${themeStyles.sidebarBg} flex flex-col justify-between select-none relative z-20 shadow-xl border-r`}>
+      <aside
+        className={`fixed md:static inset-y-0 left-0 z-50 w-[270px] md:w-[240px] shrink-0 ${themeStyles.sidebarBg} flex flex-col justify-between select-none shadow-2xl md:shadow-xl border-r transition-transform duration-300 ease-in-out ${
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        }`}
+      >
         <div className="flex flex-col flex-1 overflow-y-auto">
-          {/* Brand Header */}
-          <div className="px-5 py-4 border-b border-white/10 flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-white flex items-center justify-center shadow-md shrink-0">
-              <span className="text-xl">🌿</span>
+          {/* Brand Header with Mobile Close Button */}
+          <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-xl bg-white flex items-center justify-center shadow-md shrink-0">
+                <span className="text-xl">🌿</span>
+              </div>
+              <div>
+                <h1 className="font-serif font-bold text-base leading-tight tracking-tight text-white flex items-center gap-1.5">
+                  Prajnaa Market
+                </h1>
+                <p className="text-[10px] text-amber-200/80 font-medium tracking-wide">
+                  Pure from the Himalayas
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="font-serif font-bold text-base leading-tight tracking-tight text-white flex items-center gap-1.5">
-                Prajnaa Market
-              </h1>
-              <p className="text-[10px] text-amber-200/80 font-medium tracking-wide">
-                Pure from the Himalayas
-              </p>
-            </div>
+            <button
+              onClick={() => setMobileMenuOpen(false)}
+              className="md:hidden p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition"
+              title="Close menu"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
 
           {/* User's Assigned Role Pill in Sidebar */}
@@ -1719,7 +1745,7 @@ export default function PrajnaaMasterCrmApp() {
           <nav className="p-3 space-y-1">
             {userPermissions.allowedTabs.includes("dashboard") && (
               <button
-                onClick={() => setActiveNav("dashboard")}
+                onClick={() => { setActiveNav("dashboard"); setMobileMenuOpen(false); }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                   activeNav === "dashboard" ? themeStyles.sidebarActive : themeStyles.sidebarHover
                 }`}
@@ -1731,7 +1757,7 @@ export default function PrajnaaMasterCrmApp() {
 
             {userPermissions.allowedTabs.includes("inbox") && (
               <button
-                onClick={() => setActiveNav("inbox")}
+                onClick={() => { setActiveNav("inbox"); setMobileMenuOpen(false); }}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                   activeNav === "inbox" ? themeStyles.sidebarActive : themeStyles.sidebarHover
                 }`}
@@ -1748,7 +1774,7 @@ export default function PrajnaaMasterCrmApp() {
 
             {userPermissions.allowedTabs.includes("orders") && (
               <button
-                onClick={() => setActiveNav("orders")}
+                onClick={() => { setActiveNav("orders"); setMobileMenuOpen(false); }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                   activeNav === "orders" || activeNav === "order_details"
                     ? themeStyles.sidebarActive
@@ -1762,7 +1788,7 @@ export default function PrajnaaMasterCrmApp() {
 
             {userPermissions.allowedTabs.includes("customers") && (
               <button
-                onClick={() => setActiveNav("customers")}
+                onClick={() => { setActiveNav("customers"); setMobileMenuOpen(false); }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                   activeNav === "customers" ? themeStyles.sidebarActive : themeStyles.sidebarHover
                 }`}
@@ -1774,7 +1800,7 @@ export default function PrajnaaMasterCrmApp() {
 
             {userPermissions.allowedTabs.includes("broadcast") && (
               <button
-                onClick={() => setActiveNav("broadcast")}
+                onClick={() => { setActiveNav("broadcast"); setMobileMenuOpen(false); }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                   activeNav === "broadcast" ? themeStyles.sidebarActive : themeStyles.sidebarHover
                 }`}
@@ -1786,7 +1812,7 @@ export default function PrajnaaMasterCrmApp() {
 
             {userPermissions.allowedTabs.includes("products") && (
               <button
-                onClick={() => setActiveNav("products")}
+                onClick={() => { setActiveNav("products"); setMobileMenuOpen(false); }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                   activeNav === "products" ? themeStyles.sidebarActive : themeStyles.sidebarHover
                 }`}
@@ -1798,7 +1824,7 @@ export default function PrajnaaMasterCrmApp() {
 
             {userPermissions.allowedTabs.includes("templates") && (
               <button
-                onClick={() => setActiveNav("templates")}
+                onClick={() => { setActiveNav("templates"); setMobileMenuOpen(false); }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                   activeNav === "templates" ? themeStyles.sidebarActive : themeStyles.sidebarHover
                 }`}
@@ -1810,7 +1836,7 @@ export default function PrajnaaMasterCrmApp() {
 
             {userPermissions.allowedTabs.includes("shipments") && (
               <button
-                onClick={() => setActiveNav("shipments")}
+                onClick={() => { setActiveNav("shipments"); setMobileMenuOpen(false); }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                   activeNav === "shipments" ? themeStyles.sidebarActive : themeStyles.sidebarHover
                 }`}
@@ -1822,7 +1848,7 @@ export default function PrajnaaMasterCrmApp() {
 
             {userPermissions.allowedTabs.includes("analytics") && (
               <button
-                onClick={() => setActiveNav("analytics")}
+                onClick={() => { setActiveNav("analytics"); setMobileMenuOpen(false); }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                   activeNav === "analytics" ? themeStyles.sidebarActive : themeStyles.sidebarHover
                 }`}
@@ -1834,7 +1860,7 @@ export default function PrajnaaMasterCrmApp() {
 
             {userPermissions.allowedTabs.includes("team") && (
               <button
-                onClick={() => setActiveNav("team")}
+                onClick={() => { setActiveNav("team"); setMobileMenuOpen(false); }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                   activeNav === "team" ? themeStyles.sidebarActive : themeStyles.sidebarHover
                 }`}
@@ -1846,7 +1872,7 @@ export default function PrajnaaMasterCrmApp() {
 
             {userPermissions.allowedTabs.includes("settings") && (
               <button
-                onClick={() => setActiveNav("settings")}
+                onClick={() => { setActiveNav("settings"); setMobileMenuOpen(false); }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                   activeNav === "settings" ? themeStyles.sidebarActive : themeStyles.sidebarHover
                 }`}
@@ -1884,24 +1910,37 @@ export default function PrajnaaMasterCrmApp() {
       {/* ========================================================= */}
       {/* 2. MAIN WORKSPACE (Header + Screen Content)                */}
       {/* ========================================================= */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden pb-14 md:pb-0 relative">
         {/* TOP HEADER BAR (With Theme Switcher & Role Badge) */}
-        <header className={`h-[62px] px-6 ${themeStyles.headerBg} border-b flex items-center justify-between shrink-0 z-30 shadow-2xs`}>
-          <div className="relative w-[340px]">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-            <input
-              type="text"
-              placeholder="Search customers, orders, messages..."
-              className="w-full pl-9 pr-12 py-2 rounded-xl bg-neutral-100/70 border border-neutral-200/60 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition"
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-neutral-400 bg-white border border-neutral-200 px-1.5 py-0.5 rounded shadow-2xs">
-              ⌘K
-            </span>
+        <header className={`h-[56px] md:h-[62px] px-3 md:px-6 ${themeStyles.headerBg} border-b flex items-center justify-between shrink-0 z-30 shadow-2xs`}>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="md:hidden p-2 rounded-xl text-neutral-600 hover:bg-neutral-100 transition cursor-pointer"
+              title="Open Navigation Menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <div className="md:hidden flex items-center gap-1.5 font-bold text-xs text-neutral-900">
+              <span className="text-base">🌿</span>
+              <span className="truncate max-w-[100px]">Prajnaa CRM</span>
+            </div>
+            <div className="relative hidden sm:block w-[220px] md:w-[320px]">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+              <input
+                type="text"
+                placeholder="Search customers, orders, messages..."
+                className="w-full pl-9 pr-12 py-2 rounded-xl bg-neutral-100/70 border border-neutral-200/60 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-neutral-400 bg-white border border-neutral-200 px-1.5 py-0.5 rounded shadow-2xs">
+                ⌘K
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3.5">
+          <div className="flex items-center gap-2 md:gap-3.5">
             {/* Role / Work Area Indicator Pill */}
-            <div className={`px-2.5 py-1 rounded-full border text-xs font-semibold flex items-center gap-1.5 shadow-2xs ${userPermissions.badgeColor}`}>
+            <div className={`hidden sm:flex px-2.5 py-1 rounded-full border text-xs font-semibold items-center gap-1.5 shadow-2xs ${userPermissions.badgeColor}`}>
               <ShieldCheck className="h-3.5 w-3.5" />
               <span>{currentUser.role}</span>
             </div>
@@ -2059,8 +2098,8 @@ export default function PrajnaaMasterCrmApp() {
         {/* SCREEN 1: WHATSAPP INBOX */}
         {activeNav === "inbox" && (
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Top KPI Metrics Bar with REVENUE */}
-            <div className={`px-6 py-3 border-b border-neutral-200/70 grid grid-cols-6 gap-3 shrink-0 ${themeStyles.cardBg}`}>
+            {/* Top KPI Metrics Bar with REVENUE (Hidden on small mobile screens to maximize chat area) */}
+            <div className={`hidden md:grid px-4 md:px-6 py-2.5 md:py-3 border-b border-neutral-200/70 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-3 shrink-0 ${themeStyles.cardBg}`}>
               {/* Card 1: Total Revenue */}
               <div className="bg-emerald-50/70 dark:bg-emerald-950/40 p-3 rounded-2xl border border-emerald-200 dark:border-emerald-800 shadow-2xs hover:shadow-xs transition flex items-center gap-3">
                 <div className="h-9 w-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
@@ -2137,7 +2176,7 @@ export default function PrajnaaMasterCrmApp() {
             {/* 3-Column WhatsApp Inbox Workspace */}
             <div className="flex-1 flex overflow-hidden">
               {/* COLUMN 1: Conversation List */}
-              <div className="w-[310px] shrink-0 bg-white border-r border-neutral-200 flex flex-col overflow-hidden text-neutral-900">
+              <div className={`${mobileChatView === "list" ? "w-full flex" : "hidden"} md:flex md:w-[310px] shrink-0 bg-white border-r border-neutral-200 flex-col overflow-hidden text-neutral-900`}>
                 <div className="p-3.5 border-b border-neutral-100 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <h3 className="font-bold text-sm text-neutral-900 flex items-center gap-1.5">
@@ -2203,7 +2242,7 @@ export default function PrajnaaMasterCrmApp() {
                     return (
                       <div
                         key={cust.id}
-                        onClick={() => setSelectedCustomerId(cust.id)}
+                        onClick={() => { setSelectedCustomerId(cust.id); setMobileChatView("chat"); }}
                         className={`p-3 flex items-start gap-2.5 cursor-pointer transition select-none ${
                           isSelected ? "bg-[#EBF7F2] border-l-4 border-emerald-600" : "hover:bg-neutral-50"
                         }`}
@@ -2245,14 +2284,23 @@ export default function PrajnaaMasterCrmApp() {
               </div>
 
               {/* COLUMN 2: Chat Pane */}
-              <div className="flex-1 flex flex-col bg-[#EFEAE2] relative overflow-hidden border-r border-neutral-200">
-                <div className="h-[60px] px-5 bg-white border-b border-neutral-200/80 flex items-center justify-between shrink-0 shadow-2xs text-neutral-900">
-                  <div className="flex items-center gap-3">
+              <div className={`${mobileChatView === "chat" ? "flex" : "hidden"} md:flex flex-1 flex-col bg-[#EFEAE2] relative overflow-hidden border-r border-neutral-200`}>
+                <div className="h-[60px] px-3 md:px-5 bg-white border-b border-neutral-200/80 flex items-center justify-between shrink-0 shadow-2xs text-neutral-900">
+                  <div className="flex items-center gap-2 md:gap-3">
+                    {/* Back to list button on mobile */}
+                    <button
+                      onClick={() => setMobileChatView("list")}
+                      className="md:hidden p-1.5 -ml-1 rounded-full text-neutral-600 hover:bg-neutral-100 transition cursor-pointer"
+                      title="Back to conversation list"
+                    >
+                      <ArrowLeft className="h-5 w-5" />
+                    </button>
+
                     <div className="relative">
                       {currentCustomer.avatar ? (
-                        <img src={currentCustomer.avatar} alt={currentCustomer.name} className="h-10 w-10 rounded-full object-cover border border-neutral-200 shadow-2xs" />
+                        <img src={currentCustomer.avatar} alt={currentCustomer.name} className="h-9 w-9 md:h-10 md:w-10 rounded-full object-cover border border-neutral-200 shadow-2xs" />
                       ) : (
-                        <div className="h-10 w-10 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center">
+                        <div className="h-9 w-9 md:h-10 md:w-10 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center">
                           {currentCustomer.name.split(" ").map((n) => n[0]).join("")}
                         </div>
                       )}
@@ -2262,30 +2310,39 @@ export default function PrajnaaMasterCrmApp() {
                     </div>
 
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-sm text-neutral-900 leading-none">{currentCustomer.name}</h3>
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="font-bold text-xs md:text-sm text-neutral-900 leading-none truncate max-w-[130px] sm:max-w-none">{currentCustomer.name}</h3>
                         {currentCustomer.isVip && (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                            <span className="text-emerald-600">✓</span> VIP Customer
+                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 hidden sm:inline-flex items-center gap-1">
+                            <span className="text-emerald-600">✓</span> VIP
                           </span>
                         )}
                       </div>
-                      <span className="text-[11px] text-neutral-500 font-mono">{currentCustomer.phone}</span>
+                      <span className="text-[10px] md:text-[11px] text-neutral-500 font-mono">{currentCustomer.phone}</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-neutral-500">
+                  <div className="flex items-center gap-1 md:gap-2 text-neutral-500">
                     <button
                       onClick={handleSendPaymentQr}
-                      className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold border border-emerald-200 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      className="px-2 md:px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] md:text-xs font-semibold border border-emerald-200 transition flex items-center gap-1 cursor-pointer shadow-2xs"
                     >
                       <QrCode className="h-3.5 w-3.5 text-emerald-600" />
-                      <span>Send Payment QR</span>
+                      <span className="hidden sm:inline">Send Payment QR</span>
+                      <span className="sm:hidden">QR</span>
                     </button>
-                    <button className="p-2 rounded-lg hover:bg-neutral-100 transition cursor-pointer">
+                    {/* View Details Info button on mobile & tablets */}
+                    <button
+                      onClick={() => setMobileChatView("details")}
+                      className="xl:hidden p-2 rounded-xl border border-neutral-200/80 hover:bg-neutral-100 text-neutral-700 transition cursor-pointer"
+                      title="Customer Details & Orders"
+                    >
+                      <Info className="h-4 w-4" />
+                    </button>
+                    <button className="hidden sm:block p-2 rounded-lg hover:bg-neutral-100 transition cursor-pointer">
                       <Star className="h-4 w-4" />
                     </button>
-                    <button className="p-2 rounded-lg hover:bg-neutral-100 transition cursor-pointer">
+                    <button className="hidden sm:block p-2 rounded-lg hover:bg-neutral-100 transition cursor-pointer">
                       <Tag className="h-4 w-4" />
                     </button>
                     <button className="p-2 rounded-lg hover:bg-neutral-100 transition cursor-pointer">
@@ -2413,7 +2470,7 @@ export default function PrajnaaMasterCrmApp() {
                     </button>
 
                     {showCatalogQuoteMenu && (
-                      <div className="absolute bottom-full left-0 mb-2 w-80 max-h-80 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-neutral-200 dark:border-slate-800 p-2.5 z-50 flex flex-col gap-1.5 overflow-hidden">
+                      <div className="fixed sm:absolute bottom-16 sm:bottom-full left-4 sm:left-0 mb-2 w-[calc(100vw-32px)] sm:w-80 max-h-80 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-neutral-200 dark:border-slate-800 p-2.5 z-50 flex flex-col gap-1.5 overflow-hidden">
                         <div className="flex items-center justify-between pb-1.5 border-b border-neutral-100 dark:border-slate-800">
                           <span className="text-[11px] font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1">
                             🌿 Authoritative Himalayan Catalogue
@@ -2489,7 +2546,7 @@ export default function PrajnaaMasterCrmApp() {
                       </button>
 
                       {showQuickTemplatesMenu && (
-                        <div className="absolute bottom-full left-0 mb-2 w-96 max-h-96 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-neutral-200 dark:border-slate-800 p-3 z-50 flex flex-col gap-2 overflow-hidden">
+                        <div className="fixed sm:absolute bottom-16 sm:bottom-full left-4 sm:left-0 mb-2 w-[calc(100vw-32px)] sm:w-96 max-h-96 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-neutral-200 dark:border-slate-800 p-3 z-50 flex flex-col gap-2 overflow-hidden">
                           <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-slate-800">
                             <div>
                               <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5">
@@ -2562,7 +2619,18 @@ export default function PrajnaaMasterCrmApp() {
               </div>
 
               {/* COLUMN 3: Customer Details & Order Context */}
-              <div className="w-[320px] shrink-0 bg-white border-l border-neutral-200 flex flex-col overflow-y-auto text-neutral-900">
+              <div className={`${mobileChatView === "details" ? "w-full flex" : "hidden"} xl:flex xl:w-[320px] shrink-0 bg-white border-l border-neutral-200 flex-col overflow-y-auto text-neutral-900`}>
+                {/* Mobile Back Button to Chat */}
+                <div className="xl:hidden px-4 py-2.5 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
+                  <button
+                    onClick={() => setMobileChatView("chat")}
+                    className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 cursor-pointer"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    <span>Back to Conversation</span>
+                  </button>
+                  <span className="text-[11px] font-semibold text-neutral-500">Customer Dossier</span>
+                </div>
                 <div className="flex items-center border-b border-neutral-200 px-4 shrink-0 text-xs font-semibold">
                   <button
                     onClick={() => setCustomerDrawerTab("customer")}
@@ -2805,21 +2873,21 @@ export default function PrajnaaMasterCrmApp() {
 
         {/* SCREEN 2: DASHBOARD VIEW (Admin only) */}
         {activeNav === "dashboard" && userPermissions.allowedTabs.includes("dashboard") && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            <div className="flex items-center justify-between">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold text-neutral-900">Good Morning, {currentUser.name}! 👋</h2>
+                <h2 className="text-lg sm:text-xl font-bold text-neutral-900">Good Morning, {currentUser.name}! 👋</h2>
                 <p className="text-xs text-neutral-500 mt-0.5">
                   Here's what's happening with your Himalayan produce orders, revenue, and WhatsApp operations today.
                 </p>
               </div>
 
-              <div className="flex items-center gap-1 p-1 bg-white border border-neutral-200/80 rounded-xl text-xs font-semibold shadow-2xs">
+              <div className="flex items-center gap-1 p-1 bg-white border border-neutral-200/80 rounded-xl text-xs font-semibold shadow-2xs self-start sm:self-auto overflow-x-auto">
                 {(["7d", "30d", "quarter"] as const).map((t) => (
                   <button
                     key={t}
                     onClick={() => setGraphTimeframe(t)}
-                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer capitalize ${
+                    className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition cursor-pointer capitalize text-[11px] sm:text-xs whitespace-nowrap ${
                       graphTimeframe === t ? "bg-emerald-600 text-white font-bold" : "text-neutral-500 hover:text-neutral-900"
                     }`}
                   >
@@ -2830,7 +2898,7 @@ export default function PrajnaaMasterCrmApp() {
             </div>
 
             {/* Row of 6 High-Impact Metric Cards */}
-            <div className="grid grid-cols-6 gap-3.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3.5">
               <div className="bg-gradient-to-br from-[#0E382B] to-[#164E3A] text-white p-4 rounded-2xl shadow-md space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-medium text-emerald-200">Total Revenue</span>
@@ -2904,8 +2972,8 @@ export default function PrajnaaMasterCrmApp() {
             </div>
 
             {/* Interactive Order & Revenue Graph */}
-            <div className="grid grid-cols-3 gap-6">
-              <div className={`col-span-2 p-6 rounded-2xl border shadow-2xs space-y-4 ${themeStyles.cardBg}`}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+              <div className={`lg:col-span-2 p-4 sm:p-6 rounded-2xl border shadow-2xs space-y-4 ${themeStyles.cardBg}`}>
                 <div className="flex items-center justify-between border-b border-neutral-200/60 pb-3">
                   <div>
                     <h3 className="font-bold text-sm text-neutral-900 dark:text-white">Order & Revenue Velocity</h3>
@@ -3086,8 +3154,8 @@ export default function PrajnaaMasterCrmApp() {
                 </button>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+              <div className="overflow-x-auto w-full">
+                <table className="w-full min-w-[720px] text-left text-xs">
                   <thead className="bg-neutral-50 dark:bg-slate-800/60 text-neutral-500 dark:text-slate-400 border-b border-neutral-200/60">
                     <tr>
                       <th className="p-3 font-semibold">Order ID</th>
@@ -3162,7 +3230,7 @@ export default function PrajnaaMasterCrmApp() {
             </div>
 
             {/* Row 5: Operational Quick Action Panels */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className={`p-5 rounded-2xl border shadow-2xs space-y-3 ${themeStyles.cardBg}`}>
                 <div className="flex items-center justify-between">
                   <div className="h-9 w-9 rounded-xl bg-orange-500/15 text-orange-600 flex items-center justify-center">
@@ -3240,10 +3308,10 @@ export default function PrajnaaMasterCrmApp() {
 
         {/* SCREEN 3: ORDERS MANAGEMENT */}
         {activeNav === "orders" && userPermissions.allowedTabs.includes("orders") && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-5">
-            <div className="flex items-center justify-between">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold text-neutral-900">Orders</h2>
+                <h2 className="text-lg sm:text-xl font-bold text-neutral-900">Orders</h2>
                 <p className="text-xs text-neutral-500 mt-0.5">
                   Manage and track all customer orders from WhatsApp and web checkout.
                 </p>
@@ -3251,18 +3319,18 @@ export default function PrajnaaMasterCrmApp() {
 
               <button
                 onClick={() => toast.info("Opening new order form")}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                className="px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
               >
                 <Plus className="h-4 w-4" /> + Create Order
               </button>
             </div>
 
-            <div className="flex items-center gap-2 border-b border-neutral-200 pb-2">
+            <div className="flex items-center gap-1.5 border-b border-neutral-200 pb-2 overflow-x-auto">
               {["all", "pending", "processing", "packed", "shipped", "delivered"].map((pill) => (
                 <button
                   key={pill}
                   onClick={() => setOrdersFilter(pill)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition cursor-pointer whitespace-nowrap shrink-0 ${
                     ordersFilter === pill ? "bg-emerald-600 text-white font-bold shadow-2xs" : "text-neutral-600 hover:bg-neutral-100"
                   }`}
                 >
@@ -3272,7 +3340,8 @@ export default function PrajnaaMasterCrmApp() {
             </div>
 
             <div className="bg-white rounded-2xl border border-neutral-200/80 shadow-2xs overflow-hidden">
-              <table className="w-full text-left text-xs">
+              <div className="overflow-x-auto w-full">
+                <table className="w-full min-w-[650px] text-left text-xs">
                 <thead className="bg-neutral-50 text-neutral-500 border-b border-neutral-100">
                   <tr>
                     <th className="p-3.5 font-semibold">Order ID</th>
@@ -3323,6 +3392,7 @@ export default function PrajnaaMasterCrmApp() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         )}
@@ -3875,7 +3945,8 @@ export default function PrajnaaMasterCrmApp() {
 
             {/* Products Table with Inline Stock Selector & Modal Trigger */}
             <div className={`rounded-2xl border shadow-2xs overflow-hidden ${themeStyles.cardBg}`}>
-              <table className="w-full text-left text-xs">
+              <div className="overflow-x-auto w-full">
+                <table className="w-full min-w-[700px] text-left text-xs">
                 <thead className="bg-neutral-50 dark:bg-slate-800/60 text-neutral-500 dark:text-slate-400 border-b border-neutral-200/60">
                   <tr>
                     <th className="p-3.5 font-semibold">Product & Himalayan Origin</th>
@@ -4006,61 +4077,64 @@ export default function PrajnaaMasterCrmApp() {
                     ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         )}
 
         {/* SCREEN 8: SHIPMENTS & SPEED POST (Fulfillment Officer Work Area) */}
         {activeNav === "shipments" && userPermissions.allowedTabs.includes("shipments") && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-neutral-900">Shipments & India Post Speed Post</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-neutral-900">Shipments & India Post Speed Post</h2>
               <p className="text-xs text-neutral-500 mt-0.5">
                 Official India Post consignment tracking, packaging milestone updates, and dispatch links.
               </p>
             </div>
 
-            <div className="grid grid-cols-5 gap-6">
-              <div className="col-span-3 bg-white rounded-2xl border border-neutral-200/80 shadow-2xs overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-neutral-50 text-neutral-500 border-b border-neutral-100">
-                    <tr>
-                      <th className="p-3 font-semibold">Order ID</th>
-                      <th className="p-3 font-semibold">Customer</th>
-                      <th className="p-3 font-semibold">Tracking ID</th>
-                      <th className="p-3 font-semibold">Status</th>
-                      <th className="p-3 font-semibold">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-100">
-                    {shipments.map((s) => (
-                      <tr
-                        key={s.trackingId}
-                        onClick={() => setSelectedShipment(s)}
-                        className={`hover:bg-neutral-50 cursor-pointer transition ${
-                          selectedShipment.trackingId === s.trackingId ? "bg-emerald-50/60" : ""
-                        }`}
-                      >
-                        <td className="p-3 font-mono font-bold text-neutral-900">{s.orderId}</td>
-                        <td className="p-3 font-semibold text-neutral-900">{s.customer}</td>
-                        <td className="p-3 font-mono text-emerald-700 font-bold">{s.trackingId}</td>
-                        <td className="p-3">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              s.status === "Delivered" ? "bg-emerald-100 text-emerald-800" : "bg-sky-100 text-sky-800"
-                            }`}
-                          >
-                            {s.status}
-                          </span>
-                        </td>
-                        <td className="p-3 text-neutral-500">{s.date}</td>
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
+              <div className="lg:col-span-3 bg-white rounded-2xl border border-neutral-200/80 shadow-2xs overflow-hidden">
+                <div className="overflow-x-auto w-full">
+                  <table className="w-full min-w-[500px] text-left text-xs">
+                    <thead className="bg-neutral-50 text-neutral-500 border-b border-neutral-100">
+                      <tr>
+                        <th className="p-3 font-semibold">Order ID</th>
+                        <th className="p-3 font-semibold">Customer</th>
+                        <th className="p-3 font-semibold">Tracking ID</th>
+                        <th className="p-3 font-semibold">Status</th>
+                        <th className="p-3 font-semibold">Date</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-100">
+                      {shipments.map((s) => (
+                        <tr
+                          key={s.trackingId}
+                          onClick={() => setSelectedShipment(s)}
+                          className={`hover:bg-neutral-50 cursor-pointer transition ${
+                            selectedShipment.trackingId === s.trackingId ? "bg-emerald-50/60" : ""
+                          }`}
+                        >
+                          <td className="p-3 font-mono font-bold text-neutral-900">{s.orderId}</td>
+                          <td className="p-3 font-semibold text-neutral-900">{s.customer}</td>
+                          <td className="p-3 font-mono text-emerald-700 font-bold">{s.trackingId}</td>
+                          <td className="p-3">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                s.status === "Delivered" ? "bg-emerald-100 text-emerald-800" : "bg-sky-100 text-sky-800"
+                              }`}
+                            >
+                              {s.status}
+                            </span>
+                          </td>
+                          <td className="p-3 text-neutral-500">{s.date}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
-              <div className="col-span-2 bg-white p-5 rounded-2xl border border-neutral-200/80 shadow-2xs space-y-4">
+              <div className="lg:col-span-2 bg-white p-4 sm:p-5 rounded-2xl border border-neutral-200/80 shadow-2xs space-y-4">
                 <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
                   <div>
                     <h3 className="font-bold text-sm text-neutral-900">Tracking Details</h3>
@@ -4507,15 +4581,15 @@ export default function PrajnaaMasterCrmApp() {
 
         {/* SCREEN 12: SETTINGS (Admin only) */}
         {activeNav === "settings" && userPermissions.allowedTabs.includes("settings") && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-neutral-900 dark:text-white">CRM & WhatsApp Settings</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-neutral-900 dark:text-white">CRM & WhatsApp Settings</h2>
               <p className="text-xs text-neutral-500 mt-0.5">
                 Manage official WhatsApp Business API configuration, Meta webhooks, payment credentials, and India Post dispatch hubs.
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-6 max-w-4xl">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 max-w-4xl">
               {/* Card 1: Official WhatsApp Business Platform */}
               <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-neutral-200 dark:border-slate-800 shadow-2xs space-y-4 text-neutral-900 dark:text-white">
                 <div className="flex items-center justify-between border-b border-neutral-100 dark:border-slate-800 pb-3">
@@ -4681,6 +4755,64 @@ export default function PrajnaaMasterCrmApp() {
             </div>
           </div>
         )}
+
+        {/* ========================================================= */}
+        {/* MOBILE BOTTOM NAVIGATION BAR                              */}
+        {/* ========================================================= */}
+        <nav className="md:hidden fixed bottom-0 inset-x-0 h-14 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-neutral-200/80 dark:border-slate-800 z-30 flex items-center justify-around px-2 text-[10px] font-semibold text-neutral-500 shadow-lg">
+          <button
+            onClick={() => { setActiveNav("dashboard"); setMobileChatView("list"); }}
+            className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+              activeNav === "dashboard" ? "text-emerald-700 font-bold" : "hover:text-neutral-900"
+            }`}
+          >
+            <LayoutDashboard className="h-4 w-4" />
+            <span>Dashboard</span>
+          </button>
+
+          <button
+            onClick={() => { setActiveNav("inbox"); setMobileChatView("list"); }}
+            className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition relative ${
+              activeNav === "inbox" ? "text-emerald-700 font-bold" : "hover:text-neutral-900"
+            }`}
+          >
+            <div className="relative">
+              <MessageSquare className="h-4 w-4" />
+              <span className="absolute -top-1 -right-2 bg-rose-500 text-white text-[8px] font-bold px-1 rounded-full">
+                12
+              </span>
+            </div>
+            <span>Inbox</span>
+          </button>
+
+          <button
+            onClick={() => { setActiveNav("orders"); setMobileChatView("list"); }}
+            className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+              activeNav === "orders" || activeNav === "order_details" ? "text-emerald-700 font-bold" : "hover:text-neutral-900"
+            }`}
+          >
+            <ShoppingBag className="h-4 w-4" />
+            <span>Orders</span>
+          </button>
+
+          <button
+            onClick={() => { setActiveNav("shipments"); setMobileChatView("list"); }}
+            className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+              activeNav === "shipments" ? "text-emerald-700 font-bold" : "hover:text-neutral-900"
+            }`}
+          >
+            <Truck className="h-4 w-4" />
+            <span>Shipments</span>
+          </button>
+
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl hover:text-neutral-900 transition"
+          >
+            <Menu className="h-4 w-4" />
+            <span>Menu</span>
+          </button>
+        </nav>
       </main>
 
       {/* ========================================================= */}
