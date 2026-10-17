@@ -1026,24 +1026,16 @@ export default function PrajnaaMasterCrmApp() {
                   const alreadyHasOrderMsg = existingList.some((m) => m.text?.includes(orderNumTag));
                   if (alreadyHasOrderMsg) return prevMsgs;
 
-                  const customerInboundText = `Namaste Nishant ji! 🙏 Maine website se order place kiya hai:\n\n🌾 *Order ${orderNumTag}*\n*Items:* ${itemsSummary}\n*Total Amount:* ₹${orderTotal.toLocaleString("en-IN")}\n*Payment Method:* WhatsApp Order & Direct Payment\n*Delivery Address:* ${snap.line1 || snap.addressLine1 || "Dehradun"}, ${snap.city || "Dehradun"} - ${snap.postalCode || "248001"}\n\nPlease verify and confirm my order!`;
-
-                  const businessReplyText = `Namaste ${ord.customerName || "ji"}! 🙏 Aapka order ${orderNumTag} record ho gaya hai.\n\nHum pure Himalayan harvest direct organic farms se pack kar rahe hain. 2-3 din ke andar India Post Speed Post dispatch ho jayega. Dhanyawad! 🌾`;
+                  // Store/Business sends the FIRST message with complete order details fetched from Prajnaa portal
+                  const businessFirstMessage = `Namaste ${ord.customerName || "ji"}! 🙏 Prajnaa Market se connect karne ke liye dhanyawad.\n\nAapne hamare Prajnaa portal se yeh saman order kiya hai:\n\n📦 *Order ID:* ${orderNumTag}\n🌾 *Saman / Items:* ${itemsSummary}\n💰 *Total Amount:* ₹${orderTotal.toLocaleString("en-IN")}\n📍 *Delivery Address:* ${snap.line1 || snap.addressLine1 || "Dehradun"}, ${snap.city || "Dehradun"} - ${snap.postalCode || "248001"}\n🚚 *Shipping Mode:* India Post Speed Post (2-3 din me dispatch)\n\nHum aapka order organic farms se pack kar rahe hain. Kisi bhi jaankari ya payment confirmation ke liye aap yahan reply kar sakte hain! 🌿`;
 
                   const newMessages: Message[] = [
                     {
-                      id: `msg_in_${ord.orderNumber || ord.id}`,
-                      sender: "customer",
-                      text: customerInboundText,
-                      time: "Just now",
-                      status: "read",
-                    },
-                    {
-                      id: `msg_out_${ord.orderNumber || ord.id}`,
+                      id: `msg_order_${ord.orderNumber || ord.id}`,
                       sender: "business",
-                      text: businessReplyText,
+                      text: businessFirstMessage,
                       time: "Just now",
-                      status: "read",
+                      status: "delivered",
                     },
                   ];
 
@@ -1061,7 +1053,7 @@ export default function PrajnaaMasterCrmApp() {
                     latestOrder: formattedOrder,
                     unreadCount: isNewToSession ? (existing.unreadCount || 0) + 1 : existing.unreadCount,
                     lastMessageTime: isNewToSession ? "Just now" : existing.lastMessageTime,
-                    lastMessageText: `🌾 New Order #${ord.orderNumber || ord.id} received via WhatsApp Checkout!`,
+                    lastMessageText: `📦 Order #${ord.orderNumber || ord.id} confirmation sent to customer`,
                   };
                 } else {
                   updatedCustomer = {
@@ -1082,9 +1074,9 @@ export default function PrajnaaMasterCrmApp() {
                       pincode: snap.postalCode || "248001",
                       country: "India",
                     },
-                    unreadCount: 1,
+                    unreadCount: 0,
                     lastMessageTime: "Just now",
-                    lastMessageText: `🌾 New Order #${ord.orderNumber || ord.id} received via WhatsApp Checkout!`,
+                    lastMessageText: `📦 Order #${ord.orderNumber || ord.id} confirmation sent to customer`,
                     latestOrder: formattedOrder,
                   };
                 }
