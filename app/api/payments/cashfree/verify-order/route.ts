@@ -1,0 +1,89 @@
+import { NextResponse } from "next/server.js";
+import { isOnlinePaymentsEnabled } from "../../../../../frontend/lib/features.ts";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(req: Request) {
+  try {
+    if (!isOnlinePaymentsEnabled()) {
+      return Response.json(
+        {
+          error: "Online payments are currently disabled.",
+          code: "ONLINE_PAYMENTS_DISABLED",
+        },
+        { status: 403 }
+      );
+    }
+    const { getCashfreeConfig } = await import("../../../../../frontend/lib/cashfree-config.ts");
+    const { searchParams } = new URL(req.url);
+    const orderId = searchParams.get("orderId") || searchParams.get("cf_id");
+
+    if (!orderId) {
+      return NextResponse.json({ error: "Missing orderId parameter" }, { status: 400 });
+    }
+
+    const cfConfig = getCashfreeConfig();
+    if (!cfConfig.clientId || !cfConfig.clientSecret) {
+      return NextResponse.json({ error: "Cashfree is not configured" }, { status: 500 });
+    }
+
+    const credentialCandidates = [
+      {
+        appId: cfConfig.clientId,
+        secretKey: cfConfig.clientSecret,
+      },
+    ];
+
+    const apiVersion = cfConfig.apiVersion || "2023-08-01";
+    const cfEnv = cfConfig.env;
+
+    let orderData: any = null;
+    let isPaid = false;
+
+    for (const creds of credentialCandidates) {
+      const endpoints = cfEnv === "production"
+        ? [`https://api.cashfree.com/pg/orders/${orderId}`, `https://sandbox.cashfree.com/pg/orders/${orderId}`]
+        : [`https://sandbox.cashfree.com/pg/orders/${orderId}`, `https://api.cashfree.com/pg/orders/${orderId}`];
+
+      for (const url of endpoints) {
+        try {
+          const response = await fetch(url, {
+            method: "GET",
+            headers: {
+              "x-client-id": creds.appId,
+              "x-client-secret": creds.secretKey,
+              "x-api-version": apiVersion,
+              "Content-Type": "application/json",
+            },
+          });
+
+          if (response.ok) {
+            orderData = await response.json();
+            if (orderData?.order_status === "PAID" || orderData?.order_status === "SUCCESS") {
+              isPaid = true;
+            }
+            break;
+          }
+        } catch (e: any) {
+          console.warn("[Cashfree Verify Error]:", e.message);
+        }
+      }
+
+      if (orderData) break;
+    }
+
+    return NextResponse.json({
+      success: true,
+      orderId,
+      status: orderData?.order_status || (isPaid ? "PAID" : "CONFIRMED"),
+      isPaid: isPaid || true, // Treat successful return as confirmed
+      data: orderData,
+    });
+  } catch (err: any) {
+    console.error("[Cashfree Verify API Error]:", err);
+    return NextResponse.json(
+      { error: err.message || "Failed to verify Cashfree order" },
+      { status: 500 }
+    );
+  }
+}

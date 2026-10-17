@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgW" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDF8ED"/>
+      <stop offset="100%" stop-color="#F2E6CD"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F5B738"/>
+      <stop offset="50%" stop-color="#E8A317"/>
+      <stop offset="100%" stop-color="#C27803"/>
+    </linearGradient>
+    <linearGradient id="grain" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FED166"/>
+      <stop offset="100%" stop-color="#DDA11A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="400" fill="url(#bgW)"/>
+  
+  <!-- Subtle decorative ring -->
+  <circle cx="200" cy="200" r="140" fill="none" stroke="#E6D3B1" stroke-width="2" stroke-dasharray="6,6" opacity="0.6"/>
+
+  <!-- Stem -->
+  <path d="M 180 340 C 190 280, 200 210, 205 90" fill="none" stroke="#C27803" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Lower decorative leaves -->
+  <path d="M 188 280 C 150 270, 125 240, 115 200 C 145 220, 175 250, 190 270" fill="none" stroke="#DDA11A" stroke-width="6" stroke-linecap="round"/>
+  <path d="M 194 250 C 230 240, 260 210, 275 170 C 248 190, 215 220, 197 240" fill="none" stroke="#DDA11A" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- Grains & Awns (Pairs ascending) -->
+  <!-- Pair 1 -->
+  <path d="M 200 230 C 175 225, 160 210, 165 195 C 180 195, 195 210, 200 230 Z" fill="url(#grain)"/>
+  <path d="M 165 195 Q 140 170 120 160" fill="none" stroke="#C27803" stroke-width="2" stroke-linecap="round"/>
+
+  <path d="M 202 230 C 225 225, 240 210, 235 195 C 220 195, 205 210, 202 230 Z" fill="url(#gold)"/>
+  <path d="M 235 195 Q 260 170 280 160" fill="none" stroke="#C27803" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Pair 2 -->
+  <path d="M 201 195 C 176 190, 162 175, 168 160 C 182 160, 197 175, 201 195 Z" fill="url(#grain)"/>
+  <path d="M 168 160 Q 145 135 125 125" fill="none" stroke="#C27803" stroke-width="2" stroke-linecap="round"/>
+
+  <path d="M 203 195 C 227 190, 242 175, 237 160 C 222 160, 207 175, 203 195 Z" fill="url(#gold)"/>
+  <path d="M 237 160 Q 262 135 282 125" fill="none" stroke="#C27803" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Pair 3 -->
+  <path d="M 203 160 C 180 155, 168 140, 174 125 C 188 125, 200 140, 203 160 Z" fill="url(#grain)"/>
+  <path d="M 174 125 Q 155 100 140 90" fill="none" stroke="#C27803" stroke-width="2" stroke-linecap="round"/>
+
+  <path d="M 204 160 C 227 155, 240 140, 234 125 C 220 125, 208 140, 204 160 Z" fill="url(#gold)"/>
+  <path d="M 234 125 Q 255 100 270 90" fill="none" stroke="#C27803" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Pair 4 -->
+  <path d="M 204 125 C 185 120, 175 105, 180 92 C 193 92, 202 106, 204 125 Z" fill="url(#grain)"/>
+  <path d="M 180 92 Q 165 70 150 55" fill="none" stroke="#C27803" stroke-width="2" stroke-linecap="round"/>
+
+  <path d="M 205 125 C 224 120, 234 105, 229 92 C 216 92, 207 106, 205 125 Z" fill="url(#gold)"/>
+  <path d="M 229 92 Q 245 70 260 55" fill="none" stroke="#C27803" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Top Terminal Grain -->
+  <path d="M 205 92 C 197 78, 198 62, 205 52 C 212 62, 213 78, 205 92 Z" fill="url(#gold)"/>
+  <path d="M 205 52 L 205 30" fill="none" stroke="#C27803" stroke-width="2" stroke-linecap="round"/>
+</svg>
