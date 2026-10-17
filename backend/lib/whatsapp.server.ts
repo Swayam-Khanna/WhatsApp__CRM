@@ -188,6 +188,55 @@ export function buildOfficialOrderConfirmationMessage(order: {
 }
 
 /**
+  * Builds itemized WhatsApp confirmation for CRM order ingestion
+  * matching Prajnaa Market tone in Hindi/Hinglish.
+  */
+ export function buildItemizedCrmOrderConfirmationMessage(order: {
+   customerName: string;
+   orderNumber: string;
+   items: Array<{
+     productName: string;
+     quantity: number;
+     unitPricePaise: number;
+     totalPaise?: number;
+     variantName?: string | null;
+   }>;
+   totalPaise: number;
+   paymentStatus: string;
+ }): string {
+   const formatInr = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
+   const itemizedProductList = (order.items || [])
+     .map(
+       (it) =>
+         `• ${it.productName}${it.variantName ? ` (${it.variantName})` : ""} × ${it.quantity} — ${formatInr(
+           it.totalPaise ?? it.unitPricePaise * it.quantity
+         )}`
+     )
+     .join("\n");
+
+   const displayPaymentStatus =
+     order.paymentStatus === "collected" || order.paymentStatus === "paid"
+       ? "Paid"
+       : "Pending (Awaiting Payment Confirmation)";
+
+   return [
+     `Namaste ${order.customerName} ji! 🌿`,
+     `Aapne Prajnaa Market se jo order place kiya hai, uski details yeh hain:`,
+     `Order No.: #${order.orderNumber}`,
+     itemizedProductList,
+     `Order Total: ${formatInr(order.totalPaise)}`,
+     `Payment Status: ${displayPaymentStatus}`,
+     ``,
+     `Aapka order humein mil gaya hai. Prajnaa Market mein order processing aur dispatch mein aam taur par 2–3 din lagte hain. Dispatch hone par tracking details aapke saath share ki jayengi.`,
+     ``,
+     `Kisi bhi madad ke liye aap humein isi WhatsApp number par message kar sakte hain.`,
+     ``,
+     `Dhanyavaad ji! 🌿`,
+     `Team Prajnaa Market`,
+   ].join("\n");
+ }
+
+/**
  * Builds official India Post Speed Post Dispatch notification.
  */
 export function buildSpeedPostDispatchMessage(params: {

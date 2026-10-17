@@ -83,12 +83,28 @@ export async function POST(req: Request) {
       items: (result.order as any).items,
     });
 
-    // 5. Instantly push to CRM server cache for Nishant & concierge team
+    // 5. Synchronize with WhatsApp CRM (Transactional Outbox Pattern)
+    let crmSyncResult: any = null;
+    try {
+      const { syncOrderToWhatsAppCrm } = await import("../../../../backend/lib/crm-sync.server.ts");
+      crmSyncResult = await syncOrderToWhatsAppCrm(result.order, (result.order as any).items);
+    } catch (crmErr: any) {
+      console.warn("[Orders API] Background CRM sync warning:", crmErr?.message || crmErr);
+      crmSyncResult = {
+        success: false,
+        status: "retry_pending",
+        orderNumber: result.order.orderNumber || result.order.id,
+        error: crmErr?.message || "CRM sync failed",
+      };
+    }
+
+    // 6. Push to local instance cache and inbound WhatsApp feed
     try {
       if (!globalThis.__globalCrmOrders) globalThis.__globalCrmOrders = [];
       const orderRecord = {
         ...result.order,
         whatsappUrl: result.whatsappUrl || null,
+        crmSyncStatus: crmSyncResult?.status || "synced",
       };
       const orderNum = orderRecord.orderNumber || orderRecord.id;
       const existingIdx = globalThis.__globalCrmOrders.findIndex(
@@ -100,7 +116,6 @@ export async function POST(req: Request) {
         globalThis.__globalCrmOrders.unshift(orderRecord);
       }
 
-      // 6. Push inbound WhatsApp message into global feed if paymentMethod === 'whatsapp'
       if (paymentMethod === "whatsapp") {
         if (!globalThis.__globalWhatsAppFeed) globalThis.__globalWhatsAppFeed = [];
         const waText = result.whatsappUrl
@@ -133,6 +148,7 @@ export async function POST(req: Request) {
       success: true,
       order: result.order,
       whatsappUrl: result.whatsappUrl || null,
+      crmSync: crmSyncResult,
     });
   } catch (error: any) {
     if (error instanceof OrderError) {

@@ -2568,6 +2568,21 @@ export default function PrajnaaMasterCrmApp() {
                       <span>Auto-Responder: Active</span>
                     </div>
 
+                    {/* Direct Real WhatsApp Opener */}
+                    <a
+                      href={`https://wa.me/${(currentCustomer.phone || "").replace(/\D/g, "")}?text=${encodeURIComponent(
+                        currentMessages[currentMessages.length - 1]?.text || "Namaste from Prajnaa Market!"
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1.5 rounded-xl bg-[#25D366]/20 hover:bg-[#25D366]/30 text-[#0F602B] text-[11px] md:text-xs font-bold border border-[#25D366]/50 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="Open conversation in real WhatsApp Web/App to send message directly to phone"
+                    >
+                      <span className="text-xs">🟢</span>
+                      <span className="hidden sm:inline">Open in Real WhatsApp</span>
+                      <span className="sm:hidden">WhatsApp</span>
+                    </a>
+
                     {/* Simulate Customer Query Button */}
                     <button
                       type="button"
@@ -2576,7 +2591,7 @@ export default function PrajnaaMasterCrmApp() {
                       title="Test customer asking something to see instant automated response"
                     >
                       <span>💬</span>
-                      <span className="hidden sm:inline">Simulate Customer Ask</span>
+                      <span className="hidden sm:inline">Simulate Ask</span>
                       <span className="sm:hidden">Test</span>
                     </button>
 
@@ -2585,7 +2600,7 @@ export default function PrajnaaMasterCrmApp() {
                       className="px-2 md:px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] md:text-xs font-semibold border border-emerald-200 transition flex items-center gap-1 cursor-pointer shadow-2xs"
                     >
                       <QrCode className="h-3.5 w-3.5 text-emerald-600" />
-                      <span className="hidden sm:inline">Send Payment QR</span>
+                      <span className="hidden sm:inline">Send QR</span>
                       <span className="sm:hidden">QR</span>
                     </button>
                     {/* View Details Info button on mobile & tablets */}

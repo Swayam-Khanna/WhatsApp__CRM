@@ -1,4 +1,3 @@
-import { NextRequest, NextResponse } from "next/server";
 import { db } from "../../../../backend/db.ts";
 import { orders, orderItems } from "../../../../backend/schema/orders.ts";
 import { desc } from "drizzle-orm";
@@ -98,7 +97,11 @@ if (!globalThis.__globalCrmOrders) {
   ];
 }
 
-import { getDatabase } from "@/lib/mongodb";
+import { getDatabase } from "../../../../lib/mongodb.ts";
+import {
+  sendWhatsAppTextMessage,
+  buildItemizedCrmOrderConfirmationMessage,
+} from "../../../../backend/lib/whatsapp.server.ts";
 
 /**
  * GET /api/crm/orders
@@ -115,14 +118,14 @@ export async function GET() {
       .toArray();
 
     if (mongoOrders && mongoOrders.length > 0) {
-      return NextResponse.json({ success: true, source: "mongodb", orders: mongoOrders });
+      return Response.json({ success: true, source: "mongodb", orders: mongoOrders });
     }
   } catch (err) {
     console.warn("[MongoDB] Orders query note:", err);
   }
 
   // Fallback to in-memory store
-  return NextResponse.json({
+  return Response.json({
     success: true,
     source: "memory_sync",
     orders: globalThis.__globalCrmOrders || [],
@@ -131,59 +134,228 @@ export async function GET() {
 
 /**
  * POST /api/crm/orders
- * Inserts or syncs a new customer order into MongoDB Atlas and in-memory cache.
+ * Validates, idempotently persists order, and initiates official WhatsApp confirmation.
  */
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const newOrder = await req.json();
-    if (!newOrder || (!newOrder.orderNumber && !newOrder.id)) {
-      return NextResponse.json({ error: "Invalid order data" }, { status: 400 });
+    // 1. Authenticate if WHATSAPP_CRM_API_KEY is configured
+    const expectedApiKey = process.env.WHATSAPP_CRM_API_KEY;
+    if (expectedApiKey) {
+      const authHeader = req.headers.get("x-crm-api-key") || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+      if (!authHeader || authHeader !== expectedApiKey) {
+        return Response.json(
+          { error: "Unauthorized: Invalid or missing CRM API key", code: "UNAUTHORIZED" },
+          { status: 401 }
+        );
+      }
     }
 
-    const orderNum = newOrder.orderNumber || newOrder.id;
+    const newOrder = await req.json();
+
+    // 2. Validate request schema
+    if (!newOrder || typeof newOrder !== "object") {
+      return Response.json(
+        { error: "Invalid order data: Payload must be a non-empty JSON object", code: "INVALID_ORDER_DATA" },
+        { status: 400 }
+      );
+    }
+
+    const orderNum = (newOrder.orderNumber || newOrder.id || "").toString().trim();
+    if (!orderNum) {
+      return Response.json(
+        { error: "Invalid order data: Missing required 'orderNumber' or 'id'", code: "MISSING_ORDER_ID" },
+        { status: 400 }
+      );
+    }
+
+    const customerPhone = (newOrder.customerPhone || "").toString().trim();
+    if (!customerPhone || customerPhone.replace(/\D/g, "").length < 10) {
+      return Response.json(
+        { error: "Invalid order data: Valid customer phone number is required", code: "INVALID_PHONE" },
+        { status: 400 }
+      );
+    }
+
+    if (!Array.isArray(newOrder.items) || newOrder.items.length === 0) {
+      return Response.json(
+        { error: "Invalid order data: Order must contain at least one item", code: "EMPTY_ITEMS" },
+        { status: 400 }
+      );
+    }
+
+    const totalPaise = Number(newOrder.totalPaise);
+    if (isNaN(totalPaise) || totalPaise < 0) {
+      return Response.json(
+        { error: "Invalid order data: 'totalPaise' must be a non-negative integer", code: "INVALID_TOTAL" },
+        { status: 400 }
+      );
+    }
+
     if (!globalThis.__globalCrmOrders) globalThis.__globalCrmOrders = [];
 
-    // Check if order already exists in memory
+    // 3. Idempotent lookup: Check if order already exists in memory or MongoDB
     const existingIndex = globalThis.__globalCrmOrders.findIndex(
       (o) => o.orderNumber === orderNum || o.id === orderNum
     );
+    const existingOrder = existingIndex >= 0 ? globalThis.__globalCrmOrders[existingIndex] : null;
 
-    if (existingIndex >= 0) {
-      globalThis.__globalCrmOrders[existingIndex] = {
-        ...globalThis.__globalCrmOrders[existingIndex],
-        ...newOrder,
-      };
-    } else {
-      globalThis.__globalCrmOrders.unshift(newOrder);
-    }
-
-    // Persist permanently to MongoDB Atlas
+    let dbExistingOrder: any = null;
+    let mongoDb: any = null;
     try {
-      const mongoDb = await getDatabase();
-      await mongoDb.collection("crm_orders").updateOne(
-        { $or: [{ orderNumber: orderNum }, { id: orderNum }] },
-        {
-          $set: {
-            ...newOrder,
-            updatedAt: new Date(),
-          },
-          $setOnInsert: {
-            createdAt: new Date(),
-          },
-        },
-        { upsert: true }
-      );
-    } catch (mongoErr) {
-      console.warn("[MongoDB] Failed to persist order to Atlas:", mongoErr);
+      mongoDb = await getDatabase();
+      dbExistingOrder = await mongoDb.collection("crm_orders").findOne({
+        $or: [{ orderNumber: orderNum }, { id: orderNum }],
+      });
+    } catch (mErr) {
+      console.warn("[MongoDB] Connection note:", mErr);
     }
 
-    return NextResponse.json({
+    const previousConfirmation = existingOrder?.whatsappConfirmation || dbExistingOrder?.whatsappConfirmation;
+    const alreadyConfirmed = Boolean(previousConfirmation?.sent);
+
+    // 4. Clean and normalize order record
+    const persistedOrder = {
+      ...(existingOrder || dbExistingOrder || {}),
+      ...newOrder,
+      id: orderNum,
+      orderNumber: orderNum,
+      customerPhone,
+      totalPaise: Math.round(totalPaise),
+      status: newOrder.status || "Processing",
+      paymentStatus: newOrder.paymentStatus || "pending",
+      paymentMethod: newOrder.paymentMethod || "whatsapp",
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (!persistedOrder.createdAt) {
+      persistedOrder.createdAt = new Date().toISOString();
+    }
+
+    // 5. Initiate WhatsApp Confirmation (Idempotent: Only if not already sent)
+    let whatsappNotification: any = {
+      sent: false,
+      duplicatePrevented: alreadyConfirmed,
+    };
+
+    if (alreadyConfirmed) {
+      whatsappNotification = {
+        sent: true,
+        duplicatePrevented: true,
+        messageId: previousConfirmation?.messageId,
+        mode: previousConfirmation?.mode,
+        sentAt: previousConfirmation?.sentAt,
+      };
+      persistedOrder.whatsappConfirmation = previousConfirmation;
+    } else if (newOrder.customerOptOut) {
+      whatsappNotification = {
+        sent: false,
+        skipped: true,
+        reason: "Customer opted out of WhatsApp notifications",
+      };
+      persistedOrder.whatsappConfirmation = whatsappNotification;
+    } else {
+      try {
+        const confirmationMessage = buildItemizedCrmOrderConfirmationMessage({
+          customerName: persistedOrder.customerName || "Customer",
+          orderNumber: orderNum,
+          items: persistedOrder.items,
+          totalPaise: persistedOrder.totalPaise,
+          paymentStatus: persistedOrder.paymentStatus,
+        });
+
+        const sendResult = await sendWhatsAppTextMessage({
+          to: customerPhone,
+          text: confirmationMessage,
+        });
+
+        whatsappNotification = {
+          sent: sendResult.success,
+          duplicatePrevented: false,
+          messageId: sendResult.messageId,
+          mode: sendResult.mode,
+          whatsappUrl: sendResult.whatsappUrl || null,
+          sentAt: new Date().toISOString(),
+        };
+
+        persistedOrder.whatsappConfirmation = whatsappNotification;
+
+        // Push outbound confirmation into CRM messages collection & live inbox feed
+        const msgRecord = {
+          id: sendResult.messageId || `msg_conf_${Date.now()}`,
+          direction: "outbound",
+          sender: "business",
+          from: "917650065690",
+          to: sendResult.recipientPhone,
+          customerName: persistedOrder.customerName,
+          text: confirmationMessage,
+          timestamp: new Date().toISOString(),
+          status: "sent",
+          orderNumber: orderNum,
+          type: "order_confirmation",
+          mode: sendResult.mode,
+          whatsappUrl: sendResult.whatsappUrl || null,
+          createdAt: new Date(),
+        };
+
+        if (!globalThis.__globalWhatsAppFeed) globalThis.__globalWhatsAppFeed = [];
+        globalThis.__globalWhatsAppFeed.unshift(msgRecord);
+
+        if (mongoDb) {
+          try {
+            await mongoDb.collection("crm_messages").insertOne(msgRecord);
+          } catch (msgErr) {
+            console.warn("[MongoDB] Failed to log confirmation message:", msgErr);
+          }
+        }
+      } catch (waErr: any) {
+        console.warn("[WhatsApp Confirmation] Dispatch warning:", waErr.message);
+        whatsappNotification = {
+          sent: false,
+          error: waErr.message || "Failed to dispatch WhatsApp message",
+          failedAt: new Date().toISOString(),
+        };
+        persistedOrder.whatsappConfirmation = whatsappNotification;
+      }
+    }
+
+    // 6. Persist permanently to memory and MongoDB Atlas
+    if (existingIndex >= 0) {
+      globalThis.__globalCrmOrders[existingIndex] = persistedOrder;
+    } else {
+      globalThis.__globalCrmOrders.unshift(persistedOrder);
+    }
+
+    if (mongoDb) {
+      try {
+        const { createdAt, _id, ...orderFieldsToSet } = persistedOrder;
+        await mongoDb.collection("crm_orders").updateOne(
+          { $or: [{ orderNumber: orderNum }, { id: orderNum }] },
+          {
+            $set: {
+              ...orderFieldsToSet,
+              updatedAt: new Date(),
+            },
+            $setOnInsert: {
+              createdAt: createdAt ? new Date(createdAt) : new Date(),
+            },
+          },
+          { upsert: true }
+        );
+      } catch (mongoErr) {
+        console.warn("[MongoDB] Failed to persist order to Atlas:", mongoErr);
+      }
+    }
+
+    return Response.json({
       success: true,
-      message: "Order successfully synced with MongoDB Atlas & WhatsApp CRM",
-      order: newOrder,
-      storage: "mongodb",
+      message: alreadyConfirmed
+        ? "Order updated; WhatsApp confirmation was already dispatched"
+        : "Order successfully persisted and WhatsApp confirmation initiated",
+      order: persistedOrder,
+      whatsappNotification,
+      storage: mongoDb ? "mongodb" : "memory_sync",
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Failed to sync order" }, { status: 500 });
+    return Response.json({ error: err.message || "Failed to process order" }, { status: 500 });
   }
 }

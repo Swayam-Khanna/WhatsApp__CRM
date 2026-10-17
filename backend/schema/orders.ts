@@ -267,3 +267,27 @@ export const paymentWebhookEvents = pgTable("payment_webhook_events", {
   errorMessage: text("error_message"),
   processedAt: timestamp("processed_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// 6. Order CRM Sync Outbox Table (Durable Storefront -> WhatsApp CRM Synchronization)
+export const orderCrmSync = pgTable(
+  "order_crm_sync",
+  {
+    id: text("id").primaryKey(),
+    orderId: text("order_id").notNull(),
+    orderNumber: text("order_number").notNull(),
+    status: text("status").default("pending").notNull(), // pending | synced | retry_pending | failed
+    attempts: integer("attempts").default(0).notNull(),
+    maxAttempts: integer("max_attempts").default(5).notNull(),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    payload: jsonb("payload").notNull(),
+    syncedAt: timestamp("synced_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("order_crm_sync_order_id_idx").on(table.orderId),
+    index("order_crm_sync_order_number_idx").on(table.orderNumber),
+    index("order_crm_sync_status_idx").on(table.status),
+  ]
+);

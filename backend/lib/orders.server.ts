@@ -728,7 +728,10 @@ export async function createOrderAtomic(params: CreateOrderParams) {
         createdAt: new Date(),
       });
 
-      return insertedOrder;
+      return {
+        ...insertedOrder,
+        items: calc.items,
+      };
     });
   } catch (dbErr) {
     console.warn("[OrderService] DB transaction warning, using atomic fallback order record:", dbErr);
