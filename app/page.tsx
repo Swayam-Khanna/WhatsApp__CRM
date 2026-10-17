@@ -2461,9 +2461,9 @@ export default function PrajnaaMasterCrmApp() {
                       setShowCatalogQuoteMenu(true);
                       setShowQuickTemplatesMenu(false);
                     }}
-                    className="px-2.5 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold text-xs shrink-0 cursor-pointer transition flex items-center gap-1 shadow-2xs"
+                    className="px-3 py-1 rounded-full bg-[#0F3D2E]/10 hover:bg-[#0F3D2E]/15 text-[#0F3D2E] border border-[#0F3D2E]/25 font-subhead font-semibold text-xs shrink-0 cursor-pointer transition flex items-center gap-1.5 shadow-2xs"
                   >
-                    🍯 Quick Quote ({productsList.length} Products) ▾
+                    <span>🍯</span> Quick Quote ({productsList.length} Products) ▾
                   </button>
 
                   <button
@@ -2472,9 +2472,9 @@ export default function PrajnaaMasterCrmApp() {
                       setShowQuickTemplatesMenu(true);
                       setShowCatalogQuoteMenu(false);
                     }}
-                    className="px-2.5 py-1 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-semibold text-xs shrink-0 cursor-pointer transition flex items-center gap-1 shadow-2xs"
+                    className="px-3 py-1 rounded-full bg-[#E8A317]/15 hover:bg-[#E8A317]/25 text-[#925C05] border border-[#E8A317]/35 font-subhead font-semibold text-xs shrink-0 cursor-pointer transition flex items-center gap-1.5 shadow-2xs"
                   >
-                    ⚡ Templates ({templatesList.length}) ▾
+                    <span>⚡</span> Templates ({templatesList.length}) ▾
                   </button>
                 </div>
 

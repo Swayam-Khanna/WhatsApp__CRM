@@ -4,8 +4,6 @@ import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/sonner";
-import { PrajnaaCopilot } from "@/components/copilot/prajnaa-copilot";
-import { FarmerCopilot } from "@/components/copilot/farmer-copilot";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
@@ -39,8 +37,6 @@ export function Providers({ children }: { children: ReactNode }) {
           <ScrollToTop />
           {children}
           <Toaster richColors position="top-center" />
-          <PrajnaaCopilot />
-          <FarmerCopilot />
         </AuthProvider>
       </SyncStatusProvider>
     </QueryClientProvider>
