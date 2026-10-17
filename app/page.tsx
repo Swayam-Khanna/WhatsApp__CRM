@@ -1459,51 +1459,51 @@ export default function PrajnaaMasterCrmApp() {
     { date: "27 Oct", orders: 28, revenue: 48720, placed: 9, processing: 9, shipped: 6, delivered: 4 },
   ];
 
-  // Theme Styling Classes Configuration
+  // Theme Styling Classes Configuration (Refined High-End Himalayan Palette)
   const themeStyles = {
     forest: {
-      sidebarBg: "bg-[#0F3D2E] text-white border-[#0B2E23]",
-      sidebarHover: "hover:bg-white/10 text-emerald-100/80",
-      sidebarActive: "bg-white/15 text-white shadow-xs font-semibold",
-      mainBg: "bg-[#F7F3EE] text-[#111827]",
-      headerBg: "bg-white/95 backdrop-blur-md border-[#EAE4DC]",
-      cardBg: "bg-white border-[#EAE4DC]",
+      sidebarBg: "bg-[#0A2E22] text-white border-[#062017]",
+      sidebarHover: "hover:bg-white/[0.08] text-[#E3ECE7]",
+      sidebarActive: "bg-white/[0.14] text-white shadow-xs font-semibold border-l-3 border-[#E8A317]",
+      mainBg: "bg-[#FBF9F5] text-[#111827]",
+      headerBg: "bg-white/95 backdrop-blur-md border-[#E7DFD5]",
+      cardBg: "bg-white border-[#E7DFD5] shadow-xs",
       accentPill: "bg-[#0F3D2E] text-white",
       badgeText: "text-[#0F3D2E]",
       name: "Prajnaa Forest & Cream (Default)",
     },
     dark: {
-      sidebarBg: "bg-[#0B141A] text-slate-100 border-slate-800",
-      sidebarHover: "hover:bg-slate-800/60 text-slate-400",
-      sidebarActive: "bg-emerald-600/20 text-emerald-400 border-l-2 border-emerald-400 font-bold",
-      mainBg: "bg-[#0F172A] text-slate-100",
-      headerBg: "bg-[#1E293B]/95 backdrop-blur-md border-slate-800 text-slate-100",
-      cardBg: "bg-[#1E293B] border-slate-700/80 text-slate-100",
+      sidebarBg: "bg-[#0A1713] text-slate-100 border-[#122822]",
+      sidebarHover: "hover:bg-white/[0.06] text-slate-300",
+      sidebarActive: "bg-emerald-600/25 text-emerald-300 border-l-3 border-emerald-400 font-semibold",
+      mainBg: "bg-[#0E1F1A] text-slate-100",
+      headerBg: "bg-[#11241E]/95 backdrop-blur-md border-[#1A382F] text-slate-100",
+      cardBg: "bg-[#142A23] border-[#1D3E34] text-slate-100 shadow-xs",
       accentPill: "bg-emerald-600 text-white",
       badgeText: "text-emerald-400",
-      name: "Midnight Dark Mode",
+      name: "Himalayan Pine Dark",
     },
     mist: {
-      sidebarBg: "bg-[#1E293B] text-white border-slate-800",
-      sidebarHover: "hover:bg-slate-800 text-slate-300",
-      sidebarActive: "bg-sky-600 text-white shadow-xs font-bold",
-      mainBg: "bg-[#F1F5F9] text-[#0F172A]",
+      sidebarBg: "bg-[#1B2D27] text-white border-[#12211C]",
+      sidebarHover: "hover:bg-white/10 text-slate-200",
+      sidebarActive: "bg-[#25463C] text-white shadow-xs font-semibold border-l-3 border-sky-400",
+      mainBg: "bg-[#F3F6F4] text-[#0F172A]",
       headerBg: "bg-white/95 backdrop-blur-md border-slate-200",
-      cardBg: "bg-white border-slate-200",
-      accentPill: "bg-sky-600 text-white",
-      badgeText: "text-sky-700",
+      cardBg: "bg-white border-slate-200 shadow-xs",
+      accentPill: "bg-[#1B2D27] text-white",
+      badgeText: "text-[#1B2D27]",
       name: "Alpine Mist Light",
     },
     harvest: {
-      sidebarBg: "bg-[#38230D] text-amber-50 border-[#261707]",
-      sidebarHover: "hover:bg-white/10 text-amber-200/70",
-      sidebarActive: "bg-amber-600/30 text-amber-200 border-l-2 border-amber-400 font-bold",
-      mainBg: "bg-[#FDFBF7] text-[#292524]",
-      headerBg: "bg-white/95 backdrop-blur-md border-amber-200/80",
-      cardBg: "bg-white border-amber-200/80",
-      accentPill: "bg-amber-600 text-white",
+      sidebarBg: "bg-[#2E1A08] text-amber-50 border-[#201205]",
+      sidebarHover: "hover:bg-white/10 text-amber-200/80",
+      sidebarActive: "bg-amber-600/30 text-amber-200 border-l-3 border-amber-400 font-semibold",
+      mainBg: "bg-[#FCF9F2] text-[#292524]",
+      headerBg: "bg-white/95 backdrop-blur-md border-amber-200/70",
+      cardBg: "bg-white border-amber-200/70 shadow-xs",
+      accentPill: "bg-[#D97706] text-white",
       badgeText: "text-amber-800",
-      name: "Golden Harvest Saffron",
+      name: "Golden Saffron Harvest",
     },
   }[currentTheme];
 
@@ -1514,8 +1514,8 @@ export default function PrajnaaMasterCrmApp() {
     return (
       <div className={`flex min-h-screen w-screen ${themeStyles.mainBg} font-sans antialiased overflow-hidden`}>
         {/* Left Side: Himalayan Landscape & Prajnaa Brand Hero */}
-        <div className="hidden lg:flex lg:w-7/12 relative flex-col justify-between p-12 overflow-hidden bg-gradient-to-br from-[#0F3D2E] via-[#144A39] to-[#0A261D] text-white">
-          <div className="absolute inset-0 pointer-events-none opacity-40 mix-blend-screen bg-[radial-gradient(#E8A317_1px,transparent_1px)] [background-size:24px_24px]" />
+        <div className="hidden lg:flex lg:w-7/12 relative flex-col justify-between p-12 overflow-hidden bg-gradient-to-br from-[#062018] via-[#0A2E22] to-[#04150F] text-white">
+          <div className="absolute inset-0 pointer-events-none opacity-30 mix-blend-screen bg-[radial-gradient(#E8A317_1px,transparent_1px)] [background-size:28px_28px]" />
 
           {/* Top Brand Logo */}
           <div className="relative z-10 flex items-center gap-3.5">
@@ -1645,10 +1645,10 @@ export default function PrajnaaMasterCrmApp() {
 
               <button
                 type="submit"
-                className="w-full py-3 bg-[#0F3D2E] hover:bg-[#154E3B] text-white rounded-xl text-xs font-semibold font-subhead transition shadow-md flex items-center justify-center gap-2 cursor-pointer mt-1"
+                className="w-full py-3 bg-[#0A2E22] hover:bg-[#0E3D2E] text-white rounded-xl text-xs font-semibold font-subhead transition shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer mt-1"
               >
                 <span>Sign In to Your Work Area</span>
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4 text-[#E8A317]" />
               </button>
             </form>
 
@@ -2606,8 +2606,8 @@ export default function PrajnaaMasterCrmApp() {
                   <button type="button" className="p-2 rounded-xl text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition cursor-pointer">
                     <Paperclip className="h-5 w-5" />
                   </button>
-                  <button type="submit" className="h-9 w-9 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-md transition cursor-pointer">
-                    <Send className="h-4 w-4 ml-0.5" />
+                  <button type="submit" className="h-9 w-9 rounded-full bg-[#0A2E22] hover:bg-[#0E3D2E] text-[#E8A317] flex items-center justify-center shadow-md transition cursor-pointer shrink-0">
+                    <Send className="h-4 w-4 ml-0.5 text-white" />
                   </button>
                 </form>
               </div>
