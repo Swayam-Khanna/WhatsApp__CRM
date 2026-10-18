@@ -2142,6 +2142,107 @@ export default function PrajnaaMasterCrmApp() {
     });
   }, [unifiedOrders, ordersFilter, ordersSearch]);
 
+  // Operational Cards Derived Metrics & Handlers
+  const pendingPaymentOrders = useMemo(() => {
+    return unifiedOrders.filter((o) => {
+      const s = String(o.orderStatus || "").toLowerCase();
+      const p = String(o.paymentStatus || "").toLowerCase();
+      return p === "pending" || s === "pending";
+    });
+  }, [unifiedOrders]);
+
+  const pendingPaymentTotal = useMemo(() => {
+    return pendingPaymentOrders.length > 0
+      ? pendingPaymentOrders.reduce((acc, o) => acc + (o.amount || 0), 0)
+      : 44800;
+  }, [pendingPaymentOrders]);
+
+  const pendingPaymentCount = useMemo(() => {
+    return pendingPaymentOrders.length > 0
+      ? pendingPaymentOrders.length
+      : (activeTimeframeData?.metrics?.pendingUpi || 32);
+  }, [pendingPaymentOrders, activeTimeframeData]);
+
+  const speedPostQueueOrders = useMemo(() => {
+    return unifiedOrders.filter((o) => {
+      const s = String(o.orderStatus || "").toLowerCase();
+      return ["processing", "packed"].includes(s);
+    });
+  }, [unifiedOrders]);
+
+  const speedPostQueueCount = useMemo(() => {
+    return speedPostQueueOrders.length > 0
+      ? speedPostQueueOrders.length
+      : (activeTimeframeData?.metrics?.processing || 18);
+  }, [speedPostQueueOrders, activeTimeframeData]);
+
+  const lowStockItems = useMemo(() => {
+    return productsList.filter((p) => p.stock === "Low Stock" || (p.unitsLeft !== undefined && p.unitsLeft <= 15));
+  }, [productsList]);
+
+  // Operational Action 1: Dispatch QR Reminders
+  const handleDispatchQrReminders = () => {
+    const pendingTargets = customers.filter(
+      (c) => String(c.latestOrder?.paymentStatus || "").toLowerCase() === "pending" || !c.resolved
+    );
+    const targets = pendingTargets.length > 0 ? pendingTargets : customers.slice(0, 3);
+    const count = Math.max(targets.length, pendingPaymentCount);
+
+    setMessagesMap((prev) => {
+      const updated = { ...prev };
+      targets.forEach((cust) => {
+        const existing = updated[cust.id] || [];
+        const orderTag = cust.latestOrder?.orderNumber || "#PJ-ORD-7650";
+        const amountDue = cust.latestOrder?.amount || 1850;
+        const reminderText = `Namaste ${cust.name}! 🙏 Prajnaa Market se aapke order ${orderTag} (₹${amountDue.toLocaleString("en-IN")}) ke payment ke liye official UPI QR code share kiya gaya hai.\n\n📲 *Official UPI ID:* prajnaa@upi\n🏦 *Account Name:* Prajnaa Himalayan Harvest\n\nPayment hote hi confirmation screenshot yahan share kar dein taki hum parcel India Post Speed Post se turant dispatch kar sakein! 🌿`;
+
+        const newMsg: Message = {
+          id: `msg_upi_${Date.now()}_${cust.id}`,
+          sender: "business",
+          text: reminderText,
+          time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+          isQr: true,
+          qrAmount: amountDue,
+          status: "delivered",
+        };
+
+        updated[cust.id] = [...existing, newMsg];
+      });
+      return updated;
+    });
+
+    toast.success(`Dispatched official UPI QR reminders to ${count} customers with pending orders!`);
+  };
+
+  // Operational Action 2: Open Shipping Manifest
+  const handleOpenShippingManifest = () => {
+    setActiveNav("shipments");
+    toast.success("Opened India Post Speed Post Dispatch Manifest!");
+  };
+
+  // Operational Action 3: Reorder from Cooperative
+  const handleReorderFromCooperative = () => {
+    setProductsList((prev) => {
+      const updated = prev.map((p) => {
+        if (p.stock === "Low Stock" || (p.unitsLeft !== undefined && p.unitsLeft <= 15) || p.name.includes("Shilajit") || p.name.includes("Saffron")) {
+          return {
+            ...p,
+            stock: "In Stock" as StockStatus,
+            unitsLeft: (p.unitsLeft || 5) + 25,
+          };
+        }
+        return p;
+      });
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("prajnaa_crm_products", JSON.stringify(updated));
+      }
+      return updated;
+    });
+
+    toast.success("Dispatched reorder for fresh harvest batch (+25 units each)! Inventory updated to In Stock.");
+  };
+
   // Theme Styling Classes Configuration (Refined High-End Himalayan Palette)
   const themeStyles = {
     forest: {
@@ -4129,76 +4230,114 @@ export default function PrajnaaMasterCrmApp() {
 
             {/* Row 5: Operational Quick Action Panels */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className={`p-5 rounded-2xl border shadow-2xs space-y-3 ${themeStyles.cardBg}`}>
-                <div className="flex items-center justify-between">
-                  <div className="h-9 w-9 rounded-xl bg-orange-500/15 text-orange-600 flex items-center justify-center">
-                    <QrCode className="h-4 w-4" />
+              {/* Card 1: Collect Outstanding Payments */}
+              <div className={`p-5 rounded-2xl border shadow-2xs space-y-3 flex flex-col justify-between ${themeStyles.cardBg}`}>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="h-9 w-9 rounded-xl bg-orange-500/15 text-orange-600 flex items-center justify-center">
+                      <QrCode className="h-4 w-4" />
+                    </div>
+                    <span className="text-[10px] font-bold text-orange-700 bg-orange-100 dark:bg-orange-950/60 dark:text-orange-300 px-2 py-0.5 rounded-full font-mono">
+                      {pendingPaymentCount} Pending UPI
+                    </span>
                   </div>
-                  <span className="text-[10px] font-bold text-orange-700 bg-orange-100 dark:bg-orange-950/60 dark:text-orange-300 px-2 py-0.5 rounded-full">
-                    32 Pending UPI
-                  </span>
+                  <div>
+                    <h4 className="font-bold text-sm text-neutral-900 dark:text-white">Collect Outstanding Payments</h4>
+                    <p className="text-xs text-neutral-500 mt-0.5">
+                      ₹{pendingPaymentTotal.toLocaleString("en-IN")} awaiting customer UPI verification across Dehradun and Delhi orders.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-sm text-neutral-900 dark:text-white">Collect Outstanding Payments</h4>
-                  <p className="text-xs text-neutral-500 mt-0.5">
-                    ₹44,800 awaiting customer UPI verification across Dehradun and Delhi orders.
-                  </p>
+                <div className="space-y-2 pt-1">
+                  <button
+                    onClick={handleDispatchQrReminders}
+                    className="w-full py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Send className="h-3.5 w-3.5" /> Dispatch QR Reminders
+                  </button>
+                  <button
+                    onClick={() => {
+                      setOrdersFilter("pending");
+                      setActiveNav("orders");
+                    }}
+                    className="w-full text-center text-[11px] font-semibold text-orange-700 dark:text-orange-400 hover:underline cursor-pointer"
+                  >
+                    View Pending Orders ({pendingPaymentCount}) →
+                  </button>
                 </div>
-                <button
-                  onClick={() => toast.success("Sent automated payment QR reminders to 32 WhatsApp customers!")}
-                  className="w-full py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Send className="h-3.5 w-3.5" /> Dispatch QR Reminders
-                </button>
               </div>
 
-              <div className={`p-5 rounded-2xl border shadow-2xs space-y-3 ${themeStyles.cardBg}`}>
-                <div className="flex items-center justify-between">
-                  <div className="h-9 w-9 rounded-xl bg-indigo-500/15 text-indigo-600 flex items-center justify-center">
-                    <Truck className="h-4 w-4" />
+              {/* Card 2: India Post Speed Post Queue */}
+              <div className={`p-5 rounded-2xl border shadow-2xs space-y-3 flex flex-col justify-between ${themeStyles.cardBg}`}>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="h-9 w-9 rounded-xl bg-indigo-500/15 text-indigo-600 flex items-center justify-center">
+                      <Truck className="h-4 w-4" />
+                    </div>
+                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100 dark:bg-indigo-950/60 dark:text-indigo-300 px-2 py-0.5 rounded-full font-mono">
+                      {speedPostQueueCount} Parcels
+                    </span>
                   </div>
-                  <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100 dark:bg-indigo-950/60 dark:text-indigo-300 px-2 py-0.5 rounded-full">
-                    18 Parcels
-                  </span>
+                  <div>
+                    <h4 className="font-bold text-sm text-neutral-900 dark:text-white">India Post Speed Post Queue</h4>
+                    <p className="text-xs text-neutral-500 mt-0.5">
+                      Himalayan raw honey and A2 cow ghee ready for booking at Dehradun Head Post Office.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-sm text-neutral-900 dark:text-white">India Post Speed Post Queue</h4>
-                  <p className="text-xs text-neutral-500 mt-0.5">
-                    Himalayan raw honey and A2 cow ghee ready for booking at Dehradun Head Post Office.
-                  </p>
+                <div className="space-y-2 pt-1">
+                  <button
+                    onClick={handleOpenShippingManifest}
+                    className="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Package className="h-3.5 w-3.5" /> Open Shipping Manifest
+                  </button>
+                  <button
+                    onClick={() => {
+                      setOrdersFilter("processing");
+                      setActiveNav("orders");
+                    }}
+                    className="w-full text-center text-[11px] font-semibold text-indigo-700 dark:text-indigo-400 hover:underline cursor-pointer"
+                  >
+                    View Processing Queue ({speedPostQueueCount}) →
+                  </button>
                 </div>
-                <button
-                  onClick={() => {
-                    setActiveNav("shipments");
-                    toast.info("Navigated to India Post Speed Post Dispatch");
-                  }}
-                  className="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Package className="h-3.5 w-3.5" /> Open Shipping Manifest
-                </button>
               </div>
 
-              <div className={`p-5 rounded-2xl border shadow-2xs space-y-3 ${themeStyles.cardBg}`}>
-                <div className="flex items-center justify-between">
-                  <div className="h-9 w-9 rounded-xl bg-amber-500/15 text-amber-600 flex items-center justify-center">
-                    <Sparkles className="h-4 w-4" />
+              {/* Card 3: Artisan Harvest Inventory */}
+              <div className={`p-5 rounded-2xl border shadow-2xs space-y-3 flex flex-col justify-between ${themeStyles.cardBg}`}>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="h-9 w-9 rounded-xl bg-amber-500/15 text-amber-600 flex items-center justify-center">
+                      <Sparkles className="h-4 w-4" />
+                    </div>
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300 px-2 py-0.5 rounded-full">
+                      {lowStockItems.length > 0 ? `${lowStockItems.length} Low Stock Alert` : "Stock Alert"}
+                    </span>
                   </div>
-                  <span className="text-[10px] font-bold text-amber-700 bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300 px-2 py-0.5 rounded-full">
-                    Stock Alert
-                  </span>
+                  <div>
+                    <h4 className="font-bold text-sm text-neutral-900 dark:text-white">Artisan Harvest Inventory</h4>
+                    <p className="text-xs text-neutral-500 mt-0.5">
+                      {lowStockItems.length > 0
+                        ? `${lowStockItems.map((p) => p.name.split(" ")[0] + " " + (p.name.split(" ")[1] || "")).slice(0, 2).join(" & ")} down to last batch at Haridwar facility.`
+                        : "Pure Shilajit Resin & Kashmiri Saffron down to last batch at Haridwar facility."}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-sm text-neutral-900 dark:text-white">Artisan Harvest Inventory</h4>
-                  <p className="text-xs text-neutral-500 mt-0.5">
-                    Pure Shilajit Resin & Kashmiri Saffron down to last batch at Haridwar facility.
-                  </p>
+                <div className="space-y-2 pt-1">
+                  <button
+                    onClick={handleReorderFromCooperative}
+                    className="w-full py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" /> Reorder from Cooperative
+                  </button>
+                  <button
+                    onClick={() => setActiveNav("products")}
+                    className="w-full text-center text-[11px] font-semibold text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
+                  >
+                    Manage Inventory Catalog ({productsList.length} SKUs) →
+                  </button>
                 </div>
-                <button
-                  onClick={() => toast.info("Stock reorder alert dispatched to Uttarkashi producer cooperative!")}
-                  className="w-full py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" /> Reorder from Cooperative
-                </button>
               </div>
             </div>
           </div>
