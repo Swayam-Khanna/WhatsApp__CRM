@@ -191,10 +191,14 @@ interface OrderItem {
 interface Order {
   id: string;
   orderNumber: string;
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  shippingAddress?: string;
   itemsCount: number;
   amount: number;
-  paymentStatus: "Pending" | "Paid" | "Refunded";
-  orderStatus: "Processing" | "Packed" | "Shipped" | "Delivered" | "Cancelled";
+  paymentStatus: "Pending" | "Paid" | "Refunded" | "COD";
+  orderStatus: "Pending" | "Processing" | "Packed" | "Shipped" | "Delivered" | "Cancelled" | "Completed";
   date: string;
   time?: string;
   items: OrderItem[];
@@ -898,6 +902,24 @@ export default function PrajnaaMasterCrmApp() {
   // State: Orders & Selected Order Details
   const [selectedOrderForView, setSelectedOrderForView] = useState<Order>(INITIAL_CUSTOMERS[0].latestOrder);
   const [ordersFilter, setOrdersFilter] = useState<string>("all");
+  const [ordersSearch, setOrdersSearch] = useState<string>("");
+  const [showAddOrderModal, setShowAddOrderModal] = useState<boolean>(false);
+  const [createdOrders, setCreatedOrders] = useState<Order[]>([]);
+
+  // State: Create Order Form
+  const [newOrderCustomerName, setNewOrderCustomerName] = useState<string>("");
+  const [newOrderCustomerPhone, setNewOrderCustomerPhone] = useState<string>("");
+  const [newOrderCustomerEmail, setNewOrderCustomerEmail] = useState<string>("");
+  const [newOrderAddress, setNewOrderAddress] = useState<string>("");
+  const [newOrderCity, setNewOrderCity] = useState<string>("Dehradun");
+  const [newOrderPincode, setNewOrderPincode] = useState<string>("248001");
+  const [newOrderProductId, setNewOrderProductId] = useState<string>("");
+  const [newOrderQuantity, setNewOrderQuantity] = useState<number>(1);
+  const [newOrderPaymentMethod, setNewOrderPaymentMethod] = useState<"COD" | "WhatsApp" | "UPI">("COD");
+  const [newOrderPaymentStatus, setNewOrderPaymentStatus] = useState<"Pending" | "Paid">("Pending");
+  const [newOrderStatus, setNewOrderStatus] = useState<"Pending" | "Processing" | "Packed" | "Shipped" | "Completed">("Pending");
+  const [newOrderNotes, setNewOrderNotes] = useState<string>("");
+  const [isSubmittingNewOrder, setIsSubmittingNewOrder] = useState<boolean>(false);
 
   // State: Dashboard Graph Filter
   const [graphTimeframe, setGraphTimeframe] = useState<"7d" | "30d" | "quarter">("30d");
@@ -1694,6 +1716,185 @@ export default function PrajnaaMasterCrmApp() {
     toast.success(`Team member ${member.name} registered! They can now log in with their generated credentials.`);
   };
 
+  // Handle Create New Order
+  const handleCreateNewOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newOrderCustomerName.trim()) {
+      toast.error("Please enter customer name");
+      return;
+    }
+    const cleanPhone = newOrderCustomerPhone.replace(/\D/g, "");
+    if (cleanPhone.length < 10) {
+      toast.error("Please enter a valid 10-digit mobile number");
+      return;
+    }
+
+    const selectedProduct = productsList.find((p) => p.id === newOrderProductId) || productsList[0];
+    const qty = Math.max(1, newOrderQuantity || 1);
+    const subtotal = (selectedProduct?.price || 950) * qty;
+    const shipping = 50;
+    const total = subtotal + shipping;
+    const orderNum = `PJ-OD-${Math.floor(1000 + Math.random() * 9000)}`;
+    const fullOrderNum = `#${orderNum}`;
+    const formattedDate = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    const formattedTime = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+
+    const newOrderObj: Order = {
+      id: `ord_${Date.now()}`,
+      orderNumber: fullOrderNum,
+      customerName: newOrderCustomerName.trim(),
+      customerPhone: cleanPhone.length === 10 ? `+91 ${cleanPhone}` : `+${cleanPhone}`,
+      customerEmail: newOrderCustomerEmail.trim(),
+      shippingAddress: `${newOrderAddress || "Main Market"}, ${newOrderCity || "Dehradun"} - ${newOrderPincode || "248001"}`,
+      itemsCount: qty,
+      amount: total,
+      paymentStatus: (newOrderPaymentStatus === "Paid" ? "Paid" : "Pending") as any,
+      orderStatus: (newOrderStatus === "Completed" ? "Completed" : newOrderStatus) as any,
+      date: formattedDate,
+      time: formattedTime,
+      items: [
+        {
+          name: selectedProduct?.name || "Himalayan Forest Honey",
+          weight: selectedProduct?.weight || "500g",
+          qty,
+          price: selectedProduct?.price || 950,
+          total: subtotal,
+          image: selectedProduct?.image || "🍯",
+        },
+      ],
+      subtotal,
+      discount: 0,
+      shipping,
+      paymentMethod: newOrderPaymentMethod === "COD" ? "Cash on Delivery" : newOrderPaymentMethod === "WhatsApp" ? "WhatsApp Order" : "UPI Payment",
+      trackingNumber: `ET${Math.floor(100000000 + Math.random() * 900000000)}IN`,
+    };
+
+    setIsSubmittingNewOrder(true);
+
+    try {
+      // 1. Add to local state
+      setCreatedOrders((prev) => [newOrderObj, ...prev]);
+      setSelectedOrderForView(newOrderObj);
+
+      // 2. Add or update customer in customers list
+      const targetCustId = `cust_${cleanPhone.slice(-10)}`;
+      setCustomers((prev) => {
+        const existingIdx = prev.findIndex((c) => c.phone.replace(/\D/g, "").endsWith(cleanPhone.slice(-10)));
+        if (existingIdx >= 0) {
+          const updated = [...prev];
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            totalOrders: updated[existingIdx].totalOrders + 1,
+            totalSpent: updated[existingIdx].totalSpent + total,
+            latestOrder: newOrderObj,
+          };
+          return updated;
+        }
+
+        const newCust: Customer = {
+          id: targetCustId,
+          name: newOrderCustomerName.trim(),
+          phone: `+91 ${cleanPhone.slice(-10)}`,
+          email: newOrderCustomerEmail.trim() || `${cleanPhone.slice(-10)}@prajnaamarket.com`,
+          location: `${newOrderCity}, Uttarakhand`,
+          totalOrders: 1,
+          totalSpent: total,
+          customerSince: "Oct 2024",
+          isVip: false,
+          avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
+          address: {
+            line1: newOrderAddress || "Civil Lines",
+            city: newOrderCity || "Dehradun",
+            state: "Uttarakhand",
+            pincode: newOrderPincode || "248001",
+            country: "India",
+          },
+          latestOrder: newOrderObj,
+          unreadCount: 0,
+          lastMessageTime: "Just now",
+          lastMessageText: `Order ${fullOrderNum} confirmed!`,
+        };
+        return [newCust, ...prev];
+      });
+
+      // 3. Add first WhatsApp message from Store Admin
+      const firstMsgText = `Namaste ${newOrderCustomerName.trim()}! 🙏 Prajnaa Market se connect karne ke liye dhanyawad.\n\nAapne hamare Prajnaa portal se yeh saman order kiya hai:\n\n📦 *Order ID:* ${fullOrderNum}\n🌾 *Saman / Items:* ${selectedProduct?.name || "Himalayan Forest Honey"} × ${qty}\n💰 *Total Amount:* ₹${total.toLocaleString("en-IN")}\n📍 *Delivery Address:* ${newOrderAddress || "Civil Lines"}, ${newOrderCity} - ${newOrderPincode}\n🚚 *Shipping Mode:* India Post Speed Post (2-3 din me dispatch)\n\nHum aapka order organic farms se pack kar rahe hain. Kisi bhi jaankari ya payment confirmation ke liye aap yahan reply kar sakte hain! 🌿`;
+
+      setMessagesMap((prev) => {
+        const existing = prev[targetCustId] || [];
+        return {
+          ...prev,
+          [targetCustId]: [
+            ...existing,
+            {
+              id: `msg_order_${orderNum}`,
+              sender: "admin",
+              senderName: "Prajnaa Store Concierge",
+              text: firstMsgText,
+              time: formattedTime,
+              date: "Today",
+              type: "text",
+              status: "delivered",
+            },
+          ],
+        };
+      });
+
+      // 4. Save to localStorage
+      try {
+        const saved = localStorage.getItem("prajnaa_crm_orders");
+        const list = saved ? JSON.parse(saved) : [];
+        list.unshift(newOrderObj);
+        localStorage.setItem("prajnaa_crm_orders", JSON.stringify(list));
+      } catch {}
+
+      // 5. Asynchronously persist to API / MongoDB Atlas
+      fetch("/api/crm/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderNumber: orderNum,
+          customerName: newOrderCustomerName.trim(),
+          customerPhone: cleanPhone.slice(-10),
+          customerEmail: newOrderCustomerEmail.trim(),
+          amount: total,
+          totalPaise: total * 100,
+          paymentMethod: newOrderPaymentMethod.toLowerCase(),
+          paymentStatus: newOrderPaymentStatus.toLowerCase(),
+          status: newOrderStatus.toLowerCase(),
+          items: [
+            {
+              productName: selectedProduct?.name || "Himalayan Produce",
+              quantity: qty,
+              price: selectedProduct?.price || 950,
+              unitPricePaise: (selectedProduct?.price || 950) * 100,
+            },
+          ],
+          shippingAddressSnapshot: {
+            line1: newOrderAddress || "Civil Lines",
+            city: newOrderCity || "Dehradun",
+            postalCode: newOrderPincode || "248001",
+          },
+        }),
+      }).catch((err) => console.warn("API sync error:", err));
+
+      // 6. Reset form, switch to "all" filter, and close modal
+      setOrdersFilter("all");
+      setNewOrderCustomerName("");
+      setNewOrderCustomerPhone("");
+      setNewOrderCustomerEmail("");
+      setNewOrderAddress("");
+      setNewOrderNotes("");
+      setShowAddOrderModal(false);
+
+      toast.success(`Order ${fullOrderNum} created successfully! WhatsApp message generated.`);
+    } catch (err: any) {
+      toast.error("Failed to create order: " + err.message);
+    } finally {
+      setIsSubmittingNewOrder(false);
+    }
+  };
+
   // Filtered conversations
   const filteredCustomers = customers.filter((cust) => {
     if (inboxTab === "unread" && !cust.unreadCount) return false;
@@ -1705,23 +1906,246 @@ export default function PrajnaaMasterCrmApp() {
     return true;
   });
 
-  // Daily Dashboard Chart Data
-  const DAILY_ORDER_DATA = [
-    { date: "01 Oct", orders: 6, revenue: 10440, placed: 2, processing: 2, shipped: 1, delivered: 1 },
-    { date: "03 Oct", orders: 9, revenue: 15660, placed: 3, processing: 3, shipped: 2, delivered: 1 },
-    { date: "05 Oct", orders: 12, revenue: 20880, placed: 4, processing: 4, shipped: 2, delivered: 2 },
-    { date: "07 Oct", orders: 16, revenue: 27840, placed: 5, processing: 5, shipped: 4, delivered: 2 },
-    { date: "09 Oct", orders: 11, revenue: 19140, placed: 3, processing: 4, shipped: 2, delivered: 2 },
-    { date: "11 Oct", orders: 15, revenue: 26100, placed: 4, processing: 5, shipped: 3, delivered: 3 },
-    { date: "13 Oct", orders: 19, revenue: 33060, placed: 6, processing: 6, shipped: 4, delivered: 3 },
-    { date: "15 Oct", orders: 22, revenue: 38280, placed: 7, processing: 7, shipped: 5, delivered: 3 },
-    { date: "17 Oct", orders: 14, revenue: 24360, placed: 5, processing: 4, shipped: 3, delivered: 2 },
-    { date: "19 Oct", orders: 18, revenue: 31320, placed: 5, processing: 6, shipped: 4, delivered: 3 },
-    { date: "21 Oct", orders: 25, revenue: 43500, placed: 8, processing: 8, shipped: 5, delivered: 4 },
-    { date: "23 Oct", orders: 20, revenue: 34800, placed: 6, processing: 7, shipped: 4, delivered: 3 },
-    { date: "25 Oct", orders: 23, revenue: 40020, placed: 7, processing: 7, shipped: 5, delivered: 4 },
-    { date: "27 Oct", orders: 28, revenue: 48720, placed: 9, processing: 9, shipped: 6, delivered: 4 },
-  ];
+  // Dynamic Dashboard Timeframe Data (Last 7 Days, Last 30 Days, This Quarter)
+  const TIMEFRAME_DATA = {
+    "7d": {
+      label: "Last 7 Days",
+      periodSubtitle: "Velocity for past 7 days (12 Oct – 18 Oct)",
+      avgDailyText: "Avg: ₹24,800 / day",
+      peakCapacityText: "₹35K",
+      midTargetText: "₹18K",
+      maxRevenue: 35000,
+      metrics: {
+        revenue: 73600,
+        revenueFormatted: "₹73,600",
+        revenueGrowth: "+24.2%",
+        orders: 38,
+        ordersGrowth: "+18% growth",
+        pendingUpi: 9,
+        pendingUpiDue: "₹12,400 due",
+        processing: 6,
+        processingNote: "1–2d standard",
+        shipped: 11,
+        shippedNote: "India Post transit",
+        delivered: 12,
+        deliveredSatisfaction: "100% satisfaction",
+      },
+      chart: [
+        { date: "12 Oct", orders: 4, revenue: 8200, placed: 1, processing: 1, shipped: 1, delivered: 1 },
+        { date: "13 Oct", orders: 6, revenue: 11400, placed: 2, processing: 2, shipped: 1, delivered: 1 },
+        { date: "14 Oct", orders: 5, revenue: 9800, placed: 1, processing: 1, shipped: 2, delivered: 1 },
+        { date: "15 Oct", orders: 7, revenue: 14200, placed: 2, processing: 2, shipped: 2, delivered: 1 },
+        { date: "16 Oct", orders: 5, revenue: 10100, placed: 1, processing: 1, shipped: 2, delivered: 1 },
+        { date: "17 Oct", orders: 8, revenue: 16500, placed: 2, processing: 2, shipped: 2, delivered: 2 },
+        { date: "18 Oct", orders: 3, revenue: 3400, placed: 1, processing: 1, shipped: 1, delivered: 0 },
+      ],
+    },
+    "30d": {
+      label: "Last 30 Days",
+      periodSubtitle: "Velocity for past 30 days (Oct 2024)",
+      avgDailyText: "Avg: ₹17,750 / day",
+      peakCapacityText: "₹50K",
+      midTargetText: "₹25K",
+      maxRevenue: 50000,
+      metrics: {
+        revenue: 248500,
+        revenueFormatted: "₹2,48,500",
+        revenueGrowth: "+18.4%",
+        orders: 124,
+        ordersGrowth: "+12% growth",
+        pendingUpi: 32,
+        pendingUpiDue: "₹44,800 due",
+        processing: 18,
+        processingNote: "2–3d standard",
+        shipped: 21,
+        shippedNote: "India Post transit",
+        delivered: 46,
+        deliveredSatisfaction: "99.1% satisfaction",
+      },
+      chart: [
+        { date: "01 Oct", orders: 6, revenue: 10440, placed: 2, processing: 2, shipped: 1, delivered: 1 },
+        { date: "03 Oct", orders: 9, revenue: 15660, placed: 3, processing: 3, shipped: 2, delivered: 1 },
+        { date: "05 Oct", orders: 12, revenue: 20880, placed: 4, processing: 4, shipped: 2, delivered: 2 },
+        { date: "07 Oct", orders: 16, revenue: 27840, placed: 5, processing: 5, shipped: 4, delivered: 2 },
+        { date: "09 Oct", orders: 11, revenue: 19140, placed: 3, processing: 4, shipped: 2, delivered: 2 },
+        { date: "11 Oct", orders: 15, revenue: 26100, placed: 4, processing: 5, shipped: 3, delivered: 3 },
+        { date: "13 Oct", orders: 19, revenue: 33060, placed: 6, processing: 6, shipped: 4, delivered: 3 },
+        { date: "15 Oct", orders: 22, revenue: 38280, placed: 7, processing: 7, shipped: 5, delivered: 3 },
+        { date: "17 Oct", orders: 14, revenue: 24360, placed: 5, processing: 4, shipped: 3, delivered: 2 },
+        { date: "19 Oct", orders: 18, revenue: 31320, placed: 5, processing: 6, shipped: 4, delivered: 3 },
+        { date: "21 Oct", orders: 25, revenue: 43500, placed: 8, processing: 8, shipped: 5, delivered: 4 },
+        { date: "23 Oct", orders: 20, revenue: 34800, placed: 6, processing: 7, shipped: 4, delivered: 3 },
+        { date: "25 Oct", orders: 23, revenue: 40020, placed: 7, processing: 7, shipped: 5, delivered: 4 },
+        { date: "27 Oct", orders: 28, revenue: 48720, placed: 9, processing: 9, shipped: 6, delivered: 4 },
+      ],
+    },
+    "quarter": {
+      label: "This Quarter",
+      periodSubtitle: "Quarterly Velocity (Q3/Q4 Harvest Season)",
+      avgDailyText: "Avg: ₹52,400 / week",
+      peakCapacityText: "₹1.2L",
+      midTargetText: "₹60K",
+      maxRevenue: 120000,
+      metrics: {
+        revenue: 684200,
+        revenueFormatted: "₹6,84,200",
+        revenueGrowth: "+31.6%",
+        orders: 348,
+        ordersGrowth: "+27% growth",
+        pendingUpi: 54,
+        pendingUpiDue: "₹82,600 due",
+        processing: 26,
+        processingNote: "Batch dispatch",
+        shipped: 64,
+        shippedNote: "Speed Post",
+        delivered: 204,
+        deliveredSatisfaction: "99.4% satisfaction",
+      },
+      chart: [
+        { date: "Aug W1", orders: 24, revenue: 48000, placed: 6, processing: 6, shipped: 6, delivered: 6 },
+        { date: "Aug W2", orders: 28, revenue: 56000, placed: 7, processing: 7, shipped: 7, delivered: 7 },
+        { date: "Aug W3", orders: 32, revenue: 64000, placed: 8, processing: 8, shipped: 8, delivered: 8 },
+        { date: "Aug W4", orders: 36, revenue: 72000, placed: 9, processing: 9, shipped: 9, delivered: 9 },
+        { date: "Sep W1", orders: 39, revenue: 78000, placed: 10, processing: 10, shipped: 10, delivered: 9 },
+        { date: "Sep W2", orders: 42, revenue: 84000, placed: 11, processing: 11, shipped: 10, delivered: 10 },
+        { date: "Sep W3", orders: 45, revenue: 90000, placed: 12, processing: 11, shipped: 11, delivered: 11 },
+        { date: "Sep W4", orders: 48, revenue: 96000, placed: 12, processing: 12, shipped: 12, delivered: 12 },
+        { date: "Oct W1", orders: 50, revenue: 99000, placed: 13, processing: 13, shipped: 12, delivered: 12 },
+        { date: "Oct W2", orders: 54, revenue: 108000, placed: 14, processing: 14, shipped: 13, delivered: 13 },
+        { date: "Oct W3", orders: 60, revenue: 118000, placed: 15, processing: 15, shipped: 15, delivered: 15 },
+      ],
+    },
+  };
+
+  const activeTimeframeData = TIMEFRAME_DATA[graphTimeframe] || TIMEFRAME_DATA["30d"];
+  const DAILY_ORDER_DATA = activeTimeframeData.chart;
+
+  // Unified Orders List (Combines createdOrders + crmOrders + customers' latest orders)
+  const unifiedOrders = useMemo(() => {
+    const map = new Map<string, Order>();
+
+    // 1. Manually created orders (Highest Priority)
+    createdOrders.forEach((o) => {
+      const num = o.orderNumber?.replace("#", "") || o.id;
+      if (num) map.set(num, o);
+    });
+
+    // 2. Synchronized CRM Orders from API & LocalStorage
+    crmOrders.forEach((ord: any) => {
+      const num = String(ord.orderNumber || ord.id || "").replace("#", "");
+      if (num && !map.has(num)) {
+        const orderTotal = ord.totalPaise ? ord.totalPaise / 100 : ord.amount || 0;
+        const rawStatus = String(ord.status || ord.orderStatus || "Pending").toLowerCase();
+        let mappedStatus: Order["orderStatus"] = "Pending";
+        if (["delivered", "completed"].includes(rawStatus)) mappedStatus = "Completed";
+        else if (["shipped", "partially_shipped"].includes(rawStatus)) mappedStatus = "Shipped";
+        else if (rawStatus === "packed") mappedStatus = "Packed";
+        else if (["processing", "confirmed"].includes(rawStatus)) mappedStatus = "Processing";
+        else if (["cancelled", "canceled"].includes(rawStatus)) mappedStatus = "Cancelled";
+        else mappedStatus = "Pending";
+
+        map.set(num, {
+          id: ord.id || `ord_${num}`,
+          orderNumber: `#${num}`,
+          customerName: ord.customerName || "Customer",
+          customerPhone: ord.customerPhone || "",
+          customerEmail: ord.customerEmail || "",
+          itemsCount: Array.isArray(ord.items) && ord.items.length > 0 ? ord.items.length : 1,
+          amount: orderTotal,
+          paymentStatus: (ord.paymentStatus === "paid" ? "Paid" : "Pending") as any,
+          orderStatus: mappedStatus,
+          date: ord.createdAt
+            ? new Date(ord.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+            : "Today",
+          time: ord.createdAt
+            ? new Date(ord.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+            : "10:15 AM",
+          items: Array.isArray(ord.items) && ord.items.length > 0
+            ? ord.items.map((it: any) => ({
+                name: it.productName || it.name || "Himalayan Produce",
+                weight: it.weight || "500g",
+                qty: it.quantity || it.qty || 1,
+                price: (it.unitPricePaise ? it.unitPricePaise / 100 : it.price) || 0,
+                total: (it.totalPaise ? it.totalPaise / 100 : it.total) || 0,
+                image: it.productImage || "🌾",
+              }))
+            : [],
+          subtotal: ord.subtotalPaise ? ord.subtotalPaise / 100 : orderTotal,
+          discount: ord.discountPaise ? ord.discountPaise / 100 : 0,
+          shipping: ord.shippingPaise ? ord.shippingPaise / 100 : 50,
+          paymentMethod: ord.paymentMethod || "COD",
+          trackingNumber: ord.trackingId || "ET765006569IN",
+          shippingAddress: ord.shippingAddressSnapshot
+            ? `${ord.shippingAddressSnapshot.line1 || ""}, ${ord.shippingAddressSnapshot.city || ""}`
+            : "Dehradun, Uttarakhand",
+        });
+      }
+    });
+
+    // 3. Fallback to Initial Customers' latest orders so list has initial baseline
+    customers.forEach((c) => {
+      const num = c.latestOrder?.orderNumber?.replace("#", "");
+      if (num && !map.has(num)) {
+        map.set(num, {
+          ...c.latestOrder,
+          customerName: c.name,
+          customerPhone: c.phone,
+          customerEmail: c.email,
+          shippingAddress: `${c.address.line1}, ${c.address.city}`,
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [createdOrders, crmOrders, customers]);
+
+  // Order Counts for each Filter Tab
+  const orderTabCounts = useMemo(() => {
+    return {
+      all: unifiedOrders.length,
+      pending: unifiedOrders.filter((o) => {
+        const s = String(o.orderStatus || "").toLowerCase();
+        const p = String(o.paymentStatus || "").toLowerCase();
+        return s === "pending" || p === "pending";
+      }).length,
+      processing: unifiedOrders.filter((o) => String(o.orderStatus || "").toLowerCase() === "processing").length,
+      packed: unifiedOrders.filter((o) => String(o.orderStatus || "").toLowerCase() === "packed").length,
+      shipped: unifiedOrders.filter((o) => String(o.orderStatus || "").toLowerCase() === "shipped").length,
+      completed: unifiedOrders.filter((o) => ["completed", "delivered"].includes(String(o.orderStatus || "").toLowerCase())).length,
+      cancelled: unifiedOrders.filter((o) => ["cancelled", "canceled"].includes(String(o.orderStatus || "").toLowerCase())).length,
+    };
+  }, [unifiedOrders]);
+
+  // Filtered Orders for the Table
+  const filteredUnifiedOrders = useMemo(() => {
+    return unifiedOrders.filter((order) => {
+      // 1. Status Filter
+      if (ordersFilter !== "all") {
+        const s = String(order.orderStatus || "").toLowerCase();
+        const p = String(order.paymentStatus || "").toLowerCase();
+        if (ordersFilter === "pending") {
+          if (s !== "pending" && p !== "pending") return false;
+        } else if (ordersFilter === "completed") {
+          if (!["completed", "delivered"].includes(s)) return false;
+        } else if (ordersFilter === "cancelled") {
+          if (!["cancelled", "canceled"].includes(s)) return false;
+        } else {
+          if (s !== ordersFilter.toLowerCase()) return false;
+        }
+      }
+
+      // 2. Search Query Filter
+      if (ordersSearch.trim()) {
+        const q = ordersSearch.toLowerCase().trim();
+        const numMatch = order.orderNumber.toLowerCase().includes(q);
+        const nameMatch = (order.customerName || "").toLowerCase().includes(q);
+        const phoneMatch = (order.customerPhone || "").replace(/\D/g, "").includes(q.replace(/\D/g, ""));
+        if (!numMatch && !nameMatch && !phoneMatch) return false;
+      }
+
+      return true;
+    });
+  }, [unifiedOrders, ordersFilter, ordersSearch]);
 
   // Theme Styling Classes Configuration (Refined High-End Himalayan Palette)
   const themeStyles = {
@@ -3381,12 +3805,14 @@ export default function PrajnaaMasterCrmApp() {
                     <DollarSign className="h-3.5 w-3.5" />
                   </div>
                 </div>
-                <h4 className="text-2xl font-extrabold tracking-tight">₹2,48,500</h4>
+                <h4 className="text-2xl font-extrabold tracking-tight">
+                  ₹{(activeTimeframeData.metrics.revenue + crmOrders.reduce((acc, o) => acc + (o.totalPaise ? o.totalPaise / 100 : o.amount || 0), 0)).toLocaleString("en-IN")}
+                </h4>
                 <div className="flex items-center gap-1.5 text-[10px] text-emerald-200/90 pt-0.5">
                   <span className="font-bold text-amber-300 flex items-center gap-0.5">
-                    <TrendingUp className="h-3 w-3" /> +18.4%
+                    <TrendingUp className="h-3 w-3" /> {activeTimeframeData.metrics.revenueGrowth}
                   </span>
-                  <span>vs last month</span>
+                  <span>vs prev period</span>
                 </div>
               </div>
 
@@ -3397,8 +3823,10 @@ export default function PrajnaaMasterCrmApp() {
                     <ShoppingBag className="h-3.5 w-3.5" />
                   </div>
                 </div>
-                <h4 className="text-xl font-extrabold text-neutral-900 dark:text-white">124</h4>
-                <span className="text-[10px] text-emerald-600 font-bold">+12% growth</span>
+                <h4 className="text-xl font-extrabold text-neutral-900 dark:text-white">
+                  {activeTimeframeData.metrics.orders + crmOrders.length + createdOrders.length}
+                </h4>
+                <span className="text-[10px] text-emerald-600 font-bold">{activeTimeframeData.metrics.ordersGrowth}</span>
               </div>
 
               <div className={`p-4 rounded-2xl border shadow-2xs hover:shadow-xs transition flex flex-col justify-between ${themeStyles.cardBg}`}>
@@ -3408,8 +3836,8 @@ export default function PrajnaaMasterCrmApp() {
                     <QrCode className="h-3.5 w-3.5" />
                   </div>
                 </div>
-                <h4 className="text-xl font-extrabold text-neutral-900 dark:text-white">32</h4>
-                <span className="text-[10px] text-orange-700 font-bold">₹44,800 due</span>
+                <h4 className="text-xl font-extrabold text-neutral-900 dark:text-white">{activeTimeframeData.metrics.pendingUpi}</h4>
+                <span className="text-[10px] text-orange-700 font-bold">{activeTimeframeData.metrics.pendingUpiDue}</span>
               </div>
 
               <div className={`p-4 rounded-2xl border shadow-2xs hover:shadow-xs transition flex flex-col justify-between ${themeStyles.cardBg}`}>
@@ -3419,8 +3847,8 @@ export default function PrajnaaMasterCrmApp() {
                     <Package className="h-3.5 w-3.5" />
                   </div>
                 </div>
-                <h4 className="text-xl font-extrabold text-neutral-900 dark:text-white">18</h4>
-                <span className="text-[10px] text-sky-700 font-bold">2–3d standard</span>
+                <h4 className="text-xl font-extrabold text-neutral-900 dark:text-white">{activeTimeframeData.metrics.processing}</h4>
+                <span className="text-[10px] text-sky-700 font-bold">{activeTimeframeData.metrics.processingNote}</span>
               </div>
 
               <div className={`p-4 rounded-2xl border shadow-2xs hover:shadow-xs transition flex flex-col justify-between ${themeStyles.cardBg}`}>
@@ -3430,8 +3858,8 @@ export default function PrajnaaMasterCrmApp() {
                     <Truck className="h-3.5 w-3.5" />
                   </div>
                 </div>
-                <h4 className="text-xl font-extrabold text-neutral-900 dark:text-white">21</h4>
-                <span className="text-[10px] text-indigo-700 font-bold">India Post transit</span>
+                <h4 className="text-xl font-extrabold text-neutral-900 dark:text-white">{activeTimeframeData.metrics.shipped}</h4>
+                <span className="text-[10px] text-indigo-700 font-bold">{activeTimeframeData.metrics.shippedNote}</span>
               </div>
 
               <div className={`p-4 rounded-2xl border shadow-2xs hover:shadow-xs transition flex flex-col justify-between ${themeStyles.cardBg}`}>
@@ -3441,8 +3869,8 @@ export default function PrajnaaMasterCrmApp() {
                     <CheckCircle2 className="h-3.5 w-3.5" />
                   </div>
                 </div>
-                <h4 className="text-xl font-extrabold text-neutral-900 dark:text-white">46</h4>
-                <span className="text-[10px] text-emerald-700 font-bold">99.1% satisfaction</span>
+                <h4 className="text-xl font-extrabold text-neutral-900 dark:text-white">{activeTimeframeData.metrics.delivered}</h4>
+                <span className="text-[10px] text-emerald-700 font-bold">{activeTimeframeData.metrics.deliveredSatisfaction}</span>
               </div>
             </div>
 
@@ -3453,7 +3881,7 @@ export default function PrajnaaMasterCrmApp() {
                   <div>
                     <h3 className="font-bold text-sm text-neutral-900 dark:text-white">Order & Revenue Velocity</h3>
                     <p className="text-xs text-neutral-500">
-                      Hover over any day to see order volumes and daily collections (Oct 2024)
+                      {activeTimeframeData.periodSubtitle}
                     </p>
                   </div>
                   <div className="flex items-center gap-4 text-xs font-semibold">
@@ -3469,7 +3897,7 @@ export default function PrajnaaMasterCrmApp() {
                 </div>
 
                 <div className="h-9 px-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between text-xs">
-                  {hoveredBarIndex !== null ? (
+                  {hoveredBarIndex !== null && DAILY_ORDER_DATA[hoveredBarIndex] ? (
                     <div className="flex items-center gap-4">
                       <span className="font-bold text-emerald-800 dark:text-emerald-300">
                         🗓️ {DAILY_ORDER_DATA[hoveredBarIndex].date}:
@@ -3486,11 +3914,11 @@ export default function PrajnaaMasterCrmApp() {
                     </div>
                   ) : (
                     <span className="text-neutral-500 text-xs flex items-center gap-1.5 italic">
-                      <span>💡</span> Hover over any bar to view daily metrics breakdown
+                      <span>💡</span> Hover over any bar to view metrics breakdown
                     </span>
                   )}
                   <span className="text-[11px] font-mono font-bold text-emerald-800 dark:text-emerald-300">
-                    Avg: ₹17,750 / day
+                    {activeTimeframeData.avgDailyText}
                   </span>
                 </div>
 
@@ -3499,11 +3927,11 @@ export default function PrajnaaMasterCrmApp() {
                   {/* Subtle Grid Guidelines */}
                   <div className="absolute inset-x-0 top-6 bottom-8 flex flex-col justify-between pointer-events-none text-[10px] text-neutral-400 font-mono">
                     <div className="border-b border-dashed border-neutral-200/80 dark:border-slate-700 flex justify-between pb-0.5">
-                      <span className="bg-white/80 dark:bg-slate-800 px-1 rounded">₹50K</span>
+                      <span className="bg-white/80 dark:bg-slate-800 px-1 rounded">{activeTimeframeData.peakCapacityText}</span>
                       <span className="text-neutral-300 dark:text-slate-600">Peak Capacity</span>
                     </div>
                     <div className="border-b border-dashed border-neutral-200/80 dark:border-slate-700 flex justify-between pb-0.5">
-                      <span className="bg-white/80 dark:bg-slate-800 px-1 rounded">₹25K</span>
+                      <span className="bg-white/80 dark:bg-slate-800 px-1 rounded">{activeTimeframeData.midTargetText}</span>
                       <span className="text-neutral-300 dark:text-slate-600">Mid-target</span>
                     </div>
                     <div className="border-b border-neutral-300 dark:border-slate-600 flex justify-between pb-0.5">
@@ -3515,7 +3943,7 @@ export default function PrajnaaMasterCrmApp() {
                   {/* Columns */}
                   <div className="h-48 flex items-end justify-between gap-2 px-2 relative z-10">
                     {DAILY_ORDER_DATA.map((d, i) => {
-                      const barHeightPx = Math.max(14, Math.round((d.revenue / 50000) * 140));
+                      const barHeightPx = Math.max(14, Math.round((d.revenue / activeTimeframeData.maxRevenue) * 140));
                       const isHovered = hoveredBarIndex === i;
                       return (
                         <div
@@ -3786,87 +4214,226 @@ export default function PrajnaaMasterCrmApp() {
           <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg sm:text-xl font-bold text-neutral-900">Orders</h2>
+                <h2 className="text-lg sm:text-xl font-bold text-neutral-900">Orders Management</h2>
                 <p className="text-xs text-neutral-500 mt-0.5">
-                  Manage and track all customer orders from WhatsApp and web checkout.
+                  Manage, track, and update all customer orders from WhatsApp and web checkout.
                 </p>
               </div>
 
-              <button
-                onClick={() => toast.info("Opening new order form")}
-                className="px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
-              >
-                <Plus className="h-4 w-4" /> + Create Order
-              </button>
-            </div>
-
-            <div className="flex items-center gap-1.5 border-b border-neutral-200 pb-2 overflow-x-auto">
-              {["all", "pending", "processing", "packed", "shipped", "delivered"].map((pill) => (
+              <div className="flex items-center gap-2 self-start sm:self-auto">
                 <button
-                  key={pill}
-                  onClick={() => setOrdersFilter(pill)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition cursor-pointer whitespace-nowrap shrink-0 ${
-                    ordersFilter === pill ? "bg-emerald-600 text-white font-bold shadow-2xs" : "text-neutral-600 hover:bg-neutral-100"
-                  }`}
+                  onClick={() => setShowAddOrderModal(true)}
+                  className="px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer"
                 >
-                  {pill === "all" ? "All Orders" : pill}
+                  <Plus className="h-4 w-4" /> + Create Order
                 </button>
-              ))}
+              </div>
             </div>
 
+            {/* Search and Quick Filters Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              {/* Status Tabs with Counters */}
+              <div className="flex items-center gap-1.5 border-b border-neutral-200 pb-2 overflow-x-auto w-full sm:w-auto">
+                {[
+                  { id: "all", label: "All Orders", count: orderTabCounts.all },
+                  { id: "pending", label: "Pending", count: orderTabCounts.pending },
+                  { id: "processing", label: "Processing", count: orderTabCounts.processing },
+                  { id: "packed", label: "Packed", count: orderTabCounts.packed },
+                  { id: "shipped", label: "Shipped", count: orderTabCounts.shipped },
+                  { id: "completed", label: "Completed", count: orderTabCounts.completed },
+                  { id: "cancelled", label: "Cancelled", count: orderTabCounts.cancelled },
+                ].map((pill) => (
+                  <button
+                    key={pill.id}
+                    onClick={() => setOrdersFilter(pill.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+                      ordersFilter === pill.id
+                        ? "bg-emerald-600 text-white font-bold shadow-2xs"
+                        : "text-neutral-600 hover:bg-neutral-100"
+                    }`}
+                  >
+                    <span>{pill.label}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                        ordersFilter === pill.id
+                          ? "bg-white/20 text-white"
+                          : "bg-neutral-200/80 text-neutral-600"
+                      }`}
+                    >
+                      {pill.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Search Box */}
+              <div className="relative min-w-[220px] max-w-xs w-full sm:w-auto">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" />
+                <input
+                  type="text"
+                  value={ordersSearch}
+                  onChange={(e) => setOrdersSearch(e.target.value)}
+                  placeholder="Search order #, customer, phone..."
+                  className="w-full pl-8 pr-7 py-1.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-800 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                />
+                {ordersSearch && (
+                  <button
+                    onClick={() => setOrdersSearch("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Orders Table */}
             <div className="bg-white rounded-2xl border border-neutral-200/80 shadow-2xs overflow-hidden">
               <div className="overflow-x-auto w-full">
-                <table className="w-full min-w-[650px] text-left text-xs">
-                <thead className="bg-neutral-50 text-neutral-500 border-b border-neutral-100">
-                  <tr>
-                    <th className="p-3.5 font-semibold">Order ID</th>
-                    <th className="p-3.5 font-semibold">Customer</th>
-                    <th className="p-3.5 font-semibold">Items</th>
-                    <th className="p-3.5 font-semibold">Amount</th>
-                    <th className="p-3.5 font-semibold">Payment</th>
-                    <th className="p-3.5 font-semibold">Status</th>
-                    <th className="p-3.5 font-semibold">Date</th>
-                    <th className="p-3.5 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-100">
-                  {customers.map((c) => (
-                    <tr
-                      key={c.latestOrder.orderNumber}
-                      onClick={() => {
-                        setSelectedOrderForView(c.latestOrder);
-                        setActiveNav("order_details");
-                      }}
-                      className="hover:bg-neutral-50 cursor-pointer transition"
-                    >
-                      <td className="p-3.5 font-mono font-bold text-neutral-900">{c.latestOrder.orderNumber}</td>
-                      <td className="p-3.5 font-semibold text-neutral-900">{c.name}</td>
-                      <td className="p-3.5 text-neutral-500">{c.latestOrder.itemsCount} items</td>
-                      <td className="p-3.5 font-bold text-neutral-900">₹{c.latestOrder.amount}</td>
-                      <td className="p-3.5">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                            c.latestOrder.paymentStatus === "Paid" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-                          }`}
-                        >
-                          {c.latestOrder.paymentStatus}
-                        </span>
-                      </td>
-                      <td className="p-3.5">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800">
-                          {c.latestOrder.orderStatus}
-                        </span>
-                      </td>
-                      <td className="p-3.5 text-neutral-500">{c.latestOrder.date}</td>
-                      <td className="p-3.5 text-right">
-                        <button className="p-1 rounded hover:bg-neutral-200 text-neutral-600 cursor-pointer">
-                          <ArrowRight className="h-4 w-4" />
-                        </button>
-                      </td>
+                <table className="w-full min-w-[700px] text-left text-xs">
+                  <thead className="bg-neutral-50 text-neutral-500 border-b border-neutral-100">
+                    <tr>
+                      <th className="p-3.5 font-semibold">Order ID</th>
+                      <th className="p-3.5 font-semibold">Customer</th>
+                      <th className="p-3.5 font-semibold">Items</th>
+                      <th className="p-3.5 font-semibold">Amount</th>
+                      <th className="p-3.5 font-semibold">Payment</th>
+                      <th className="p-3.5 font-semibold">Status</th>
+                      <th className="p-3.5 font-semibold">Date</th>
+                      <th className="p-3.5 font-semibold text-right">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100">
+                    {filteredUnifiedOrders.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="p-10 text-center">
+                          <div className="flex flex-col items-center justify-center space-y-2 text-neutral-400">
+                            <ShoppingBag className="h-8 w-8 stroke-1 text-neutral-300" />
+                            <p className="text-sm font-semibold text-neutral-700">No orders found</p>
+                            <p className="text-xs text-neutral-500 max-w-sm">
+                              {ordersFilter !== "all"
+                                ? `There are no orders currently marked as "${ordersFilter}". Switch tab or create an order.`
+                                : "No orders found in the database. Use '+ Create Order' to add one."}
+                            </p>
+                            <button
+                              onClick={() => setShowAddOrderModal(true)}
+                              className="mt-2 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1 cursor-pointer"
+                            >
+                              <Plus className="h-3.5 w-3.5" /> + Create Order Now
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredUnifiedOrders.map((ord) => {
+                        const statusColors: Record<string, string> = {
+                          pending: "bg-amber-100 text-amber-800 border-amber-200",
+                          processing: "bg-sky-100 text-sky-800 border-sky-200",
+                          packed: "bg-purple-100 text-purple-800 border-purple-200",
+                          shipped: "bg-indigo-100 text-indigo-800 border-indigo-200",
+                          completed: "bg-emerald-100 text-emerald-800 border-emerald-200",
+                          delivered: "bg-emerald-100 text-emerald-800 border-emerald-200",
+                          cancelled: "bg-rose-100 text-rose-800 border-rose-200",
+                        };
+                        const currentStatusKey = String(ord.orderStatus || "Pending").toLowerCase();
+                        const statusBadgeClass = statusColors[currentStatusKey] || "bg-neutral-100 text-neutral-800 border-neutral-200";
+
+                        const cleanPhone = (ord.customerPhone || "").replace(/\D/g, "");
+                        const waMsg = encodeURIComponent(
+                          `Namaste ${ord.customerName || "ji"}! 🙏 Prajnaa Market update for Order ${ord.orderNumber}: Status is now ${ord.orderStatus}.`
+                        );
+                        const waLink = cleanPhone ? `https://wa.me/91${cleanPhone.slice(-10)}?text=${waMsg}` : null;
+
+                        return (
+                          <tr
+                            key={ord.orderNumber}
+                            onClick={() => {
+                              setSelectedOrderForView(ord);
+                              setActiveNav("order_details");
+                            }}
+                            className="hover:bg-neutral-50 cursor-pointer transition"
+                          >
+                            <td className="p-3.5 font-mono font-bold text-neutral-900">
+                              <span className="text-emerald-700 hover:underline">{ord.orderNumber}</span>
+                            </td>
+                            <td className="p-3.5">
+                              <div className="font-semibold text-neutral-900">{ord.customerName || "Customer"}</div>
+                              {ord.customerPhone && (
+                                <div className="text-[11px] text-neutral-400 font-mono">{ord.customerPhone}</div>
+                              )}
+                            </td>
+                            <td className="p-3.5 text-neutral-600">
+                              {ord.items && ord.items.length > 0 ? (
+                                <span title={ord.items.map((i: any) => `${i.name} (${i.qty})`).join(", ")}>
+                                  {ord.items[0]?.name}
+                                  {ord.items.length > 1 ? ` +${ord.items.length - 1} more` : ""}
+                                </span>
+                              ) : (
+                                `${ord.itemsCount || 1} items`
+                              )}
+                            </td>
+                            <td className="p-3.5 font-bold text-neutral-900">
+                              ₹{Number(ord.amount || 0).toLocaleString("en-IN")}
+                            </td>
+                            <td className="p-3.5">
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                  String(ord.paymentStatus || "").toLowerCase() === "paid"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : "bg-amber-100 text-amber-800"
+                                }`}
+                              >
+                                {ord.paymentStatus || "Pending"}
+                              </span>
+                            </td>
+                            <td className="p-3.5">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusBadgeClass}`}>
+                                ● {ord.orderStatus || "Pending"}
+                              </span>
+                            </td>
+                            <td className="p-3.5 text-neutral-500 whitespace-nowrap">{ord.date}</td>
+                            <td className="p-3.5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-end gap-1.5">
+                                {waLink && (
+                                  <a
+                                    href={waLink}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    title="Open Customer WhatsApp"
+                                    className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition"
+                                  >
+                                    <Phone className="h-3.5 w-3.5" />
+                                  </a>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    setSelectedOrderForView(ord);
+                                    setStatusUpdateChoice((ord.orderStatus as any) || "Processing");
+                                    setShowStatusModal(true);
+                                  }}
+                                  title="Change Status"
+                                  className="p-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-700 transition cursor-pointer"
+                                >
+                                  <Edit3 className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setSelectedOrderForView(ord);
+                                    setActiveNav("order_details");
+                                  }}
+                                  title="View Order Details"
+                                  className="p-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-700 transition cursor-pointer"
+                                >
+                                  <ArrowRight className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -5461,6 +6028,259 @@ export default function PrajnaaMasterCrmApp() {
       )}
 
       {/* ========================================================= */}
+      {/* 5.5. CREATE NEW ORDER MODAL                                */}
+      {/* ========================================================= */}
+      {showAddOrderModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-neutral-200 space-y-4 text-neutral-900">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                  <ShoppingBag className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-neutral-900">Create New Customer Order</h3>
+                  <p className="text-[11px] text-neutral-500">
+                    Add order details manually or from WhatsApp inquiries.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAddOrderModal(false)}
+                className="p-1 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateNewOrder} className="space-y-4 text-xs">
+              {/* Customer Info */}
+              <div className="space-y-2.5 bg-neutral-50 p-3.5 rounded-2xl border border-neutral-200/70">
+                <h4 className="font-bold text-[11px] uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5 text-emerald-700" /> Customer Information
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <label className="font-semibold text-neutral-700">Customer Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Rajat Katnoria"
+                      value={newOrderCustomerName}
+                      onChange={(e) => setNewOrderCustomerName(e.target.value)}
+                      className="w-full p-2.5 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-semibold text-neutral-700">WhatsApp Mobile (10-Digit) *</label>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="e.g. 9876543210"
+                      value={newOrderCustomerPhone}
+                      onChange={(e) => setNewOrderCustomerPhone(e.target.value)}
+                      className="w-full p-2.5 rounded-xl border border-neutral-200 text-xs font-mono bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-neutral-700">Email Address (Optional)</label>
+                  <input
+                    type="email"
+                    placeholder="customer@example.com"
+                    value={newOrderCustomerEmail}
+                    onChange={(e) => setNewOrderCustomerEmail(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                  />
+                </div>
+              </div>
+
+              {/* Delivery Address */}
+              <div className="space-y-2.5 bg-neutral-50 p-3.5 rounded-2xl border border-neutral-200/70">
+                <h4 className="font-bold text-[11px] uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-emerald-700" /> Shipping & Delivery Address
+                </h4>
+                <div className="space-y-1">
+                  <label className="font-semibold text-neutral-700">Street / Area Address *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="House/Flat No, Street, Landmark"
+                    value={newOrderAddress}
+                    onChange={(e) => setNewOrderAddress(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <label className="font-semibold text-neutral-700">City</label>
+                    <input
+                      type="text"
+                      value={newOrderCity}
+                      onChange={(e) => setNewOrderCity(e.target.value)}
+                      className="w-full p-2.5 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-semibold text-neutral-700">Pincode</label>
+                    <input
+                      type="text"
+                      value={newOrderPincode}
+                      onChange={(e) => setNewOrderPincode(e.target.value)}
+                      className="w-full p-2.5 rounded-xl border border-neutral-200 text-xs font-mono bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Product Selection */}
+              <div className="space-y-2.5 bg-neutral-50 p-3.5 rounded-2xl border border-neutral-200/70">
+                <h4 className="font-bold text-[11px] uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+                  <Package className="h-3.5 w-3.5 text-emerald-700" /> Order Item
+                </h4>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-neutral-700">Select Himalayan Produce</label>
+                  <select
+                    value={newOrderProductId || productsList[0]?.id}
+                    onChange={(e) => setNewOrderProductId(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                  >
+                    {productsList.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} — ₹{p.price.toLocaleString("en-IN")} ({p.weight || "500g"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <span className="font-semibold text-neutral-700">Quantity</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewOrderQuantity(Math.max(1, newOrderQuantity - 1))}
+                      className="h-7 w-7 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-100 flex items-center justify-center font-bold text-neutral-700 cursor-pointer"
+                    >
+                      -
+                    </button>
+                    <span className="w-8 text-center font-mono font-bold text-sm">{newOrderQuantity}</span>
+                    <button
+                      type="button"
+                      onClick={() => setNewOrderQuantity(newOrderQuantity + 1)}
+                      className="h-7 w-7 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-100 flex items-center justify-center font-bold text-neutral-700 cursor-pointer"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment & Status Choices */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="space-y-1">
+                  <label className="font-semibold text-neutral-700">Payment Method</label>
+                  <select
+                    value={newOrderPaymentMethod}
+                    onChange={(e) => setNewOrderPaymentMethod(e.target.value as any)}
+                    className="w-full p-2 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  >
+                    <option value="COD">Cash on Delivery (COD)</option>
+                    <option value="WhatsApp">WhatsApp Order</option>
+                    <option value="UPI">UPI / Online</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-neutral-700">Payment Status</label>
+                  <select
+                    value={newOrderPaymentStatus}
+                    onChange={(e) => setNewOrderPaymentStatus(e.target.value as any)}
+                    className="w-full p-2 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="Paid">Paid</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-neutral-700">Initial Status</label>
+                  <select
+                    value={newOrderStatus}
+                    onChange={(e) => setNewOrderStatus(e.target.value as any)}
+                    className="w-full p-2 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="Processing">Processing</option>
+                    <option value="Packed">Packed</option>
+                    <option value="Shipped">Shipped</option>
+                    <option value="Completed">Completed</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Order Notes */}
+              <div className="space-y-1">
+                <label className="font-semibold text-neutral-700">Customer / Internal Notes (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Morning delivery preferred, raw forest honey batch"
+                  value={newOrderNotes}
+                  onChange={(e) => setNewOrderNotes(e.target.value)}
+                  className="w-full p-2 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                />
+              </div>
+
+              {/* Pricing Summary Card */}
+              {(() => {
+                const sel = productsList.find((p) => p.id === newOrderProductId) || productsList[0];
+                const sub = (sel?.price || 950) * Math.max(1, newOrderQuantity || 1);
+                const ship = 50;
+                const tot = sub + ship;
+                return (
+                  <div className="bg-emerald-50/60 p-3 rounded-2xl border border-emerald-200/80 space-y-1.5">
+                    <div className="flex justify-between text-neutral-600">
+                      <span>Subtotal ({sel?.name})</span>
+                      <span className="font-mono">₹{sub.toLocaleString("en-IN")}</span>
+                    </div>
+                    <div className="flex justify-between text-neutral-600">
+                      <span>India Post Speed Post</span>
+                      <span className="font-mono">₹{ship}</span>
+                    </div>
+                    <div className="flex justify-between text-sm font-extrabold text-emerald-950 pt-1 border-t border-emerald-200">
+                      <span>Total Amount</span>
+                      <span className="font-mono text-emerald-800">₹{tot.toLocaleString("en-IN")}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Modal Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddOrderModal(false)}
+                  className="px-4 py-2 rounded-xl border border-neutral-200 text-xs font-semibold text-neutral-600 hover:bg-neutral-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingNewOrder}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingNewOrder ? "Creating..." : "Create Order & Send WhatsApp"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
       {/* 6. UPDATE STATUS MODAL                                    */}
       {/* ========================================================= */}
       {showStatusModal && (
@@ -5481,10 +6301,10 @@ export default function PrajnaaMasterCrmApp() {
             </p>
 
             <div className="grid grid-cols-2 gap-2">
-              {(["Processing", "Packed", "Shipped", "Delivered"] as const).map((st) => (
+              {(["Pending", "Processing", "Packed", "Shipped", "Delivered", "Cancelled"] as const).map((st) => (
                 <button
                   key={st}
-                  onClick={() => setStatusUpdateChoice(st)}
+                  onClick={() => setStatusUpdateChoice(st as any)}
                   className={`p-3 rounded-xl border text-xs font-bold transition cursor-pointer ${
                     statusUpdateChoice === st
                       ? "border-emerald-600 bg-emerald-50 text-emerald-800"
@@ -5506,6 +6326,26 @@ export default function PrajnaaMasterCrmApp() {
               <button
                 onClick={() => {
                   setSelectedOrderForView((prev) => ({ ...prev, orderStatus: statusUpdateChoice }));
+                  setCreatedOrders((prev) =>
+                    prev.map((o) =>
+                      o.orderNumber === selectedOrderForView.orderNumber ? { ...o, orderStatus: statusUpdateChoice } : o
+                    )
+                  );
+                  setCustomers((prev) =>
+                    prev.map((c) =>
+                      c.latestOrder?.orderNumber === selectedOrderForView.orderNumber
+                        ? { ...c, latestOrder: { ...c.latestOrder, orderStatus: statusUpdateChoice } }
+                        : c
+                    )
+                  );
+                  setCrmOrders((prev) =>
+                    prev.map((o) =>
+                      `#${o.orderNumber || o.id}` === selectedOrderForView.orderNumber ||
+                      String(o.orderNumber || o.id) === selectedOrderForView.orderNumber
+                        ? { ...o, status: statusUpdateChoice }
+                        : o
+                    )
+                  );
                   setShowStatusModal(false);
                   toast.success(`Order status updated to ${statusUpdateChoice}! Customer notified on WhatsApp.`);
                 }}
