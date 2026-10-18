@@ -1822,21 +1822,16 @@ export default function PrajnaaMasterCrmApp() {
 
       setMessagesMap((prev) => {
         const existing = prev[targetCustId] || [];
+        const newMsg: Message = {
+          id: `msg_order_${orderNum}`,
+          sender: "business",
+          text: firstMsgText,
+          time: formattedTime,
+          status: "delivered",
+        };
         return {
           ...prev,
-          [targetCustId]: [
-            ...existing,
-            {
-              id: `msg_order_${orderNum}`,
-              sender: "admin",
-              senderName: "Prajnaa Store Concierge",
-              text: firstMsgText,
-              time: formattedTime,
-              date: "Today",
-              type: "text",
-              status: "delivered",
-            },
-          ],
+          [targetCustId]: [...existing, newMsg],
         };
       });
 
