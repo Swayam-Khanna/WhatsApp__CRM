@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Campaign name and message are required." }, { status: 400 });
     }
 
-    const recipientList: Array<{ name: string; phone: string }> = Array.isArray(recipients) && recipients.length > 0
+    const recipientList: Array<{ name: string; phone: string; id?: string }> = Array.isArray(recipients) && recipients.length > 0
       ? recipients
       : [
           { name: "Priya Sharma", phone: "+91 98765 43210" },
@@ -74,6 +74,11 @@ export async function POST(req: NextRequest) {
 
     let delivered = 0;
     let failed = 0;
+    const dispatchedRecipients: any[] = [];
+
+    if (!globalThis.__globalWhatsAppFeed) {
+      globalThis.__globalWhatsAppFeed = [];
+    }
 
     for (const rec of recipientList) {
       try {
@@ -81,6 +86,29 @@ export async function POST(req: NextRequest) {
         const res = await sendWhatsAppTextMessage({ to: rec.phone, text: personalizedMsg });
         if (res.success) delivered++;
         else failed++;
+
+        const msgRecord = {
+          id: res.messageId || `bc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          direction: "outbound",
+          sender: "business",
+          from: "917650065690",
+          to: res.recipientPhone || rec.phone,
+          customerName: rec.name,
+          customerId: rec.id,
+          text: personalizedMsg,
+          timestamp: new Date().toISOString(),
+          status: "delivered",
+          mode: res.mode,
+          whatsappUrl: res.whatsappUrl,
+        };
+
+        globalThis.__globalWhatsAppFeed.unshift(msgRecord);
+        dispatchedRecipients.push({
+          name: rec.name,
+          phone: rec.phone,
+          whatsappUrl: res.whatsappUrl,
+          mode: res.mode,
+        });
       } catch {
         failed++;
       }
@@ -115,6 +143,7 @@ export async function POST(req: NextRequest) {
       success: true,
       message: `Broadcast campaign dispatched to ${recipientList.length} customers.`,
       campaign: newCampaign,
+      dispatchedRecipients,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Failed to create campaign" }, { status: 500 });

@@ -833,6 +833,11 @@ export default function PrajnaaMasterCrmApp() {
   const [currentTheme, setCurrentTheme] = useState<ThemeMode>("forest");
   const [showThemeMenu, setShowThemeMenu] = useState<boolean>(false);
 
+  // Notification Center Dropdown State
+  const [showNotificationMenu, setShowNotificationMenu] = useState<boolean>(false);
+  const notificationRef = useRef<HTMLDivElement>(null);
+  const [notificationTab, setNotificationTab] = useState<"all" | "chats" | "orders">("all");
+
   // Authentication State (MANDATORY LOGIN: Users MUST authenticate before accessing CRM)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
@@ -1410,6 +1415,27 @@ export default function PrajnaaMasterCrmApp() {
       return;
     }
 
+    // 1. Gather targeted recipients from active customers list
+    let targetCustomers = [...customers];
+    const audLower = broadcastAudience.toLowerCase();
+    if (audLower.includes("vip")) {
+      const vips = customers.filter((c) => c.isVip);
+      if (vips.length > 0) targetCustomers = vips;
+    } else if (audLower.includes("honey")) {
+      const honeyBuyers = customers.filter(
+        (c) =>
+          (c.latestOrder?.items || []).some((it) => it.name.toLowerCase().includes("honey")) ||
+          (c.notes || "").toLowerCase().includes("honey")
+      );
+      if (honeyBuyers.length > 0) targetCustomers = honeyBuyers;
+    }
+
+    const recipientList = targetCustomers.map((c) => ({
+      id: c.id,
+      name: c.name,
+      phone: c.phone,
+    }));
+
     setIsBroadcasting(true);
     try {
       const res = await fetch("/api/crm/broadcasts", {
@@ -1419,6 +1445,7 @@ export default function PrajnaaMasterCrmApp() {
           name: broadcastName.trim(),
           audience: broadcastAudience,
           message: broadcastText.trim(),
+          recipients: recipientList,
         }),
       });
       const data = await res.json();
@@ -1426,7 +1453,58 @@ export default function PrajnaaMasterCrmApp() {
         if (data.campaign) {
           setBroadcastCampaigns((prev) => [data.campaign, ...prev]);
         }
-        toast.success(data.message || `Campaign "${broadcastName}" dispatched successfully!`);
+
+        // 2. Add personalized broadcast message to each customer's WhatsApp chat in CRM
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const dateStr = now.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+
+        setMessagesMap((prev) => {
+          const updated = { ...prev };
+          targetCustomers.forEach((c) => {
+            const personalized = broadcastText.trim().replace(/{{customer_name}}/gi, c.name);
+            const newMsg: Message = {
+              id: `bc_msg_${Date.now()}_${c.id}`,
+              sender: "business",
+              senderName: "Prajnaa Broadcast",
+              text: personalized,
+              time: timeStr,
+              date: dateStr,
+              type: "text",
+              status: "delivered",
+            };
+            updated[c.id] = [...(updated[c.id] || []), newMsg];
+          });
+          return updated;
+        });
+
+        // 3. Update customers' last message in CRM sidebar
+        setCustomers((prev) =>
+          prev.map((c) => {
+            if (targetCustomers.some((tc) => tc.id === c.id)) {
+              return {
+                ...c,
+                lastMessageText: broadcastText.trim().replace(/{{customer_name}}/gi, c.name),
+                lastMessageTime: timeStr,
+              };
+            }
+            return c;
+          })
+        );
+
+        toast.success(
+          data.message || `Broadcast "${broadcastName}" dispatched to ${recipientList.length} customers!`
+        );
+
+        // If direct WhatsApp links generated, offer instant verification for active chat
+        if (data.dispatchedRecipients && data.dispatchedRecipients.length > 0) {
+          const matchedDirect = data.dispatchedRecipients.find(
+            (r: any) => r.phone?.replace(/\D/g, "") === currentCustomer.phone?.replace(/\D/g, "")
+          );
+          if (matchedDirect?.whatsappUrl) {
+            window.open(matchedDirect.whatsappUrl, "_blank");
+          }
+        }
       } else {
         toast.error(data.error || "Failed to dispatch broadcast campaign.");
       }
@@ -2313,7 +2391,154 @@ export default function PrajnaaMasterCrmApp() {
     };
   }, [globalSearch, unifiedOrders, customers, productsList]);
 
-  // Global Universal Search: Keyboard Shortcut (⌘K / Ctrl+K, Esc) and Outside-Click Listeners
+  // Dynamic Notifications: Unread Customer WhatsApp Messages & Order Alerts
+  const unreadCustomerMessages = useMemo(() => {
+    return customers.filter((c) => (c.unreadCount || 0) > 0);
+  }, [customers]);
+
+  const pendingPaymentNotifications = useMemo(() => {
+    return unifiedOrders.filter((o) => {
+      const s = String(o.orderStatus || "").toLowerCase();
+      const p = String(o.paymentStatus || "").toLowerCase();
+      return p === "pending" || s === "pending";
+    }).slice(0, 4);
+  }, [unifiedOrders]);
+
+  const pendingDispatchNotifications = useMemo(() => {
+    return unifiedOrders.filter((o) => {
+      const s = String(o.orderStatus || "").toLowerCase();
+      return s === "processing" || s === "packed";
+    }).slice(0, 3);
+  }, [unifiedOrders]);
+
+  const totalUnreadChatCount = useMemo(() => {
+    return unreadCustomerMessages.reduce((sum, c) => sum + (c.unreadCount || 1), 0);
+  }, [unreadCustomerMessages]);
+
+  const totalNotificationCount = useMemo(() => {
+    return totalUnreadChatCount + pendingPaymentNotifications.length + pendingDispatchNotifications.length;
+  }, [totalUnreadChatCount, pendingPaymentNotifications, pendingDispatchNotifications]);
+
+  const handleMarkAllNotificationsRead = () => {
+    setCustomers((prev) =>
+      prev.map((c) => ({
+        ...c,
+        unreadCount: 0,
+      }))
+    );
+    toast.success("All customer messages marked as read!");
+  };
+
+  // Unified Shipments List (combining active shipments and created orders)
+  const unifiedShipments = useMemo(() => {
+    const list = [...shipments];
+    unifiedOrders.forEach((ord) => {
+      const ordNum = ord.orderNumber;
+      if (!list.some((s) => s.orderId === ordNum)) {
+        const trk = ord.trackingNumber || `ET${ordNum.replace(/\D/g, "").padEnd(9, "0")}IN`;
+        list.push({
+          orderId: ordNum,
+          customer: ord.customerName || "Customer",
+          trackingId: trk,
+          status: ord.orderStatus === "Completed" ? "Delivered" : ord.orderStatus === "Shipped" ? "In Transit" : "Ready for Dispatch",
+          date: ord.date || "Today",
+          timeline: [
+            { status: "Artisan Produce Packed", date: `${ord.date || "Today"}, 10:00 AM`, loc: "Dehradun Packaging Hub" },
+            { status: ord.orderStatus === "Shipped" ? "Speed Post Consignment Booked" : "Ready at Speed Post Counter", date: `${ord.date || "Today"}, 02:30 PM`, loc: "Dehradun MDG" },
+            { status: ord.orderStatus === "Completed" ? "Delivered to Customer" : "In Transit to Destination", date: ord.orderStatus === "Completed" ? "Today" : "Pending", loc: ord.shippingAddress || "India Post Hub" },
+          ],
+        });
+      }
+    });
+    return list;
+  }, [shipments, unifiedOrders]);
+
+  // Send Speed Post Consignment Tracking to Customer via WhatsApp
+  const handleSendSpeedPostTracking = async (shipmentItem: typeof selectedShipment) => {
+    const trackingMsg = `Namaste ${shipmentItem.customer} ji! 📦\n\nAapka Prajnaa Market order *${shipmentItem.orderId}* Dehradun MDG se dispatch ho gaya hai. 🚚\n\nCarrier: India Post (Speed Post)\nTracking Consignment ID: *${shipmentItem.trackingId}*\n\nAap apne parcel ka live status India Post ki official tracking service par check kar sakte hain:\nhttps://www.indiapost.gov.in/_layouts/15/dpt.cptc.va/trackconsignment.aspx\n\nDhanyavaad ji! 🌿\n*Team Prajnaa Market*`;
+
+    // 1. Find matching customer
+    const targetCust = customers.find(
+      (c) =>
+        c.name.toLowerCase() === shipmentItem.customer.toLowerCase() ||
+        c.latestOrder?.orderNumber === shipmentItem.orderId
+    ) || currentCustomer;
+
+    const targetPhone = targetCust.phone ? targetCust.phone.replace(/\D/g, "") : "917650065690";
+
+    // 2. Add message to customer's WhatsApp chat in CRM
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const dateStr = now.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+
+    const newMsg: Message = {
+      id: `track_msg_${Date.now()}`,
+      sender: "business",
+      senderName: "Prajnaa Fulfillment",
+      text: trackingMsg,
+      time: timeStr,
+      date: dateStr,
+      type: "text",
+      status: "delivered",
+    };
+
+    setMessagesMap((prev) => ({
+      ...prev,
+      [targetCust.id]: [...(prev[targetCust.id] || []), newMsg],
+    }));
+
+    setCustomers((prev) =>
+      prev.map((c) =>
+        c.id === targetCust.id
+          ? { ...c, lastMessageText: `Speed Post: ${shipmentItem.trackingId}`, lastMessageTime: timeStr }
+          : c
+      )
+    );
+
+    // 3. Update shipment status in state
+    setShipments((prev) =>
+      prev.map((s) =>
+        s.trackingId === shipmentItem.trackingId ? { ...s, status: "In Transit" } : s
+      )
+    );
+    setSelectedShipment((prev) => ({ ...prev, status: "In Transit" }));
+
+    // 4. Update order status to Shipped in unifiedOrders / createdOrders
+    setCreatedOrders((prev) =>
+      prev.map((o) =>
+        o.orderNumber === shipmentItem.orderId ? { ...o, orderStatus: "Shipped" } : o
+      )
+    );
+
+    // 5. Send to /api/crm/messages backend
+    try {
+      const res = await fetch("/api/crm/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: targetPhone,
+          text: trackingMsg,
+          customerId: targetCust.id,
+          orderNumber: shipmentItem.orderId,
+          customerName: shipmentItem.customer,
+          sender: "business",
+        }),
+      });
+      const data = await res.json();
+      const directUrl = data?.result?.whatsappUrl || `https://wa.me/${targetPhone.length === 10 ? "91" + targetPhone : targetPhone}?text=${encodeURIComponent(trackingMsg)}`;
+
+      toast.success(
+        `Speed Post tracking for ${shipmentItem.customer} dispatched! Status updated to In Transit.`
+      );
+
+      // Offer direct WhatsApp open
+      window.open(directUrl, "_blank");
+    } catch {
+      toast.success(`Tracking link updated in CRM chat for ${shipmentItem.customer}!`);
+    }
+  };
+
+  // Global Universal Search & Notifications: Listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
@@ -2323,6 +2548,7 @@ export default function PrajnaaMasterCrmApp() {
       }
       if (e.key === "Escape") {
         setIsSearchDropdownOpen(false);
+        setShowNotificationMenu(false);
         globalSearchInputRef.current?.blur();
       }
     };
@@ -2330,6 +2556,9 @@ export default function PrajnaaMasterCrmApp() {
     const handleClickOutside = (e: MouseEvent) => {
       if (globalSearchRef.current && !globalSearchRef.current.contains(e.target as Node)) {
         setIsSearchDropdownOpen(false);
+      }
+      if (notificationRef.current && !notificationRef.current.contains(e.target as Node)) {
+        setShowNotificationMenu(false);
       }
     };
 
@@ -3142,16 +3371,251 @@ export default function PrajnaaMasterCrmApp() {
               </div>
             </div>
 
-            {/* Notification Bell */}
-            <button
-              onClick={() => toast.info("3 unread WhatsApp customer escalations")}
-              className="relative p-2 rounded-xl text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100 transition cursor-pointer"
-            >
-              <Bell className="h-4 w-4" />
-              <span className="absolute top-1 right-1 h-4 w-4 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                3
-              </span>
-            </button>
+            {/* Notification Bell with Live Unread Dropdown */}
+            <div ref={notificationRef} className="relative">
+              <button
+                onClick={() => setShowNotificationMenu(!showNotificationMenu)}
+                className={`relative p-2 rounded-xl transition cursor-pointer ${
+                  showNotificationMenu
+                    ? "bg-emerald-50 text-emerald-800"
+                    : "text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100"
+                }`}
+                title="Notifications & Unread Messages"
+              >
+                <Bell className="h-4 w-4" />
+                {totalNotificationCount > 0 && (
+                  <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center animate-pulse">
+                    {totalNotificationCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Notification Center Dropdown */}
+              {showNotificationMenu && (
+                <div className="absolute right-0 top-11 w-[340px] sm:w-[400px] bg-white rounded-2xl shadow-2xl border border-neutral-200/90 z-50 overflow-hidden text-neutral-800 divide-y divide-neutral-100 animate-in fade-in zoom-in-95 duration-150">
+                  {/* Header */}
+                  <div className="px-4 py-3 bg-neutral-50/90 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-xs text-neutral-900">Notifications</h4>
+                      {totalNotificationCount > 0 && (
+                        <span className="bg-rose-100 text-rose-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          {totalNotificationCount} new
+                        </span>
+                      )}
+                    </div>
+                    {unreadCustomerMessages.length > 0 && (
+                      <button
+                        onClick={handleMarkAllNotificationsRead}
+                        className="text-[11px] font-semibold text-emerald-700 hover:underline cursor-pointer"
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Filter Tabs */}
+                  <div className="px-3 py-1.5 bg-white border-b border-neutral-100 flex items-center gap-1.5 text-[11px]">
+                    <button
+                      onClick={() => setNotificationTab("all")}
+                      className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
+                        notificationTab === "all"
+                          ? "bg-neutral-900 text-white"
+                          : "text-neutral-500 hover:bg-neutral-100"
+                      }`}
+                    >
+                      All ({totalNotificationCount})
+                    </button>
+                    <button
+                      onClick={() => setNotificationTab("chats")}
+                      className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
+                        notificationTab === "chats"
+                          ? "bg-emerald-700 text-white"
+                          : "text-neutral-500 hover:bg-neutral-100"
+                      }`}
+                    >
+                      Unread Chats ({totalUnreadChatCount})
+                    </button>
+                    <button
+                      onClick={() => setNotificationTab("orders")}
+                      className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
+                        notificationTab === "orders"
+                          ? "bg-amber-700 text-white"
+                          : "text-neutral-500 hover:bg-neutral-100"
+                      }`}
+                    >
+                      Orders & Speed Post ({pendingPaymentNotifications.length + pendingDispatchNotifications.length})
+                    </button>
+                  </div>
+
+                  {/* Notifications List */}
+                  <div className="max-h-[380px] overflow-y-auto divide-y divide-neutral-100/80">
+                    {totalNotificationCount === 0 ? (
+                      <div className="py-10 text-center px-4">
+                        <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+                        <p className="text-xs font-bold text-neutral-800">All caught up!</p>
+                        <p className="text-[11px] text-neutral-400 mt-0.5">
+                          No unread messages or pending action items.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Section: Unread WhatsApp Customer Messages */}
+                        {(notificationTab === "all" || notificationTab === "chats") &&
+                          unreadCustomerMessages.length > 0 && (
+                            <div>
+                              <div className="px-3.5 py-1.5 bg-neutral-50/50 text-[10px] font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <MessageSquare className="h-3 w-3 text-emerald-600" />
+                                <span>Unread WhatsApp Messages</span>
+                              </div>
+                              {unreadCustomerMessages.map((c) => (
+                                <button
+                                  key={c.id}
+                                  onClick={() => {
+                                    setCustomers((prev) =>
+                                      prev.map((cust) =>
+                                        cust.id === c.id ? { ...cust, unreadCount: 0 } : cust
+                                      )
+                                    );
+                                    setSelectedCustomerId(c.id);
+                                    setMobileChatView("chat");
+                                    setActiveNav("inbox");
+                                    setShowNotificationMenu(false);
+                                  }}
+                                  className="w-full text-left p-3 hover:bg-emerald-50/60 transition flex items-start gap-3 group cursor-pointer"
+                                >
+                                  <div className="relative shrink-0">
+                                    {c.avatar ? (
+                                      <img
+                                        src={c.avatar}
+                                        alt={c.name}
+                                        className="h-9 w-9 rounded-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="h-9 w-9 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center">
+                                        {c.name.split(" ").map((n) => n[0]).join("")}
+                                      </div>
+                                    )}
+                                    <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-2 border-white" />
+                                  </div>
+
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between">
+                                      <h5 className="text-xs font-bold text-neutral-900 truncate">
+                                        {c.name}
+                                      </h5>
+                                      <span className="text-[10px] text-neutral-400">
+                                        {c.lastMessageTime || "Recent"}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-neutral-600 truncate mt-0.5">
+                                      {c.lastMessageText || "Sent a message"}
+                                    </p>
+                                    <div className="mt-1 flex items-center gap-2">
+                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700">
+                                        {c.unreadCount} unread
+                                      </span>
+                                      <span className="text-[10px] font-mono text-neutral-400">
+                                        {c.phone}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                        {/* Section: Pending Payment Verification Notifications */}
+                        {(notificationTab === "all" || notificationTab === "orders") &&
+                          pendingPaymentNotifications.length > 0 && (
+                            <div>
+                              <div className="px-3.5 py-1.5 bg-neutral-50/50 text-[10px] font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <AlertCircle className="h-3 w-3 text-amber-600" />
+                                <span>Awaiting UPI / Payment Verification</span>
+                              </div>
+                              {pendingPaymentNotifications.map((ord) => (
+                                <button
+                                  key={ord.orderNumber}
+                                  onClick={() => {
+                                    setSelectedOrderForView(ord);
+                                    setActiveNav("order_details");
+                                    setShowNotificationMenu(false);
+                                  }}
+                                  className="w-full text-left p-3 hover:bg-amber-50/60 transition flex items-center justify-between group cursor-pointer"
+                                >
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-mono text-xs font-bold text-amber-800">
+                                        {ord.orderNumber}
+                                      </span>
+                                      <span className="text-xs font-medium text-neutral-900 truncate">
+                                        {ord.customerName}
+                                      </span>
+                                    </div>
+                                    <p className="text-[10px] text-neutral-500 mt-0.5">
+                                      ₹{ord.amount?.toLocaleString("en-IN")} • Awaiting payment verification
+                                    </p>
+                                  </div>
+                                  <ArrowRight className="h-3.5 w-3.5 text-neutral-400 group-hover:text-amber-800 group-hover:translate-x-0.5 transition shrink-0" />
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                        {/* Section: Speed Post Dispatch Queue Notifications */}
+                        {(notificationTab === "all" || notificationTab === "orders") &&
+                          pendingDispatchNotifications.length > 0 && (
+                            <div>
+                              <div className="px-3.5 py-1.5 bg-neutral-50/50 text-[10px] font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <Truck className="h-3 w-3 text-blue-600" />
+                                <span>Ready for India Post Speed Post Dispatch</span>
+                              </div>
+                              {pendingDispatchNotifications.map((ord) => (
+                                <button
+                                  key={`disp_${ord.orderNumber}`}
+                                  onClick={() => {
+                                    setActiveNav("shipments");
+                                    setShowNotificationMenu(false);
+                                  }}
+                                  className="w-full text-left p-3 hover:bg-blue-50/60 transition flex items-center justify-between group cursor-pointer"
+                                >
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-mono text-xs font-bold text-blue-800">
+                                        {ord.orderNumber}
+                                      </span>
+                                      <span className="text-xs font-medium text-neutral-900 truncate">
+                                        {ord.customerName}
+                                      </span>
+                                    </div>
+                                    <p className="text-[10px] text-neutral-500 mt-0.5">
+                                      Packed at Dehradun MDG • Ready to book Speed Post tracking
+                                    </p>
+                                  </div>
+                                  <ArrowRight className="h-3.5 w-3.5 text-neutral-400 group-hover:text-blue-800 group-hover:translate-x-0.5 transition shrink-0" />
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                      </>
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="p-2.5 bg-neutral-50 flex items-center justify-between text-[11px]">
+                    <button
+                      onClick={() => {
+                        setActiveNav("inbox");
+                        setShowNotificationMenu(false);
+                      }}
+                      className="font-semibold text-emerald-800 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      Open WhatsApp Inbox →
+                    </button>
+                    <span className="text-[10px] text-neutral-400">Esc to close</span>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* User Profile Dropdown Menu */}
             <div className="relative">
@@ -4982,16 +5446,16 @@ export default function PrajnaaMasterCrmApp() {
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between">
                     <span className="text-neutral-500">Name:</span>
-                    <span className="text-neutral-800 font-bold">{currentCustomer.name}</span>
+                    <span className="text-neutral-800 font-bold">{selectedOrderForView.customerName || currentCustomer.name}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-neutral-500">Phone:</span>
-                    <span className="text-neutral-800 font-mono">{currentCustomer.phone}</span>
+                    <span className="text-neutral-800 font-mono">{selectedOrderForView.customerPhone || currentCustomer.phone}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-neutral-500">Address:</span>
                     <span className="text-neutral-800 font-medium text-right max-w-[180px]">
-                      {currentCustomer.address.line1}, {currentCustomer.address.city}
+                      {selectedOrderForView.shippingAddress || `${currentCustomer.address.line1}, ${currentCustomer.address.city}`}
                     </span>
                   </div>
                 </div>
@@ -5643,7 +6107,7 @@ export default function PrajnaaMasterCrmApp() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-100">
-                      {shipments.map((s, idx) => (
+                      {unifiedShipments.map((s, idx) => (
                         <tr
                           key={`${s.orderId || "ship"}_${s.trackingId}_${idx}`}
                           onClick={() => setSelectedShipment(s)}
@@ -5657,7 +6121,11 @@ export default function PrajnaaMasterCrmApp() {
                           <td className="p-3">
                             <span
                               className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                s.status === "Delivered" ? "bg-emerald-100 text-emerald-800" : "bg-sky-100 text-sky-800"
+                                s.status === "Delivered"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : s.status === "In Transit"
+                                  ? "bg-sky-100 text-sky-800"
+                                  : "bg-amber-100 text-amber-800"
                               }`}
                             >
                               {s.status}
@@ -5700,16 +6168,41 @@ export default function PrajnaaMasterCrmApp() {
                   ))}
                 </div>
 
-                <button
-                  onClick={() => {
-                    setInputMessage(`Namaste ${selectedShipment.customer} ji! Aapka parcel India Post Speed Post se book hai. Consignment: ${selectedShipment.trackingId}. Expected delivery soon!`);
-                    setActiveNav("inbox");
-                    toast.success("Sent tracking link to customer chat!");
-                  }}
-                  className="w-full mt-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Send className="h-3.5 w-3.5" /> Send Tracking via WhatsApp
-                </button>
+                <div className="flex flex-col gap-2 pt-2 border-t border-neutral-100">
+                  <button
+                    onClick={() => handleSendSpeedPostTracking(selectedShipment)}
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Send className="h-3.5 w-3.5" /> Dispatch & Send Tracking via WhatsApp
+                  </button>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => {
+                        const targetCust = customers.find(
+                          (c) =>
+                            c.name.toLowerCase() === selectedShipment.customer.toLowerCase() ||
+                            c.latestOrder?.orderNumber === selectedShipment.orderId
+                        ) || currentCustomer;
+                        const cleanP = (targetCust.phone || "917650065690").replace(/\D/g, "");
+                        const text = `Namaste ${selectedShipment.customer} ji! Aapka Prajnaa parcel Speed Post tracking ID: ${selectedShipment.trackingId} se dispatch ho gaya hai. Check: https://www.indiapost.gov.in`;
+                        window.open(`https://wa.me/${cleanP.length === 10 ? "91" + cleanP : cleanP}?text=${encodeURIComponent(text)}`, "_blank");
+                      }}
+                      className="py-2 px-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" /> Open WhatsApp
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        window.open("https://www.indiapost.gov.in/_layouts/15/dpt.cptc.va/trackconsignment.aspx", "_blank");
+                      }}
+                      className="py-2 px-3 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      🇮🇳 Track on India Post
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
