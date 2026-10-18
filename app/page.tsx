@@ -906,6 +906,12 @@ export default function PrajnaaMasterCrmApp() {
   const [showAddOrderModal, setShowAddOrderModal] = useState<boolean>(false);
   const [createdOrders, setCreatedOrders] = useState<Order[]>([]);
 
+  // State: Global Universal Search Bar (Dashboard Header)
+  const [globalSearch, setGlobalSearch] = useState<string>("");
+  const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState<boolean>(false);
+  const globalSearchRef = useRef<HTMLDivElement>(null);
+  const globalSearchInputRef = useRef<HTMLInputElement>(null);
+
   // State: Create Order Form
   const [newOrderCustomerName, setNewOrderCustomerName] = useState<string>("");
   const [newOrderCustomerPhone, setNewOrderCustomerPhone] = useState<string>("");
@@ -2243,6 +2249,98 @@ export default function PrajnaaMasterCrmApp() {
     toast.success("Dispatched reorder for fresh harvest batch (+25 units each)! Inventory updated to In Stock.");
   };
 
+  // Global Universal Search: Results computation across Orders, Customers, and Products
+  const globalSearchResults = useMemo(() => {
+    const q = globalSearch.trim().toLowerCase();
+    if (!q) {
+      return { orders: [], customers: [], products: [], totalCount: 0 };
+    }
+
+    const cleanNumQuery = q.replace(/\D/g, "");
+
+    // 1. Search Orders
+    const matchedOrders = unifiedOrders.filter((o) => {
+      const ordNum = (o.orderNumber || "").toLowerCase();
+      const cName = (o.customerName || "").toLowerCase();
+      const cPhone = (o.customerPhone || "").replace(/\D/g, "");
+      const cEmail = (o.customerEmail || "").toLowerCase();
+      const status = (o.orderStatus || "").toLowerCase();
+      const payStatus = (o.paymentStatus || "").toLowerCase();
+      const itemNames = (o.items || []).map((it) => (it.name || "").toLowerCase()).join(" ");
+
+      return (
+        ordNum.includes(q) ||
+        cName.includes(q) ||
+        (cleanNumQuery.length >= 3 && cPhone.includes(cleanNumQuery)) ||
+        cEmail.includes(q) ||
+        status.includes(q) ||
+        payStatus.includes(q) ||
+        itemNames.includes(q)
+      );
+    }).slice(0, 4);
+
+    // 2. Search Customers
+    const matchedCustomers = customers.filter((c) => {
+      const cName = (c.name || "").toLowerCase();
+      const cPhone = (c.phone || "").replace(/\D/g, "");
+      const cEmail = (c.email || "").toLowerCase();
+      const cCity = (c.address?.city || "").toLowerCase();
+      const lastMsg = (c.lastMessageText || "").toLowerCase();
+
+      return (
+        cName.includes(q) ||
+        (cleanNumQuery.length >= 3 && cPhone.includes(cleanNumQuery)) ||
+        cEmail.includes(q) ||
+        cCity.includes(q) ||
+        lastMsg.includes(q)
+      );
+    }).slice(0, 4);
+
+    // 3. Search Products
+    const matchedProducts = productsList.filter((p) => {
+      const pName = (p.name || "").toLowerCase();
+      const pCat = (p.category || "").toLowerCase();
+      const pOrigin = (p.origin || "").toLowerCase();
+
+      return pName.includes(q) || pCat.includes(q) || pOrigin.includes(q);
+    }).slice(0, 4);
+
+    return {
+      orders: matchedOrders,
+      customers: matchedCustomers,
+      products: matchedProducts,
+      totalCount: matchedOrders.length + matchedCustomers.length + matchedProducts.length,
+    };
+  }, [globalSearch, unifiedOrders, customers, productsList]);
+
+  // Global Universal Search: Keyboard Shortcut (⌘K / Ctrl+K, Esc) and Outside-Click Listeners
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        globalSearchInputRef.current?.focus();
+        setIsSearchDropdownOpen(true);
+      }
+      if (e.key === "Escape") {
+        setIsSearchDropdownOpen(false);
+        globalSearchInputRef.current?.blur();
+      }
+    };
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (globalSearchRef.current && !globalSearchRef.current.contains(e.target as Node)) {
+        setIsSearchDropdownOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   // Theme Styling Classes Configuration (Refined High-End Himalayan Palette)
   const themeStyles = {
     forest: {
@@ -2684,16 +2782,279 @@ export default function PrajnaaMasterCrmApp() {
                 className="h-7 w-auto object-contain"
               />
             </div>
-            <div className="relative hidden sm:block w-[220px] md:w-[320px]">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+            <div ref={globalSearchRef} className="relative hidden sm:block w-[240px] md:w-[340px] lg:w-[400px]">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 pointer-events-none" />
               <input
+                ref={globalSearchInputRef}
                 type="text"
-                placeholder="Search customers, orders, messages..."
-                className="w-full pl-9 pr-12 py-2 rounded-xl bg-neutral-100/70 border border-neutral-200/60 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition"
+                value={globalSearch}
+                onChange={(e) => {
+                  setGlobalSearch(e.target.value);
+                  setIsSearchDropdownOpen(true);
+                }}
+                onFocus={() => setIsSearchDropdownOpen(true)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && globalSearch.trim()) {
+                    if (globalSearchResults.orders.length > 0) {
+                      setSelectedOrderForView(globalSearchResults.orders[0]);
+                      setActiveNav("order_details");
+                      setIsSearchDropdownOpen(false);
+                      setGlobalSearch("");
+                    } else if (globalSearchResults.customers.length > 0) {
+                      setSelectedCustomerId(globalSearchResults.customers[0].id);
+                      setMobileChatView("chat");
+                      setActiveNav("inbox");
+                      setIsSearchDropdownOpen(false);
+                      setGlobalSearch("");
+                    } else if (globalSearchResults.products.length > 0) {
+                      setProductSearch(globalSearchResults.products[0].name);
+                      setActiveNav("products");
+                      setIsSearchDropdownOpen(false);
+                      setGlobalSearch("");
+                    }
+                  }
+                }}
+                placeholder="Search customers, orders, products..."
+                className="w-full pl-9 pr-14 py-2 rounded-xl bg-neutral-100/80 border border-neutral-200/70 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:bg-white text-neutral-900 transition placeholder:text-neutral-400"
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-neutral-400 bg-white border border-neutral-200 px-1.5 py-0.5 rounded shadow-2xs">
-                ⌘K
-              </span>
+              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                {globalSearch ? (
+                  <button
+                    onClick={() => {
+                      setGlobalSearch("");
+                      setIsSearchDropdownOpen(false);
+                      globalSearchInputRef.current?.focus();
+                    }}
+                    className="p-1 hover:bg-neutral-200/80 rounded-full text-neutral-400 hover:text-neutral-700 transition cursor-pointer"
+                    title="Clear search"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                ) : (
+                  <span className="text-[10px] font-mono text-neutral-400 bg-white border border-neutral-200 px-1.5 py-0.5 rounded shadow-2xs pointer-events-none">
+                    ⌘K
+                  </span>
+                )}
+              </div>
+
+              {/* LIVE UNIVERSAL SEARCH DROPDOWN */}
+              {isSearchDropdownOpen && globalSearch.trim() && (
+                <div className="absolute left-0 mt-2 w-[340px] md:w-[440px] bg-white rounded-2xl shadow-2xl border border-neutral-200/90 overflow-hidden z-50 text-neutral-800 divide-y divide-neutral-100 max-h-[460px] flex flex-col animate-in fade-in zoom-in-95 duration-150">
+                  {/* Results Count Header */}
+                  <div className="px-3.5 py-2.5 bg-neutral-50/80 flex items-center justify-between text-[11px] font-medium text-neutral-500">
+                    <span>
+                      {globalSearchResults.totalCount > 0
+                        ? `Found ${globalSearchResults.totalCount} match${globalSearchResults.totalCount === 1 ? "" : "es"} for "${globalSearch}"`
+                        : `No matches found for "${globalSearch}"`}
+                    </span>
+                    <span className="text-[10px] text-neutral-400">Esc to close</span>
+                  </div>
+
+                  <div className="overflow-y-auto max-h-[380px] p-2 space-y-3">
+                    {/* Empty State */}
+                    {globalSearchResults.totalCount === 0 && (
+                      <div className="py-8 text-center px-4">
+                        <Search className="h-7 w-7 text-neutral-300 mx-auto mb-2" />
+                        <p className="text-xs font-semibold text-neutral-700">No results found</p>
+                        <p className="text-[11px] text-neutral-400 mt-1 max-w-[280px] mx-auto">
+                          Try searching by customer name, order # (e.g. #ORD-), phone number, or product item.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Orders Section */}
+                    {globalSearchResults.orders.length > 0 && (
+                      <div>
+                        <div className="px-2 pb-1 flex items-center justify-between text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                          <span className="flex items-center gap-1.5">
+                            <Package className="h-3 w-3 text-amber-600" /> Orders & Shipments
+                          </span>
+                          <span className="bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-full font-mono text-[9px]">
+                            {globalSearchResults.orders.length}
+                          </span>
+                        </div>
+                        <div className="space-y-1">
+                          {globalSearchResults.orders.map((ord) => (
+                            <button
+                              key={ord.id || ord.orderNumber}
+                              onClick={() => {
+                                setSelectedOrderForView(ord);
+                                setActiveNav("order_details");
+                                setIsSearchDropdownOpen(false);
+                                setGlobalSearch("");
+                              }}
+                              className="w-full text-left p-2 rounded-xl hover:bg-amber-50/70 transition flex items-center justify-between group cursor-pointer"
+                            >
+                              <div className="min-w-0 pr-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-xs font-bold text-amber-800">
+                                    {ord.orderNumber}
+                                  </span>
+                                  <span className="text-xs font-medium text-neutral-900 truncate">
+                                    {ord.customerName}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-neutral-400 flex items-center gap-2 mt-0.5">
+                                  <span>₹{ord.amount?.toLocaleString("en-IN")}</span>
+                                  <span>•</span>
+                                  <span>{ord.itemsCount || 1} item{(ord.itemsCount || 1) > 1 ? "s" : ""}</span>
+                                  {ord.customerPhone && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="font-mono">{ord.customerPhone}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="shrink-0 flex items-center gap-2">
+                                <span className={`text-[9px] px-2 py-0.5 rounded-full font-semibold ${
+                                  ord.orderStatus === "Completed" ? "bg-emerald-100 text-emerald-800" :
+                                  ord.orderStatus === "Shipped" ? "bg-blue-100 text-blue-800" :
+                                  ord.orderStatus === "Cancelled" ? "bg-red-100 text-red-800" :
+                                  "bg-amber-100 text-amber-800"
+                                }`}>
+                                  {ord.orderStatus || "Pending"}
+                                </span>
+                                <ArrowRight className="h-3.5 w-3.5 text-neutral-400 group-hover:text-amber-700 group-hover:translate-x-0.5 transition" />
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Customers / Chats Section */}
+                    {globalSearchResults.customers.length > 0 && (
+                      <div>
+                        <div className="px-2 pb-1 pt-1 border-t border-neutral-100 flex items-center justify-between text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                          <span className="flex items-center gap-1.5">
+                            <Users className="h-3 w-3 text-emerald-600" /> Customers & WhatsApp
+                          </span>
+                          <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full font-mono text-[9px]">
+                            {globalSearchResults.customers.length}
+                          </span>
+                        </div>
+                        <div className="space-y-1">
+                          {globalSearchResults.customers.map((c) => (
+                            <button
+                              key={c.id}
+                              onClick={() => {
+                                setSelectedCustomerId(c.id);
+                                setMobileChatView("chat");
+                                setActiveNav("inbox");
+                                setIsSearchDropdownOpen(false);
+                                setGlobalSearch("");
+                              }}
+                              className="w-full text-left p-2 rounded-xl hover:bg-emerald-50/70 transition flex items-center justify-between group cursor-pointer"
+                            >
+                              <div className="min-w-0 pr-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-neutral-900 truncate">{c.name}</span>
+                                  {c.address?.city && (
+                                    <span className="text-[10px] text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded">
+                                      {c.address.city}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-neutral-400 flex items-center gap-2 mt-0.5 truncate">
+                                  <span className="font-mono">{c.phone}</span>
+                                  {c.lastMessageText && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="truncate max-w-[160px] italic">"{c.lastMessageText}"</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              <ArrowRight className="h-3.5 w-3.5 text-neutral-400 group-hover:text-emerald-700 group-hover:translate-x-0.5 transition shrink-0" />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Products Section */}
+                    {globalSearchResults.products.length > 0 && (
+                      <div>
+                        <div className="px-2 pb-1 pt-1 border-t border-neutral-100 flex items-center justify-between text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                          <span className="flex items-center gap-1.5">
+                            <ShoppingBag className="h-3 w-3 text-emerald-600" /> Himalayan Products
+                          </span>
+                          <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full font-mono text-[9px]">
+                            {globalSearchResults.products.length}
+                          </span>
+                        </div>
+                        <div className="space-y-1">
+                          {globalSearchResults.products.map((p) => (
+                            <button
+                              key={p.id}
+                              onClick={() => {
+                                setProductSearch(p.name);
+                                setActiveNav("products");
+                                setIsSearchDropdownOpen(false);
+                                setGlobalSearch("");
+                              }}
+                              className="w-full text-left p-2 rounded-xl hover:bg-emerald-50/70 transition flex items-center justify-between group cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                                <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-sm shrink-0">
+                                  {p.image?.startsWith("http") || p.image?.startsWith("/") ? (
+                                    <img src={p.image} alt={p.name} className="w-6 h-6 object-cover rounded" />
+                                  ) : (
+                                    p.image || "🌾"
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-semibold text-neutral-900 truncate">{p.name}</p>
+                                  <p className="text-[10px] text-neutral-400">
+                                    ₹{p.price?.toLocaleString("en-IN")} • {p.origin || "Uttarakhand"}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="shrink-0 flex items-center gap-2">
+                                <span className={`text-[9px] px-2 py-0.5 rounded-full font-semibold ${
+                                  p.stock === "In Stock" ? "bg-emerald-100 text-emerald-800" :
+                                  p.stock === "Low Stock" ? "bg-amber-100 text-amber-800" :
+                                  "bg-red-100 text-red-800"
+                                }`}>
+                                  {p.stock}
+                                </span>
+                                <ArrowRight className="h-3.5 w-3.5 text-neutral-400 group-hover:text-emerald-700 group-hover:translate-x-0.5 transition" />
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quick Footer Links */}
+                  {globalSearchResults.totalCount > 0 && (
+                    <div className="p-2 bg-neutral-50/90 border-t border-neutral-100 flex items-center justify-between text-[11px]">
+                      <button
+                        onClick={() => {
+                          setOrdersSearch(globalSearch);
+                          setActiveNav("orders");
+                          setIsSearchDropdownOpen(false);
+                        }}
+                        className="text-amber-800 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                      >
+                        Search in Orders table →
+                      </button>
+                      <button
+                        onClick={() => {
+                          setProductSearch(globalSearch);
+                          setActiveNav("products");
+                          setIsSearchDropdownOpen(false);
+                        }}
+                        className="text-emerald-800 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                      >
+                        Search in Catalog →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
