@@ -78,6 +78,9 @@ interface Message {
   qrAmount?: number;
   status: "sent" | "delivered" | "read";
   isAutomated?: boolean;
+  senderName?: string;
+  date?: string;
+  type?: string;
 }
 
 // Client-side automated reply generator strictly focused on the customer's specific question
@@ -233,6 +236,8 @@ interface Customer {
   lastMessageText?: string;
   assignedTo?: string;
   resolved?: boolean;
+  notes?: string;
+  tags?: string[];
 }
 
 export type UserRole = "Store Admin" | "Senior Concierge" | "Fulfillment Officer" | "Inventory Associate";
@@ -1388,7 +1393,7 @@ export default function PrajnaaMasterCrmApp() {
 
   // Helper to interpolate dynamic variables in WhatsApp templates
   const interpolateCustomerTemplate = (tplMessage: string, customer: Customer) => {
-    const latestOrder = customer.latestOrder || {};
+    const latestOrder: Partial<Order> = customer.latestOrder || {};
     const trackingNumber =
       latestOrder.trackingNumber ||
       (crmOrders.find((o) =>
@@ -1425,7 +1430,7 @@ export default function PrajnaaMasterCrmApp() {
       const honeyBuyers = customers.filter(
         (c) =>
           (c.latestOrder?.items || []).some((it) => it.name.toLowerCase().includes("honey")) ||
-          (c.notes || "").toLowerCase().includes("honey")
+          (c.notes || c.lastMessageText || "").toLowerCase().includes("honey")
       );
       if (honeyBuyers.length > 0) targetCustomers = honeyBuyers;
     }
