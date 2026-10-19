@@ -673,7 +673,7 @@ class WhatsAppCrmService {
     }
   }
 
-  sendMessage(conversationId: string, text: string, sender: "agent" | "customer" = "agent"): WhatsAppMessage {
+  async sendMessage(conversationId: string, text: string, sender: "agent" | "customer" = "agent"): Promise<WhatsAppMessage> {
     const messages = this.getMessages(conversationId);
     const now = new Date();
     const timeString = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -695,9 +695,15 @@ class WhatsAppCrmService {
     // Update conversation last message
     const conversations = this.getConversations();
     const targetIdx = conversations.findIndex((c) => c.id === conversationId);
+    let targetPhone = "";
+    let customerName = "";
+    let orderNumber = "";
     if (targetIdx !== -1) {
       conversations[targetIdx].lastMessageText = text;
       conversations[targetIdx].lastMessageTime = timeString;
+      targetPhone = conversations[targetIdx].customerPhone || "";
+      customerName = conversations[targetIdx].customerName || "";
+      orderNumber = conversations[targetIdx].orderNumber || "";
       if (sender === "agent") {
         conversations[targetIdx].unreadCount = 0;
       } else {
@@ -706,7 +712,96 @@ class WhatsAppCrmService {
       this.saveConversations(conversations);
     }
 
+    // Real API call to Meta Cloud API via CRM Backend
+    if (sender === "agent" && targetPhone && typeof window !== "undefined") {
+      try {
+        const res = await fetch("/api/crm/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: targetPhone,
+            text,
+            customerName,
+            orderNumber,
+            sender: "business",
+          }),
+        });
+        const data = await res.json();
+        if (data.success && data.result?.success) {
+          newMsg.status = "delivered";
+          newMsg.id = data.result.messageId || newMsg.id;
+        } else {
+          newMsg.status = "failed";
+          (newMsg as any).error = data.error || data.result?.error || "Meta delivery failed";
+        }
+      } catch (err: any) {
+        newMsg.status = "failed";
+        (newMsg as any).error = err.message || "Network error";
+      }
+
+      // Update persisted message status in localStorage
+      localStorage.setItem(this.getStorageKey(`messages_${conversationId}`), JSON.stringify(messages));
+    }
+
     return newMsg;
+  }
+
+  async syncLiveMessages(): Promise<{ newMessagesCount: number }> {
+    if (typeof window === "undefined") return { newMessagesCount: 0 };
+    try {
+      const res = await fetch("/api/crm/messages");
+      if (!res.ok) return { newMessagesCount: 0 };
+      const data = await res.json();
+      if (!data.success || !Array.isArray(data.messages)) return { newMessagesCount: 0 };
+
+      let updatedCount = 0;
+      const conversations = this.getConversations();
+
+      for (const msg of data.messages) {
+        const rawPhone = msg.to || msg.from || "";
+        const cleanMsgPhone = rawPhone.replace(/\D/g, "").slice(-10);
+        if (!cleanMsgPhone) continue;
+
+        let conv = conversations.find((c) => c.customerPhone.replace(/\D/g, "").slice(-10) === cleanMsgPhone);
+        if (!conv) {
+          const newConvId = `conv_${cleanMsgPhone}`;
+          conv = {
+            id: newConvId,
+            customerName: msg.customerName || `Customer (+91 ${cleanMsgPhone})`,
+            customerPhone: `+91 ${cleanMsgPhone}`,
+            lastMessageText: msg.text || "",
+            lastMessageTime: new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            unreadCount: msg.direction === "inbound" ? 1 : 0,
+            status: "active",
+            tags: ["New Inquiry"],
+          };
+          conversations.unshift(conv);
+          this.saveConversations(conversations);
+        }
+
+        const convMessages = this.getMessages(conv.id);
+        const exists = convMessages.some(
+          (m) => m.id === msg.id || (m.text === msg.text && Math.abs(new Date().getTime() - new Date(msg.timestamp || 0).getTime()) < 5000)
+        );
+
+        if (!exists) {
+          convMessages.push({
+            id: msg.id || `msg_${Date.now()}`,
+            conversationId: conv.id,
+            sender: msg.sender === "customer" || msg.direction === "inbound" ? "customer" : "agent",
+            text: msg.text || "",
+            timestamp: new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            status: msg.status || "delivered",
+          });
+          localStorage.setItem(this.getStorageKey(`messages_${conv.id}`), JSON.stringify(convMessages));
+          updatedCount++;
+        }
+      }
+
+      return { newMessagesCount: updatedCount };
+    } catch {
+      return { newMessagesCount: 0 };
+    }
   }
 
   // 3. Fulfillment Pipeline

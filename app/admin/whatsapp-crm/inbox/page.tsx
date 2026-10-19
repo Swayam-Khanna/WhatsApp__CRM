@@ -67,6 +67,26 @@ export default function WhatsAppCrmInboxPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Live polling for real-time WhatsApp updates
+  useEffect(() => {
+    let isMounted = true;
+    const sync = async () => {
+      const { newMessagesCount } = await whatsappCrmService.syncLiveMessages();
+      if (newMessagesCount > 0 && isMounted) {
+        setConversations(whatsappCrmService.getConversations());
+        if (selectedConvId) {
+          setMessages(whatsappCrmService.getMessages(selectedConvId));
+        }
+      }
+    };
+    void sync();
+    const interval = setInterval(sync, 4000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [selectedConvId]);
+
   const selectedConv = conversations.find((c) => c.id === selectedConvId) || conversations[0];
 
   // Filter conversations
@@ -84,20 +104,28 @@ export default function WhatsAppCrmInboxPage() {
     return true;
   });
 
-  const handleSendMessage = (e?: React.FormEvent) => {
+  const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputMessage.trim() || !selectedConv) return;
 
-    const newMsg = whatsappCrmService.sendMessage(selectedConv.id, inputMessage.trim(), "agent");
-    setMessages((prev) => [...prev, newMsg]);
+    const textToSend = inputMessage.trim();
     setInputMessage("");
+
+    const newMsg = await whatsappCrmService.sendMessage(selectedConv.id, textToSend, "agent");
+    setMessages((prev) => [...prev, newMsg]);
 
     // Refresh conversation list to show updated last message
     setConversations(whatsappCrmService.getConversations());
+
+    if (newMsg.status === "failed") {
+      toast.error(`WhatsApp delivery note: ${(newMsg as any).error || "Meta rejected message"}`);
+    } else {
+      toast.success("WhatsApp message dispatched!");
+    }
   };
 
   // Quick action templates
-  const sendQuickReply = (type: "qr" | "confirm_payment" | "packing" | "tracking" | "delivered") => {
+  const sendQuickReply = async (type: "qr" | "confirm_payment" | "packing" | "tracking" | "delivered") => {
     if (!selectedConv) return;
 
     let text = "";
@@ -115,10 +143,15 @@ export default function WhatsAppCrmInboxPage() {
       text = `Namaste ${selectedConv.customerName} ji! 🙏 Aapke Prajnaa Market order ki delivery confirm ho gayi hai. Humein ummeed hai ki aapko hamare organic Himalayan products pasand aayenge. Prajnaa par bharosa karne ke liye dhanyavaad ji! 🌿`;
     }
 
-    const newMsg = whatsappCrmService.sendMessage(selectedConv.id, text, "agent");
+    const newMsg = await whatsappCrmService.sendMessage(selectedConv.id, text, "agent");
     setMessages((prev) => [...prev, newMsg]);
     setConversations(whatsappCrmService.getConversations());
-    toast.success("WhatsApp message sent to customer");
+
+    if (newMsg.status === "failed") {
+      toast.error(`WhatsApp delivery note: ${(newMsg as any).error || "Meta rejected message"}`);
+    } else {
+      toast.success("WhatsApp message sent to customer");
+    }
   };
 
   const handleVerifyPayment = () => {

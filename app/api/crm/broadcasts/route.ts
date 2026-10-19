@@ -57,10 +57,10 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, audience, message, recipients } = body;
+    const { name, audience, message, recipients, templateName } = body;
 
-    if (!name || !message) {
-      return NextResponse.json({ error: "Campaign name and message are required." }, { status: 400 });
+    if (!name || (!message && !templateName)) {
+      return NextResponse.json({ error: "Campaign name and message or templateName are required." }, { status: 400 });
     }
 
     const recipientList: Array<{ name: string; phone: string; id?: string }> = Array.isArray(recipients) && recipients.length > 0
@@ -82,8 +82,12 @@ export async function POST(req: NextRequest) {
 
     for (const rec of recipientList) {
       try {
-        const personalizedMsg = message.replace(/{{customer_name}}/gi, rec.name);
-        const res = await sendWhatsAppTextMessage({ to: rec.phone, text: personalizedMsg });
+        const personalizedMsg = (message || "").replace(/{{customer_name}}/gi, rec.name);
+        const res = await sendWhatsAppTextMessage({
+          to: rec.phone,
+          text: personalizedMsg,
+          template: templateName ? { name: templateName } : undefined,
+        });
         if (res.success) delivered++;
         else failed++;
 

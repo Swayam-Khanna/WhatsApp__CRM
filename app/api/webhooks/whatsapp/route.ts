@@ -76,108 +76,108 @@ export async function POST(req: NextRequest) {
     // 2. Parse inbound messages and delivery receipts
     const { messages, statuses } = parseInboundWebhookPayload(payload);
 
-    if (!globalThis.__globalWhatsAppFeed) {
-      globalThis.__globalWhatsAppFeed = [];
-    }
+    // 3. Process asynchronously in background (Ack immediately to prevent Meta timeout/retries)
+    void handleWebhookProcessing(messages, statuses);
 
-    let db: any = null;
-    try {
-      db = await getDatabase();
-    } catch (dbErr) {
-      console.warn("[MongoDB] Note: Operating in memory fallback:", dbErr);
-    }
-
-    // 3. Process each inbound customer message & trigger instant automated response
-    for (const msg of messages) {
-      console.log(`[WhatsApp Webhook] Inbound from ${msg.fromPhone}: ${msg.text}`);
-
-      const inboundRecord = {
-        id: msg.id,
-        direction: "inbound",
-        sender: "customer",
-        from: msg.fromPhone,
-        to: "917650065690",
-        customerName: msg.customerName || "Customer",
-        text: msg.text,
-        timestamp: msg.timestamp,
-        status: "delivered",
-        createdAt: new Date(),
-      };
-
-      globalThis.__globalWhatsAppFeed.unshift(inboundRecord);
-
-      if (db) {
-        try {
-          await db.collection("crm_messages").insertOne(inboundRecord);
-        } catch (e) {
-          console.warn("[MongoDB] Failed to persist inbound msg:", e);
-        }
-      }
-
-      // Automatically construct tailored Prajnaa automated reply (No manual typing, no template needed)
-      const autoReplyText = generateAutomatedCustomerReply({
-        customerName: msg.customerName,
-        customerQuery: msg.text,
-      });
-
-      console.log(`[WhatsApp Webhook] Auto-replying to ${msg.fromPhone}...`);
-      const sendResult = await sendWhatsAppTextMessage({
-        to: msg.fromPhone,
-        text: autoReplyText,
-      });
-
-      const autoReplyRecord = {
-        id: sendResult.messageId || `msg_auto_${Date.now()}`,
-        direction: "outbound",
-        sender: "business",
-        from: "917650065690",
-        to: msg.fromPhone,
-        customerName: msg.customerName || "Customer",
-        text: autoReplyText,
-        timestamp: new Date().toISOString(),
-        status: "sent",
-        isAutomated: true,
-        mode: sendResult.mode,
-        whatsappUrl: sendResult.whatsappUrl || null,
-        createdAt: new Date(),
-      };
-
-      globalThis.__globalWhatsAppFeed.unshift(autoReplyRecord);
-
-      if (db) {
-        try {
-          await db.collection("crm_messages").insertOne(autoReplyRecord);
-        } catch (e) {
-          console.warn("[MongoDB] Failed to persist auto-reply msg:", e);
-        }
-      }
-    }
-
-    // Process delivery status updates (sent, delivered, read, failed)
-    for (const st of statuses) {
-      console.log(`[WhatsApp Webhook] Message ${st.messageId} status: ${st.status}`);
-      const existing = globalThis.__globalWhatsAppFeed.find((m) => m.id === st.messageId);
-      if (existing) {
-        existing.status = st.status;
-      }
-      if (db) {
-        try {
-          await db.collection("crm_messages").updateOne(
-            { id: st.messageId },
-            { $set: { status: st.status, updatedAt: new Date() } }
-          );
-        } catch {}
-      }
-    }
-
-    // Return 200 OK immediately as required by Meta webhook contract
-    return NextResponse.json({
-      status: "EVENT_RECEIVED",
-      processedMessages: messages.length,
-      autoRepliesSent: messages.length,
-    });
+    return new Response("EVENT_RECEIVED", { status: 200, headers: { "Content-Type": "text/plain" } });
   } catch (err: any) {
     console.error("[WhatsApp Webhook] Error processing event:", err);
     return NextResponse.json({ error: err.message || "Webhook processing failed" }, { status: 500 });
+  }
+}
+
+async function handleWebhookProcessing(messages: any[], statuses: any[]) {
+  if (!globalThis.__globalWhatsAppFeed) {
+    globalThis.__globalWhatsAppFeed = [];
+  }
+
+  let db: any = null;
+  try {
+    db = await getDatabase();
+  } catch (dbErr) {
+    console.warn("[MongoDB] Note: Operating in memory fallback:", dbErr);
+  }
+
+  // 1. Process inbound customer messages & trigger automated reply
+  for (const msg of messages) {
+    console.log(`[WhatsApp Webhook] Inbound from ${msg.fromPhone}: ${msg.text}`);
+
+    const inboundRecord = {
+      id: msg.id,
+      direction: "inbound",
+      sender: "customer",
+      from: msg.fromPhone,
+      to: "917650065690",
+      customerName: msg.customerName || "Customer",
+      text: msg.text,
+      timestamp: msg.timestamp,
+      status: "delivered",
+      createdAt: new Date(),
+    };
+
+    globalThis.__globalWhatsAppFeed.unshift(inboundRecord);
+
+    if (db) {
+      try {
+        await db.collection("crm_messages").insertOne(inboundRecord);
+      } catch (e) {
+        console.warn("[MongoDB] Failed to persist inbound msg:", e);
+      }
+    }
+
+    // Tailored Prajnaa automated reply
+    const autoReplyText = generateAutomatedCustomerReply({
+      customerName: msg.customerName,
+      customerQuery: msg.text,
+    });
+
+    console.log(`[WhatsApp Webhook] Auto-replying to ${msg.fromPhone}...`);
+    const sendResult = await sendWhatsAppTextMessage({
+      to: msg.fromPhone,
+      text: autoReplyText,
+    });
+
+    const autoReplyRecord = {
+      id: sendResult.messageId || `msg_auto_${Date.now()}`,
+      direction: "outbound",
+      sender: "business",
+      from: "917650065690",
+      to: msg.fromPhone,
+      customerName: msg.customerName || "Customer",
+      text: autoReplyText,
+      timestamp: new Date().toISOString(),
+      status: sendResult.success ? "sent" : "failed",
+      isAutomated: true,
+      mode: sendResult.mode,
+      whatsappUrl: sendResult.whatsappUrl || null,
+      createdAt: new Date(),
+    };
+
+    globalThis.__globalWhatsAppFeed.unshift(autoReplyRecord);
+
+    if (db) {
+      try {
+        await db.collection("crm_messages").insertOne(autoReplyRecord);
+      } catch (e) {
+        console.warn("[MongoDB] Failed to persist auto-reply msg:", e);
+      }
+    }
+  }
+
+  // 2. Process delivery status updates (sent, delivered, read, failed)
+  for (const st of statuses) {
+    console.log(`[WhatsApp Webhook] Message ${st.messageId} status: ${st.status}`);
+    const existing = globalThis.__globalWhatsAppFeed.find((m) => m.id === st.messageId);
+    if (existing) {
+      existing.status = st.status;
+    }
+    if (db) {
+      try {
+        await db.collection("crm_messages").updateOne(
+          { id: st.messageId },
+          { $set: { status: st.status, updatedAt: new Date() } }
+        );
+      } catch {}
+    }
   }
 }

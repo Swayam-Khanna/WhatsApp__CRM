@@ -74,39 +74,64 @@ export function verifyWebhookSignature(rawBody: string, signatureHeader?: string
 }
 
 /**
- * Sends an outbound WhatsApp text message via Cloud API or staging fallback.
+ * Sends an outbound WhatsApp text or template message via Cloud API or staging fallback.
  */
 export async function sendWhatsAppTextMessage(params: {
   to: string;
-  text: string;
+  text?: string;
+  template?: {
+    name: string;
+    language?: { code: string };
+    components?: any[];
+  };
 }): Promise<WhatsAppMessageResult> {
   const cleanTo = params.to.replace(/\D/g, "");
   const formattedTo = cleanTo.length === 10 ? `91${cleanTo}` : cleanTo;
 
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || "1370000716197872";
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  const whatsappUrl = `https://wa.me/${formattedTo}?text=${encodeURIComponent(params.text)}`;
+  const whatsappUrl = `https://wa.me/${formattedTo}?text=${encodeURIComponent(params.text || "")}`;
 
   if (phoneId && token) {
     try {
+      const payload: Record<string, any> = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: formattedTo,
+      };
+
+      if (params.template) {
+        payload.type = "template";
+        payload.template = {
+          name: params.template.name,
+          language: params.template.language || { code: "en_US" },
+          ...(params.template.components ? { components: params.template.components } : {}),
+        };
+      } else {
+        payload.type = "text";
+        payload.text = { preview_url: false, body: params.text || "" };
+      }
+
       const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: formattedTo,
-          type: "text",
-          text: { preview_url: false, body: params.text },
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error?.message || "WhatsApp API request failed");
+        const errorMsg = data.error?.error_data?.details || data.error?.message || "WhatsApp API request failed";
+        console.error("[WhatsApp Service] Meta API Error:", data.error);
+        return {
+          success: false,
+          recipientPhone: formattedTo,
+          mode: "cloud_api",
+          error: errorMsg,
+          whatsappUrl,
+        };
       }
 
       const messageId = data.messages?.[0]?.id || `wamid_${Date.now()}`;
@@ -118,11 +143,18 @@ export async function sendWhatsAppTextMessage(params: {
         whatsappUrl,
       };
     } catch (err: any) {
-      console.warn("[WhatsApp Service] Cloud API send failed, using fallback:", err.message);
+      console.error("[WhatsApp Service] Cloud API network exception:", err.message);
+      return {
+        success: false,
+        recipientPhone: formattedTo,
+        mode: "cloud_api",
+        error: err.message || "Failed to reach Meta Cloud API",
+        whatsappUrl,
+      };
     }
   }
 
-  // Fallback: Generate valid pre-filled WhatsApp link
+  // Fallback: only used when token/phoneId are unconfigured (local offline mock)
   return {
     success: true,
     messageId: `wamid_sim_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
