@@ -31,7 +31,7 @@ export interface InboundWhatsAppMessage {
  */
 export function getWhatsAppIntegrationStatus() {
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || "1321131014425271";
+  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || "1370000716197872";
   const businessPhone = process.env.WHATSAPP_BUSINESS_PHONE || process.env.ADMIN_WHATSAPP_NUMBER || "917650065690";
 
   const isConfigured = Boolean(token && phoneId);
@@ -83,7 +83,7 @@ export async function sendWhatsAppTextMessage(params: {
   const cleanTo = params.to.replace(/\D/g, "");
   const formattedTo = cleanTo.length === 10 ? `91${cleanTo}` : cleanTo;
 
-  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || "1321131014425271";
+  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || "1370000716197872";
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const whatsappUrl = `https://wa.me/${formattedTo}?text=${encodeURIComponent(params.text)}`;
 
