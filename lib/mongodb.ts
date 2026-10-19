@@ -1,7 +1,7 @@
 import { MongoClient, Db } from "mongodb";
 
 const uri = process.env.MONGODB_URI || "mongodb+srv://rajat70184_db_user:K9z3dDPFALKiaQlq@cluster0.qtq2jmz.mongodb.net/prajnaa_crm?retryWrites=true&w=majority";
-const options = {};
+const options = { serverSelectionTimeoutMS: 2500, connectTimeoutMS: 2500 };
 
 let client: MongoClient;
 let clientPromise: Promise<MongoClient>;
