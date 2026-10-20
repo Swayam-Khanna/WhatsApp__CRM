@@ -154,7 +154,7 @@ export default function WhatsAppCrmInboxPage() {
     }
   };
 
-  const handleVerifyPayment = () => {
+  const handleVerifyPayment = async () => {
     if (!selectedConv) return;
     const updated = conversations.map((c) =>
       c.id === selectedConv.id
@@ -166,7 +166,7 @@ export default function WhatsAppCrmInboxPage() {
     toast.success(`Payment verified for order ${selectedConv.orderNumber}!`);
 
     // System audit message
-    const sysMsg = whatsappCrmService.sendMessage(
+    const sysMsg = await whatsappCrmService.sendMessage(
       selectedConv.id,
       `✅ Payment of ₹${((selectedConv.orderTotalPaise || 0) / 100).toLocaleString("en-IN")} verified by operator. Order moved to Packaging (2-3 working days).`,
       "agent"
