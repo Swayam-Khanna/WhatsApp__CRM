@@ -42,6 +42,7 @@ export default function WhatsAppCrmInboxPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterTab, setFilterTab] = useState<"all" | "unread" | "pending_payment" | "packed">("all");
   const [copiedTracking, setCopiedTracking] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -106,13 +107,19 @@ export default function WhatsAppCrmInboxPage() {
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!inputMessage.trim() || !selectedConv) return;
+    if (!inputMessage.trim() || !selectedConv || isSending) return;
+    setIsSending(true);
 
     const textToSend = inputMessage.trim();
     setInputMessage("");
 
     const newMsg = await whatsappCrmService.sendMessage(selectedConv.id, textToSend, "agent");
-    setMessages((prev) => [...prev, newMsg]);
+    setMessages((prev) => {
+      const alreadyInState = prev.some(
+        (m) => m.id === newMsg.id || (m.sender === "agent" && m.text.trim() === newMsg.text.trim())
+      );
+      return alreadyInState ? prev : [...prev, newMsg];
+    });
 
     // Refresh conversation list to show updated last message
     setConversations(whatsappCrmService.getConversations());
@@ -121,12 +128,14 @@ export default function WhatsAppCrmInboxPage() {
       toast.error(`WhatsApp delivery note: ${(newMsg as any).error || "Meta rejected message"}`);
     } else {
       toast.success("WhatsApp message dispatched!");
+      setIsSending(false);
     }
   };
 
   // Quick action templates
   const sendQuickReply = async (type: "qr" | "confirm_payment" | "packing" | "tracking" | "delivered") => {
-    if (!selectedConv) return;
+    if (!selectedConv || isSending) return;
+    setIsSending(true);
 
     let text = "";
     if (type === "qr") {
@@ -144,18 +153,25 @@ export default function WhatsAppCrmInboxPage() {
     }
 
     const newMsg = await whatsappCrmService.sendMessage(selectedConv.id, text, "agent");
-    setMessages((prev) => [...prev, newMsg]);
+    setMessages((prev) => {
+      const alreadyInState = prev.some(
+        (m) => m.id === newMsg.id || (m.sender === "agent" && m.text.trim() === newMsg.text.trim())
+      );
+      return alreadyInState ? prev : [...prev, newMsg];
+    });
     setConversations(whatsappCrmService.getConversations());
 
     if (newMsg.status === "failed") {
       toast.error(`WhatsApp delivery note: ${(newMsg as any).error || "Meta rejected message"}`);
     } else {
       toast.success("WhatsApp message sent to customer");
+      setIsSending(false);
     }
   };
 
   const handleVerifyPayment = async () => {
-    if (!selectedConv) return;
+    if (!selectedConv || isSending) return;
+    setIsSending(true);
     const updated = conversations.map((c) =>
       c.id === selectedConv.id
         ? { ...c, orderPaymentStatus: "collected", status: "packed" as const }
@@ -171,7 +187,13 @@ export default function WhatsAppCrmInboxPage() {
       `✅ Payment of ₹${((selectedConv.orderTotalPaise || 0) / 100).toLocaleString("en-IN")} verified by operator. Order moved to Packaging (2-3 working days).`,
       "agent"
     );
-    setMessages((prev) => [...prev, sysMsg]);
+    setMessages((prev) => {
+      const alreadyInState = prev.some(
+        (m) => m.id === sysMsg.id || (m.sender === "agent" && m.text.trim() === sysMsg.text.trim())
+      );
+      return alreadyInState ? prev : [...prev, sysMsg];
+    });
+    setIsSending(false);
   };
 
   const copyTrackingToClipboard = (text: string) => {

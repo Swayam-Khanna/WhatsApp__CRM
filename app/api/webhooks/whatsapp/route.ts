@@ -100,6 +100,23 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
 
   // 1. Process inbound customer messages & trigger automated reply
   for (const msg of messages) {
+    // 1. Idempotency guard: Never process or auto-reply to the same message ID twice
+    if (!msg.id) continue;
+    const isAlreadyInFeed = (globalThis.__globalWhatsAppFeed || []).some((m: any) => m.id === msg.id);
+    if (isAlreadyInFeed) {
+      console.log(`[WhatsApp Webhook] Idempotency: Message ${msg.id} already processed. Skipping duplicate reply.`);
+      continue;
+    }
+    if (db) {
+      try {
+        const inDb = await db.collection("crm_messages").findOne({ id: msg.id });
+        if (inDb) {
+          console.log(`[WhatsApp Webhook] Idempotency: Message ${msg.id} already exists in DB. Skipping duplicate reply.`);
+          continue;
+        }
+      } catch {}
+    }
+
     console.log(`[WhatsApp Webhook] Inbound from ${msg.fromPhone}: ${msg.text}`);
 
     const inboundRecord = {

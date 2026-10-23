@@ -1356,8 +1356,9 @@ export default function PrajnaaMasterCrmApp() {
                       const alreadyExists = currentList.some(
                         (ex) =>
                           ex.id === dbM.id ||
-                          (ex.text === dbM.text &&
-                            Math.abs(new Date(ex.time || 0).getTime() - new Date(dbM.timestamp || 0).getTime()) < 60000)
+                          (ex.text?.trim() === dbM.text?.trim() && ((ex.sender === "business" && (dbM.sender === "business" || dbM.direction === "outbound")) || (ex.sender === "customer" && (dbM.sender === "customer" || dbM.direction === "inbound"))))
+
+
                       );
                       if (!alreadyExists) {
                         const timeStr = dbM.timestamp

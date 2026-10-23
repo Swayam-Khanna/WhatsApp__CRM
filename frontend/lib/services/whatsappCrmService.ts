@@ -4,6 +4,7 @@ export interface WhatsAppMessage {
   sender: "customer" | "agent" | "system";
   text: string;
   timestamp: string;
+  createdAt?: string;
   status: "sent" | "delivered" | "read" | "failed";
   mediaUrl?: string;
   mediaType?: "image" | "document" | "audio";
@@ -667,7 +668,20 @@ class WhatsAppCrmService {
     if (typeof window === "undefined") return INITIAL_MESSAGES[conversationId] || [];
     try {
       const all = localStorage.getItem(this.getStorageKey(`messages_${conversationId}`));
-      return all ? JSON.parse(all) : INITIAL_MESSAGES[conversationId] || [];
+      const rawList: WhatsAppMessage[] = all ? JSON.parse(all) : INITIAL_MESSAGES[conversationId] || [];
+      const seenIds = new Set<string>();
+      const seenSigs = new Set<string>();
+      const cleanList: WhatsAppMessage[] = [];
+      for (const m of rawList) {
+        if (!m || !m.text) continue;
+        if (m.id && seenIds.has(m.id)) continue;
+        const sig = `${m.sender}_${m.text.trim()}`;
+        if (seenSigs.has(sig) && !m.id?.startsWith("wamid.")) continue;
+        if (m.id) seenIds.add(m.id);
+        seenSigs.add(sig);
+        cleanList.push(m);
+      }
+      return cleanList;
     } catch {
       return INITIAL_MESSAGES[conversationId] || [];
     }
@@ -678,12 +692,25 @@ class WhatsAppCrmService {
     const now = new Date();
     const timeString = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
+    // Deduplication guard: ignore rapid double submission within 2.5 seconds
+    const recentDuplicate = messages.find(
+      (m) =>
+        m.sender === sender &&
+        m.text.trim() === text.trim() &&
+        m.createdAt &&
+        Math.abs(now.getTime() - new Date(m.createdAt).getTime()) < 2500
+    );
+    if (recentDuplicate) {
+      return recentDuplicate;
+    }
+
     const newMsg: WhatsAppMessage = {
-      id: `msg_${Date.now()}`,
+      id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       conversationId,
       sender,
       text,
       timestamp: timeString,
+      createdAt: now.toISOString(),
       status: "sent",
     };
 
@@ -781,7 +808,11 @@ class WhatsAppCrmService {
 
         const convMessages = this.getMessages(conv.id);
         const exists = convMessages.some(
-          (m) => m.id === msg.id || (m.text === msg.text && Math.abs(new Date().getTime() - new Date(msg.timestamp || 0).getTime()) < 5000)
+          (m) =>
+            m.id === msg.id ||
+            (((m.sender === "agent" && (msg.sender === "business" || msg.direction === "outbound")) ||
+              (m.sender === "customer" && (msg.sender === "customer" || msg.direction === "inbound"))) &&
+              m.text.trim() === (msg.text || "").trim())
         );
 
         if (!exists) {

@@ -37,13 +37,30 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      messages: dbMessages.length > 0 ? dbMessages : (globalThis.__globalWhatsAppFeed || []),
+      messages: (dbMessages.length > 0 ? dbMessages : (globalThis.__globalWhatsAppFeed || [])).filter(
+        (m, idx, arr) =>
+          idx ===
+          arr.findIndex(
+            (o) =>
+              (m.id && o.id === m.id) ||
+              ((m.text || "").trim() === (o.text || "").trim() && (m.direction || m.sender) === (o.direction || o.sender))
+          )
+      ),
       health,
       storage: "mongodb",
     });
   } catch (err: any) {
     const feed = globalThis.__globalWhatsAppFeed || [];
-    return NextResponse.json({ success: true, messages: feed, health, storage: "memory_fallback" });
+    const cleanFeed = feed.filter(
+      (m, idx, arr) =>
+        idx ===
+        arr.findIndex(
+          (o) =>
+            (m.id && o.id === m.id) ||
+            ((m.text || "").trim() === (o.text || "").trim() && (m.direction || m.sender) === (o.direction || o.sender))
+        )
+    );
+    return NextResponse.json({ success: true, messages: cleanFeed, health, storage: "memory_fallback" });
   }
 }
 
@@ -144,6 +161,23 @@ export async function POST(req: NextRequest) {
     }
 
     // SCENARIO B: Outbound Staff / Business Message
+    const cleanTo = (to || "").replace(/\D/g, "");
+    const recentDuplicate = (globalThis.__globalWhatsAppFeed || []).find(
+      (m: any) =>
+        m.direction === "outbound" &&
+        (m.to || "").replace(/\D/g, "") === cleanTo &&
+        (m.text || "").trim() === text.trim() &&
+        Date.now() - new Date(m.createdAt || m.timestamp || 0).getTime() < 3000
+    );
+    if (recentDuplicate) {
+      return NextResponse.json({
+        success: true,
+        result: { success: true, messageId: recentDuplicate.id, mode: recentDuplicate.mode },
+        messageRecord: recentDuplicate,
+        storage: "deduped",
+      });
+    }
+
     const result = await sendWhatsAppTextMessage({ to, text });
 
     const messageRecord = {

@@ -16,7 +16,12 @@ declare global {
 
 export function getClientPromise(): Promise<MongoClient> {
   // Never connect during Next.js static build phase
-  if (process.env.NEXT_PHASE === "phase-production-build") {
+  const isBuildPhase =
+    process.env.NEXT_PHASE === "phase-production-build" ||
+    process.env.__NEXT_BUILDING === "1" ||
+    (Array.isArray(process.argv) && process.argv.some((arg) => arg.includes("build")));
+
+  if (isBuildPhase) {
     return Promise.reject(new Error("MongoDB connection bypassed during static build phase"));
   }
 
