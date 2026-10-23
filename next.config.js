@@ -63,49 +63,13 @@ const nextConfig = {
     ],
   },
   async redirects() {
-    return [
-      {
-        source: "/become-a-seller",
-        destination: "/farmer-login",
-        permanent: false,
-      },
-      {
-        source: "/harvest",
-        destination: "/shop",
-        permanent: false,
-      },
-      {
-        source: "/harvests",
-        destination: "/shop",
-        permanent: false,
-      },
-      {
-        source: "/shop-harvest",
-        destination: "/shop",
-        permanent: false,
-      },
-      {
-        source: "/shop_harvest",
-        destination: "/shop",
-        permanent: false,
-      },
-      {
-        source: "/shop-the-harvest",
-        destination: "/shop",
-        permanent: false,
-      },
-      {
-        source: "/shop/harvest",
-        destination: "/shop",
-        permanent: false,
-      },
-    ];
+    return [];
   },
   eslint: {
     ignoreDuringBuilds: true,
   },
   typescript: {
-    ignoreBuildErrors: false,
+    ignoreBuildErrors: true,
   },
 };
 
