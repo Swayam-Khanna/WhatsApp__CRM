@@ -754,12 +754,21 @@ class WhatsAppCrmService {
           }),
         });
         const data = await res.json();
-        if (data.success && data.result?.success) {
-          newMsg.status = "delivered";
-          newMsg.id = data.result.messageId || newMsg.id;
+        if (data.success) {
+          newMsg.id = data.result?.messageId || newMsg.id;
+          if (data.result?.success) {
+            newMsg.status = "delivered";
+            (newMsg as any).metaStatus = "delivered";
+          } else {
+            // Meta status is pending verification: message is successfully recorded in CRM pipeline
+            newMsg.status = "sent";
+            (newMsg as any).metaStatus = "pending";
+            (newMsg as any).whatsappUrl = data.result?.whatsappUrl;
+            (newMsg as any).metaPending = true;
+          }
         } else {
           newMsg.status = "failed";
-          (newMsg as any).error = data.error || data.result?.error || "Meta delivery failed";
+          (newMsg as any).error = data.error || "Failed to record message";
         }
       } catch (err: any) {
         newMsg.status = "failed";

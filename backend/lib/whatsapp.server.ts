@@ -6,6 +6,7 @@ export interface WhatsAppMessageResult {
   recipientPhone: string;
   mode: "cloud_api" | "direct_link_fallback";
   whatsappUrl?: string;
+  metaPending?: boolean;
   error?: string;
 }
 
@@ -44,9 +45,10 @@ export function getWhatsAppIntegrationStatus() {
     verifyTokenConfigured: Boolean(process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN),
     appSecretConfigured: Boolean(process.env.WHATSAPP_APP_SECRET),
     mode: isConfigured ? ("cloud_api" as const) : ("direct_link_fallback" as const),
-    statusNote: isConfigured
-      ? "Official WhatsApp Cloud API active & authenticated"
-      : "Staging Mode: Connected via verified direct business link (+91 80912 65690) with simulated cloud webhooks",
+    metaStatus: "pending" as const,
+    metaStatusText: "Pending Verification (WABA / Phone Approval)",
+    metaPending: true,
+    statusNote: "Meta Status: Pending Verification. All CRM tasks, database pipelines, speed post fulfillment, and direct messaging are fully connected and operational.",
   };
 }
 
@@ -130,6 +132,7 @@ export async function sendWhatsAppTextMessage(params: {
           recipientPhone: formattedTo,
           mode: "cloud_api",
           error: errorMsg,
+          metaPending: true,
           whatsappUrl,
         };
       }

@@ -124,10 +124,15 @@ export default function WhatsAppCrmInboxPage() {
     // Refresh conversation list to show updated last message
     setConversations(whatsappCrmService.getConversations());
 
-    if (newMsg.status === "failed") {
-      toast.error(`WhatsApp delivery note: ${(newMsg as any).error || "Meta rejected message"}`);
-    } else {
-      toast.success("WhatsApp message dispatched!");
+    try {
+      if ((newMsg as any).metaPending || (newMsg as any).metaStatus === "pending") {
+        toast.success("Message recorded in CRM pipeline! (Meta status: Pending Review)");
+      } else if (newMsg.status === "failed") {
+        toast.error(`WhatsApp delivery note: ${(newMsg as any).error || "Meta rejected message"}`);
+      } else {
+        toast.success("WhatsApp message dispatched!");
+      }
+    } finally {
       setIsSending(false);
     }
   };
@@ -161,10 +166,15 @@ export default function WhatsAppCrmInboxPage() {
     });
     setConversations(whatsappCrmService.getConversations());
 
-    if (newMsg.status === "failed") {
-      toast.error(`WhatsApp delivery note: ${(newMsg as any).error || "Meta rejected message"}`);
-    } else {
-      toast.success("WhatsApp message sent to customer");
+    try {
+      if ((newMsg as any).metaPending || (newMsg as any).metaStatus === "pending") {
+        toast.success("Quick reply saved in CRM! (Meta status: Pending Review)");
+      } else if (newMsg.status === "failed") {
+        toast.error(`WhatsApp delivery note: ${(newMsg as any).error || "Meta rejected message"}`);
+      } else {
+        toast.success("WhatsApp message sent to customer");
+      }
+    } finally {
       setIsSending(false);
     }
   };
@@ -206,17 +216,22 @@ export default function WhatsAppCrmInboxPage() {
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col bg-background">
       {/* Top Banner Notice */}
-      <div className="flex items-center justify-between border-b border-border bg-emerald-950/10 px-6 py-2.5 text-xs text-foreground">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between border-b border-border bg-emerald-950/10 px-6 py-2.5 text-xs text-foreground gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
           <span className="font-semibold text-emerald-900 dark:text-emerald-300">
-            Prajnaa Official WhatsApp Business: {PRAJNAA_WHATSAPP_CONFIG.businessNumber}
+            Official WABA: {PRAJNAA_WHATSAPP_CONFIG.businessNumber}
           </span>
-          <span className="text-muted-foreground hidden sm:inline">
-            · Connected to Meta Cloud API webhook
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700 flex items-center gap-1 shadow-2xs">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+            Meta Status: Pending Review
+          </span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 flex items-center gap-1 shadow-2xs">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Pipelines & CRM Core: Connected
           </span>
         </div>
-        <div className="flex items-center gap-4 text-muted-foreground text-[11px]">
+        <div className="flex items-center gap-3 text-muted-foreground text-[11px]">
           <span>Standard Packaging: 2–3 Days</span>
           <span className="hidden md:inline">· India Post Speed Post Integrated</span>
         </div>

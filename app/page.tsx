@@ -3425,9 +3425,15 @@ export default function PrajnaaMasterCrmApp() {
                   +91 80912 65690
                 </span>
               </div>
-              <div className="flex items-center gap-1 pl-1">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] font-semibold text-emerald-800">Online</span>
+              <div className="flex items-center gap-1.5 pl-1">
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Meta: Pending
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  CRM: Connected
+                </span>
               </div>
             </div>
 
@@ -5626,9 +5632,9 @@ export default function PrajnaaMasterCrmApp() {
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl font-bold text-neutral-900 dark:text-white">WhatsApp Broadcast Campaigns</h2>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
-                    Meta Cloud API v21.0 Active
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-600 animate-pulse"></span>
+                    Meta Status: Pending Review · Pipeline Operational
                   </span>
                 </div>
                 <p className="text-xs text-neutral-500 mt-0.5">
@@ -6690,8 +6696,9 @@ export default function PrajnaaMasterCrmApp() {
                       <p className="text-[11px] text-neutral-500">Official Cloud API & Webhook Listener</p>
                     </div>
                   </div>
-                  <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 text-[10px] font-bold rounded-full border border-emerald-200">
-                    ● Active
+                  <span className="px-2.5 py-1 bg-amber-50 text-amber-800 text-[10px] font-bold rounded-full border border-amber-300 flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    Meta Status: Pending Verification
                   </span>
                 </div>
 
