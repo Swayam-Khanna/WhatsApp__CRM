@@ -104,14 +104,14 @@ export interface IndiaPostConsignment {
 
 // Default Prajnaa WhatsApp Business Context
 export const PRAJNAA_WHATSAPP_CONFIG = {
-  businessNumber: "+91 76500 65690",
-  businessNumberClean: "917650065690",
+  businessNumber: "+91 80912 65690",
+  businessNumberClean: "918091265690",
   businessName: "Prajnaa Market",
   tagline: "Pure Himalayan Produce • Direct from Mountain Farmers",
-  upiId: "prajnaa@upi",
+  upiId: "8091265690@okbizaxis",
   bankDetails: {
     accountName: "Prajnaa Farm Produce Pvt Ltd",
-    accountNumber: "91765006569001",
+    accountNumber: "91809126569001",
     bankName: "HDFC Bank",
     ifsc: "HDFC0001824",
     branch: "Shimla Mall Road",

@@ -32,21 +32,21 @@ export interface InboundWhatsAppMessage {
 export function getWhatsAppIntegrationStatus() {
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || "1370000716197872";
-  const businessPhone = process.env.WHATSAPP_BUSINESS_PHONE || process.env.ADMIN_WHATSAPP_NUMBER || "917650065690";
+  const businessPhone = process.env.WHATSAPP_BUSINESS_PHONE || process.env.ADMIN_WHATSAPP_NUMBER || "918091265690";
 
   const isConfigured = Boolean(token && phoneId);
 
   return {
     isConfigured,
     businessPhone: businessPhone.replace(/\D/g, ""),
-    formattedPhone: "+91 76500 65690",
+    formattedPhone: "+91 80912 65690",
     phoneNumberId: phoneId || null,
     verifyTokenConfigured: Boolean(process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN),
     appSecretConfigured: Boolean(process.env.WHATSAPP_APP_SECRET),
     mode: isConfigured ? ("cloud_api" as const) : ("direct_link_fallback" as const),
     statusNote: isConfigured
       ? "Official WhatsApp Cloud API active & authenticated"
-      : "Staging Mode: Connected via verified direct business link (+91 76500 65690) with simulated cloud webhooks",
+      : "Staging Mode: Connected via verified direct business link (+91 80912 65690) with simulated cloud webhooks",
   };
 }
 
@@ -386,7 +386,7 @@ export function generateAutomatedCustomerReply(params: {
 
   // 9. Customer Care / Call / Phone Contact
   if (query.includes("contact") || query.includes("number") || query.includes("call") || query.includes("phone") || query.includes("helpline") || query.includes("baat")) {
-    return `Namaste ${name}! 🙏 Hamara official customer support number +91 76500 65690 hai. Store Concierge Nishant ji isi number par directly available hain.`;
+    return `Namaste ${name}! 🙏 Hamara official customer support number +91 80912 65690 hai. Store Concierge Nishant ji isi number par directly available hain.`;
   }
 
   // 10. Thank You / Appreciation

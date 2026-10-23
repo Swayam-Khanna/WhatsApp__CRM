@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
           id: res.messageId || `bc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
           direction: "outbound",
           sender: "business",
-          from: "917650065690",
+          from: process.env.ADMIN_WHATSAPP_NUMBER || "918091265690",
           to: res.recipientPhone || rec.phone,
           customerName: rec.name,
           customerId: rec.id,

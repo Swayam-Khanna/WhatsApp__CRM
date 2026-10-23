@@ -165,7 +165,7 @@ function generateClientAutoReply(customerName?: string, queryText: string = ""):
 
   // 9. Customer Care / Call / Phone Contact
   if (query.includes("contact") || query.includes("number") || query.includes("call") || query.includes("phone") || query.includes("helpline") || query.includes("baat")) {
-    return `Namaste ${name}! 🙏 Hamara official customer support number +91 76500 65690 hai. Store Concierge Nishant ji isi number par directly available hain.`;
+    return `Namaste ${name}! 🙏 Hamara official customer support number +91 80912 65690 hai. Store Concierge Nishant ji isi number par directly available hain.`;
   }
 
   // 10. Thank You / Appreciation
@@ -343,6 +343,60 @@ const ROLE_PERMISSIONS: Record<
 
 // Initial Mock Customers Data
 const INITIAL_CUSTOMERS: Customer[] = [
+  {
+    id: "cust_rajat",
+    name: "Rajat",
+    phone: "+91 70184 90629",
+    email: "rajat@prajnaa.in",
+    location: "Tehri Garhwal, Uttarakhand",
+    totalOrders: 1,
+    totalSpent: 844,
+    customerSince: "Oct 2026",
+    isVip: true,
+    avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+    address: {
+      line1: "Tehri Garhwal",
+      city: "Tehri",
+      state: "Uttarakhand",
+      pincode: "249001",
+      country: "India",
+    },
+    unreadCount: 0,
+    lastMessageTime: "Just now",
+    lastMessageText: "Namaste Rajat ji! Welcome to Prajnaa Market & Farm! 🌿",
+    latestOrder: {
+      id: "ord_rajat_1",
+      orderNumber: "#PM-9021",
+      itemsCount: 2,
+      amount: 844,
+      paymentStatus: "Pending",
+      orderStatus: "Processing",
+      date: "Today",
+      time: "Just now",
+      items: [
+        {
+          name: "Kashmiri Walnuts",
+          weight: "500g",
+          qty: 1,
+          price: 604,
+          total: 604,
+          image: "🌰",
+        },
+        {
+          name: "Lakadong Turmeric",
+          weight: "250g",
+          qty: 1,
+          price: 240,
+          total: 240,
+          image: "🌿",
+        },
+      ],
+      subtotal: 844,
+      discount: 0,
+      shipping: 0,
+      paymentMethod: "WhatsApp Order & Direct Payment",
+    },
+  },
   {
     id: "cust_1",
     name: "Priya Sharma",
@@ -617,7 +671,7 @@ const INITIAL_TEAM: TeamMember[] = [
     id: "tm_1",
     name: "Nishant",
     email: "admin@prajnaamarket.com",
-    phone: "+91 76500 65690",
+    phone: "+91 80912 65690",
     role: "Store Admin",
     status: "Online",
     assignedChats: 8,
@@ -725,7 +779,7 @@ const INITIAL_TEMPLATES = [
     id: "tpl_2",
     category: "Payment",
     name: "Payment QR & Instructions",
-    message: "Namaste {{customer_name}} ji! 🙏\n\nYeh raha aapke order {{order_id}} ka official Prajnaa Market payment QR. Total Amount: ₹{{amount}}.\n\nKripya kisi bhi UPI app (Google Pay, PhonePe, Paytm) se scan karke payment complete karein aur screenshot share kar dijiye. Verification ke baad order dispatch queue me chala jayega.\n\nUPI ID: 7650065690@okbizaxis\nDhanyavaad! 🌾",
+    message: "Namaste {{customer_name}} ji! 🙏\n\nYeh raha aapke order {{order_id}} ka official Prajnaa Market payment QR. Total Amount: ₹{{amount}}.\n\nKripya kisi bhi UPI app (Google Pay, PhonePe, Paytm) se scan karke payment complete karein aur screenshot share kar dijiye. Verification ke baad order dispatch queue me chala jayega.\n\nUPI ID: 8091265690@okbizaxis\nDhanyavaad! 🌾",
   },
   {
     id: "tpl_3",
@@ -876,7 +930,7 @@ export default function PrajnaaMasterCrmApp() {
 
   // State: Customers & Conversations
   const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("cust_1");
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("cust_rajat");
   const [inboxTab, setInboxTab] = useState<"all" | "unread" | "assigned" | "resolved">("all");
   const [inboxSearch, setInboxSearch] = useState("");
 
@@ -1399,7 +1453,7 @@ export default function PrajnaaMasterCrmApp() {
       (crmOrders.find((o) =>
         o.customerPhone?.replace(/\D/g, "").endsWith(customer.phone.replace(/\D/g, "").slice(-10))
       )?.trackingId) ||
-      "ET765006569IN";
+      "ET809126569IN";
 
     return tplMessage
       .replace(/{{customer_name}}/gi, customer.name)
@@ -2158,7 +2212,7 @@ export default function PrajnaaMasterCrmApp() {
           discount: ord.discountPaise ? ord.discountPaise / 100 : 0,
           shipping: ord.shippingPaise ? ord.shippingPaise / 100 : 50,
           paymentMethod: ord.paymentMethod || "COD",
-          trackingNumber: ord.trackingId || "ET765006569IN",
+          trackingNumber: ord.trackingId || "ET809126569IN",
           shippingAddress: ord.shippingAddressSnapshot
             ? `${ord.shippingAddressSnapshot.line1 || ""}, ${ord.shippingAddressSnapshot.city || ""}`
             : "Dehradun, Uttarakhand",
@@ -2469,7 +2523,7 @@ export default function PrajnaaMasterCrmApp() {
         c.latestOrder?.orderNumber === shipmentItem.orderId
     ) || currentCustomer;
 
-    const targetPhone = targetCust.phone ? targetCust.phone.replace(/\D/g, "") : "917650065690";
+    const targetPhone = targetCust.phone ? targetCust.phone.replace(/\D/g, "") : "918091265690";
 
     // 2. Add message to customer's WhatsApp chat in CRM
     const now = new Date();
@@ -3367,7 +3421,7 @@ export default function PrajnaaMasterCrmApp() {
                   Official WhatsApp Number
                 </span>
                 <span className="text-xs font-bold text-neutral-900 font-mono tracking-tight">
-                  +91 76500 65690
+                  +91 80912 65690
                 </span>
               </div>
               <div className="flex items-center gap-1 pl-1">
@@ -5577,13 +5631,13 @@ export default function PrajnaaMasterCrmApp() {
                   </span>
                 </div>
                 <p className="text-xs text-neutral-500 mt-0.5">
-                  Send seasonal harvest releases, fresh batch alerts, and promotional announcements to opted-in customers via +91 76500 65690.
+                  Send seasonal harvest releases, fresh batch alerts, and promotional announcements to opted-in customers via +91 80912 65690.
                 </p>
               </div>
 
               <div className="flex items-center gap-2">
                 <span className="px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold shadow-2xs text-neutral-700 dark:text-slate-300">
-                  Official WABA: <strong className="font-mono text-emerald-800 dark:text-emerald-400">+91 76500 65690</strong>
+                  Official WABA: <strong className="font-mono text-emerald-800 dark:text-emerald-400">+91 80912 65690</strong>
                 </span>
               </div>
             </div>
@@ -5754,7 +5808,7 @@ export default function PrajnaaMasterCrmApp() {
 
                 <div className="pt-4 border-t border-neutral-300/60 dark:border-slate-800/80 text-center space-y-1">
                   <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-400 block">
-                    Meta Verified Business Account: +91 76500 65690
+                    Meta Verified Business Account: +91 80912 65690
                   </span>
                   <p className="text-[10px] text-neutral-500">
                     Compliant with 24h Customer Service Window & Marketing Opt-in standards.
@@ -6189,7 +6243,7 @@ export default function PrajnaaMasterCrmApp() {
                             c.name.toLowerCase() === selectedShipment.customer.toLowerCase() ||
                             c.latestOrder?.orderNumber === selectedShipment.orderId
                         ) || currentCustomer;
-                        const cleanP = (targetCust.phone || "917650065690").replace(/\D/g, "");
+                        const cleanP = (targetCust.phone || "918091265690").replace(/\D/g, "");
                         const text = `Namaste ${selectedShipment.customer} ji! Aapka Prajnaa parcel Speed Post tracking ID: ${selectedShipment.trackingId} se dispatch ho gaya hai. Check: https://www.indiapost.gov.in`;
                         window.open(`https://wa.me/${cleanP.length === 10 ? "91" + cleanP : cleanP}?text=${encodeURIComponent(text)}`, "_blank");
                       }}
@@ -6646,7 +6700,7 @@ export default function PrajnaaMasterCrmApp() {
                     <input
                       type="text"
                       disabled
-                      value="+91 76500 65690"
+                      value="+91 80912 65690"
                       className="w-full mt-1 p-2 rounded-xl border border-neutral-200 dark:border-slate-800 text-xs font-mono bg-neutral-50 dark:bg-slate-800 text-neutral-900 dark:text-white"
                     />
                   </div>

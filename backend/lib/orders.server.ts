@@ -768,7 +768,7 @@ export async function createOrderAtomic(params: CreateOrderParams) {
   // 3F. Build WhatsApp pre-filled link if paymentMethod === 'whatsapp'
   let whatsappUrl: string | null = null;
   if (params.paymentMethod === "whatsapp") {
-    const adminWhatsAppPhone = process.env.ADMIN_WHATSAPP_NUMBER || "917650065690";
+    const adminWhatsAppPhone = process.env.ADMIN_WHATSAPP_NUMBER || "918091265690";
     const message = buildWhatsAppOrderMessage({
       orderNumber: finalOrder.orderNumber,
       customerName: params.customerName,

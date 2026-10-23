@@ -64,17 +64,17 @@ export function MarketingHeader() {
             </span>
             <span className="opacity-45 shrink-0 hidden md:inline">|</span>
             <a
-              href="https://wa.me/917650065690"
+              href="https://wa.me/918091265690"
               target="_blank"
               rel="noopener noreferrer"
               className="text-amber-300 font-semibold hidden md:inline-flex items-center gap-1 hover:text-white transition"
             >
-              💬 WhatsApp: +91 76500 65690
+              💬 WhatsApp: +91 80912 65690
             </a>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 text-[10px] sm:text-[11px] shrink-0">
             <a
-              href="https://wa.me/917650065690"
+              href="https://wa.me/918091265690"
               target="_blank"
               rel="noopener noreferrer"
               className="text-amber-300 font-semibold md:hidden hover:text-white transition"

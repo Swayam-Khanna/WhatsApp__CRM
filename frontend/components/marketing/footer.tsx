@@ -23,7 +23,7 @@ const socialLinks = [
   { Icon: Facebook, href: "https://facebook.com/prajnaafarm", label: "Facebook", isExternal: true },
   { Icon: PinterestIcon, href: "https://pinterest.com/prajnaafarm", label: "Pinterest", isExternal: true },
   { Icon: Mail, href: "mailto:prajnaafarm@gmail.com", label: "Email", isExternal: false },
-  { Icon: WhatsAppIcon, href: "https://wa.me/917650065690", label: "WhatsApp", isExternal: true },
+  { Icon: WhatsAppIcon, href: "https://wa.me/918091265690", label: "WhatsApp", isExternal: true },
   { Icon: Linkedin, href: "https://linkedin.com/company/prajnaafarm", label: "LinkedIn", isExternal: true },
 ];
 

@@ -62,12 +62,12 @@ describe("PRAJNAA MARKET & WHATSAPP CRM — MASTER END-TO-END VERIFICATION", () 
   });
 
   // 3. Official WhatsApp Number & Fallback Link Builder
-  test("3. Official WhatsApp Business Number (+91 76500 65690)", () => {
-    const OFFICIAL_NUMBER = "917650065690";
+  test("3. Official WhatsApp Business Number (+91 80912 65690)", () => {
+    const OFFICIAL_NUMBER = "918091265690";
     const testMsg = "Namaste Prajnaa Market!";
     const waLink = generateWhatsAppLink(OFFICIAL_NUMBER, testMsg);
 
-    assert.ok(waLink.startsWith("https://wa.me/917650065690?text="), "wa.me link must target +91 76500 65690");
+    assert.ok(waLink.startsWith("https://wa.me/918091265690?text="), "wa.me link must target +91 80912 65690");
     assert.ok(waLink.includes("Namaste"), "wa.me link must encode the order text");
   });
 
@@ -111,7 +111,7 @@ describe("PRAJNAA MARKET & WHATSAPP CRM — MASTER END-TO-END VERIFICATION", () 
     const dispatchParams = {
       customerName: "Kavita Bisht",
       orderNumber: "PRJ-2026-8812",
-      trackingId: "ET765006569IN",
+      trackingId: "ET809126569IN",
       deliveryCity: "Dehradun",
     };
 
@@ -119,7 +119,7 @@ describe("PRAJNAA MARKET & WHATSAPP CRM — MASTER END-TO-END VERIFICATION", () 
 
     assert.ok(dispatchMsg.includes("Namaste Kavita Bisht ji!"), "Must contain respectful Pahari greeting");
     assert.ok(dispatchMsg.includes("PRJ-2026-8812"), "Must include Order ID");
-    assert.ok(dispatchMsg.includes("ET765006569IN"), "Must include Speed Post Consignment ID");
+    assert.ok(dispatchMsg.includes("ET809126569IN"), "Must include Speed Post Consignment ID");
     assert.ok(dispatchMsg.includes("Dehradun MDG"), "Must mention Dehradun MDG dispatch center");
     assert.ok(dispatchMsg.includes("https://www.indiapost.gov.in"), "Must contain official India Post tracking link");
   });
@@ -149,7 +149,7 @@ describe("PRAJNAA MARKET & WHATSAPP CRM — MASTER END-TO-END VERIFICATION", () 
 
   // 7. Direct Payment UPI QR & Verification Security (Phase 6)
   test("7. Phase 6 Direct Payment UPI Security Constraints", () => {
-    const OFFICIAL_UPI_ID = "7650065690@okbizaxis";
+    const OFFICIAL_UPI_ID = "8091265690@okbizaxis";
     const amount = 3298;
     const upiUri = `upi://pay?pa=${OFFICIAL_UPI_ID}&pn=Prajnaa%20Market&am=${amount}&cu=INR`;
 

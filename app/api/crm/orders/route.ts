@@ -284,7 +284,7 @@ export async function POST(req: Request) {
           id: sendResult.messageId || `msg_conf_${Date.now()}`,
           direction: "outbound",
           sender: "business",
-          from: "917650065690",
+          from: process.env.ADMIN_WHATSAPP_NUMBER || "918091265690",
           to: sendResult.recipientPhone,
           customerName: persistedOrder.customerName,
           text: confirmationMessage,
