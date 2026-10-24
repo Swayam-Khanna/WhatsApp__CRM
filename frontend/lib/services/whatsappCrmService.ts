@@ -124,6 +124,33 @@ export const PRAJNAA_WHATSAPP_CONFIG = {
 // Seed Conversations with authentic Prajnaa orders & customers
 const INITIAL_CONVERSATIONS: WhatsAppConversation[] = [
   {
+    id: "conv_rajat",
+    customerName: "Rajat Katnoria",
+    customerPhone: "+91 70184 90629",
+    customerEmail: "rajat@prajnaa.in",
+    avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=faces",
+    lastMessageText: "Hi",
+    lastMessageTime: "Just now",
+    unreadCount: 1,
+    assignedAgent: "Store Concierge Nishant",
+    status: "active",
+    orderId: "ord_rajat_1",
+    orderNumber: "PM-9021",
+    orderTotalPaise: 84400,
+    orderStatus: "processing",
+    orderPaymentStatus: "paid",
+    orderItemsSummary: "Kashmiri Walnuts (500g) × 1, Lakadong Turmeric (250g) × 1",
+    shippingAddress: {
+      line1: "Tehri Garhwal",
+      city: "Tehri",
+      state: "Uttarakhand",
+      postalCode: "249001",
+    },
+    consignmentNumber: "ET765006569IN",
+    carrier: "India Post Speed Post",
+    tags: ["WhatsApp Live Customer", "High Priority"],
+  },
+  {
     id: "conv_1",
     customerName: "Aarav Sharma",
     customerPhone: "+91 98112 34567",
@@ -794,11 +821,15 @@ class WhatsAppCrmService {
       const conversations = this.getConversations();
 
       for (const msg of data.messages) {
-        const rawPhone = msg.to || msg.from || "";
-        const cleanMsgPhone = rawPhone.replace(/\D/g, "").slice(-10);
-        if (!cleanMsgPhone) continue;
+        const isInbound = msg.direction === "inbound" || msg.sender === "customer";
+        const customerRawPhone = isInbound ? msg.from : msg.to;
+        const cleanMsgPhone = (customerRawPhone || "").replace(/\D/g, "").slice(-10);
+        const businessPhoneClean = PRAJNAA_WHATSAPP_CONFIG.businessNumberClean.slice(-10);
+        if (!cleanMsgPhone || cleanMsgPhone === businessPhoneClean) continue;
 
         let conv = conversations.find((c) => c.customerPhone.replace(/\D/g, "").slice(-10) === cleanMsgPhone);
+        const timeStr = new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
         if (!conv) {
           const newConvId = `conv_${cleanMsgPhone}`;
           conv = {
@@ -806,12 +837,16 @@ class WhatsAppCrmService {
             customerName: msg.customerName || `Customer (+91 ${cleanMsgPhone})`,
             customerPhone: `+91 ${cleanMsgPhone}`,
             lastMessageText: msg.text || "",
-            lastMessageTime: new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            unreadCount: msg.direction === "inbound" ? 1 : 0,
+            lastMessageTime: timeStr,
+            unreadCount: isInbound ? 1 : 0,
             status: "active",
-            tags: ["New Inquiry"],
+            tags: ["WhatsApp Live Customer"],
           };
           conversations.unshift(conv);
+          this.saveConversations(conversations);
+        } else {
+          conv.lastMessageText = msg.text || conv.lastMessageText;
+          conv.lastMessageTime = timeStr;
           this.saveConversations(conversations);
         }
 
@@ -828,9 +863,9 @@ class WhatsAppCrmService {
           convMessages.push({
             id: msg.id || `msg_${Date.now()}`,
             conversationId: conv.id,
-            sender: msg.sender === "customer" || msg.direction === "inbound" ? "customer" : "agent",
+            sender: isInbound ? "customer" : "agent",
             text: msg.text || "",
-            timestamp: new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            timestamp: timeStr,
             status: msg.status || "delivered",
           });
           localStorage.setItem(this.getStorageKey(`messages_${conv.id}`), JSON.stringify(convMessages));

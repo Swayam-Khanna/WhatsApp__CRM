@@ -1378,10 +1378,13 @@ export default function PrajnaaMasterCrmApp() {
                     if (newToAdd.length > 0) {
                       nextMap[cust.id] = [...currentList, ...newToAdd];
                       hasChanges = true;
+                      const latestNew = newToAdd[newToAdd.length - 1];
+                      cust.lastMessageText = latestNew.text;
+                      cust.lastMessageTime = latestNew.time;
                     }
                   }
                 });
-                return currentCusts;
+                return [...currentCusts];
               });
 
               return hasChanges ? nextMap : prevMap;
