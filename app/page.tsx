@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
+import LeadsModule from "@/components/leads/LeadsModule";
+import NewLeadModal from "@/components/leads/NewLeadModal";
 import {
   LayoutDashboard,
   MessageSquare,
@@ -240,7 +242,7 @@ interface Customer {
   tags?: string[];
 }
 
-export type UserRole = "Store Admin" | "Senior Concierge" | "Fulfillment Officer" | "Inventory Associate";
+export type UserRole = "Store Admin" | "Senior Concierge" | "Fulfillment Officer" | "Inventory Associate" | "Sales Manager" | "Sales Agent" | "Accounts";
 
 export type StockStatus = "In Stock" | "Low Stock" | "Out of Stock" | "Pre-Order";
 
@@ -331,6 +333,27 @@ const ROLE_PERMISSIONS: Record<
     label: "Dispatch & Fulfillment Area",
     description: "2–3 day packaging pipeline, Speed Post tracking & consignment updates",
     badgeColor: "bg-indigo-100 text-indigo-800 border-indigo-300",
+  },
+  "Sales Manager": {
+    allowedTabs: ["leads", "dashboard", "inbox", "orders", "order_details", "customers", "products", "templates", "analytics"],
+    defaultTab: "leads",
+    label: "Sales Manager (Wholesale & Retail)",
+    description: "Full pipeline control, quotation approvals, credit terms & team assignments",
+    badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-300",
+  },
+  "Sales Agent": {
+    allowedTabs: ["leads", "inbox", "orders", "order_details", "customers", "products", "templates"],
+    defaultTab: "leads",
+    label: "Sales Agent (Concierge Sales)",
+    description: "Assisted purchases, phone follow-ups, quotation builder & orders",
+    badgeColor: "bg-teal-100 text-teal-800 border-teal-300",
+  },
+  "Accounts": {
+    allowedTabs: ["leads", "orders", "order_details", "customers", "analytics"],
+    defaultTab: "leads",
+    label: "Accounts & Billing",
+    description: "Credit approvals, payment reconciliation & accounting sync",
+    badgeColor: "bg-purple-100 text-purple-800 border-purple-300",
   },
   "Inventory Associate": {
     allowedTabs: ["products", "orders", "order_details"],
@@ -905,6 +928,8 @@ export default function PrajnaaMasterCrmApp() {
 
   // Current Logged-in User
   const [currentUser, setCurrentUser] = useState<TeamMember>(INITIAL_TEAM[0]);
+  const [showConvertLeadModal, setShowConvertLeadModal] = useState<boolean>(false);
+  const [selectedLeadForConvert, setSelectedLeadForConvert] = useState<{ name: string; phone: string; email?: string } | null>(null);
 
   // Auth Form State (Empty by default for clean staff login)
   const [authEmail, setAuthEmail] = useState("");
@@ -2918,6 +2943,23 @@ export default function PrajnaaMasterCrmApp() {
               </button>
             )}
 
+            {userPermissions.allowedTabs.includes("leads") && (
+              <button
+                onClick={() => { setActiveNav("leads"); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                  activeNav === "leads" ? themeStyles.sidebarActive : themeStyles.sidebarHover
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <TrendingUp className="h-4 w-4 text-emerald-400" />
+                  <span>Leads & Sales</span>
+                </div>
+                <span className="bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                  New
+                </span>
+              </button>
+            )}
+
             {userPermissions.allowedTabs.includes("orders") && (
               <button
                 onClick={() => { setActiveNav("orders"); setMobileMenuOpen(false); }}
@@ -3747,6 +3789,13 @@ export default function PrajnaaMasterCrmApp() {
         {/* ========================================================= */}
         {/* 3. SCREEN DISPATCHER (Filtered by Active Tab)              */}
         {/* ========================================================= */}
+
+        {/* SCREEN: LEADS & SALES MANAGEMENT */}
+        {activeNav === "leads" && userPermissions.allowedTabs.includes("leads") && (
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <LeadsModule userRole={currentUser.role} userName={currentUser.name} />
+          </div>
+        )}
 
         {/* SCREEN 1: WHATSAPP INBOX */}
         {activeNav === "inbox" && (
@@ -7517,6 +7566,24 @@ export default function PrajnaaMasterCrmApp() {
             </div>
           </div>
         </div>
+      )}
+      {showConvertLeadModal && selectedLeadForConvert && (
+        <NewLeadModal
+          isOpen={showConvertLeadModal}
+          initialPhone={selectedLeadForConvert.phone}
+          initialName={selectedLeadForConvert.name}
+          initialEmail={selectedLeadForConvert.email}
+          onClose={() => {
+            setShowConvertLeadModal(false);
+            setSelectedLeadForConvert(null);
+          }}
+          onSuccess={() => {
+            setShowConvertLeadModal(false);
+            setSelectedLeadForConvert(null);
+            toast.success("Lead created successfully! Navigating to Leads & Sales...");
+            setActiveNav("leads");
+          }}
+        />
       )}
     </div>
   );

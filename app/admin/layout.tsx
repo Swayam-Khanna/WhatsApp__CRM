@@ -25,6 +25,7 @@ import {
   HardDrive,
   QrCode,
   Send,
+  TrendingUp,
 } from "lucide-react";
 import { DashboardShell, type NavItem } from "@/components/dashboard/shell";
 import { useAuth } from "@/hooks/use-auth";
@@ -82,6 +83,12 @@ const allNavItems: NavItem[] = [
         to: "/admin/whatsapp-crm/tracking",
         label: "India Post Speed Post",
         icon: <Truck className="h-3.5 w-3.5" />,
+      },
+      {
+        to: "/admin/leads",
+        label: "Leads & Sales",
+        icon: <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />,
+        badge: "New",
       },
     ],
   },

@@ -361,5 +361,5 @@ export * from "./system.ts";
 // Neon Managed Auth Webhooks Idempotency Schema
 export * from "./neon-auth-webhooks.ts";
 
-
-
+// Leads & Sales Management Schema (B2B Wholesale & B2C Retail)
+export * from "./leads.ts";

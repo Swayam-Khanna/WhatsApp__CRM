@@ -33,6 +33,7 @@ import {
   PRAJNAA_WHATSAPP_CONFIG,
 } from "@/lib/services/whatsappCrmService";
 import { inr } from "@/lib/format";
+import Link from "next/link";
 
 export default function WhatsAppCrmInboxPage() {
   const [conversations, setConversations] = useState<WhatsAppConversation[]>([]);
@@ -501,6 +502,24 @@ export default function WhatsAppCrmInboxPage() {
                     </p>
                   </div>
                 )}
+              </div>
+
+              {/* Convert to Wholesale / Retail Lead */}
+              <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                    <TrendingUp className="h-3.5 w-3.5 text-emerald-500" /> Sales & Lead Management
+                  </h4>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Convert this WhatsApp contact into an active B2B wholesale deal or track B2C retail follow-ups.
+                </p>
+                <Link
+                  href={`/admin/leads?newLead=true&phone=${encodeURIComponent(selectedConv.customerPhone)}&name=${encodeURIComponent(selectedConv.customerName)}`}
+                  className="w-full py-2 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs"
+                >
+                  <TrendingUp className="h-3.5 w-3.5" /> Convert to Lead
+                </Link>
               </div>
 
               {/* Linked Order Card */}

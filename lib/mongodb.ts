@@ -14,6 +14,9 @@ declare global {
   var _mongoClientPromise: Promise<MongoClient> | undefined;
 }
 
+let lastFailedAt = 0;
+let lastError: any = null;
+
 export function getClientPromise(): Promise<MongoClient> {
   // Never connect during Next.js static build phase
   const isBuildPhase =
@@ -25,10 +28,17 @@ export function getClientPromise(): Promise<MongoClient> {
     return Promise.reject(new Error("MongoDB connection bypassed during static build phase"));
   }
 
+  // Circuit breaker: if connection failed within last 30s, fail fast without re-hanging on DNS
+  if (Date.now() - lastFailedAt < 30000 && lastError) {
+    return Promise.reject(lastError);
+  }
+
   if (!global._mongoClientPromise) {
     const client = new MongoClient(uri, options);
     global._mongoClientPromise = client.connect().catch((err) => {
       global._mongoClientPromise = undefined;
+      lastFailedAt = Date.now();
+      lastError = err;
       if (
         err?.message?.includes("SSL") ||
         err?.code === "ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR" ||
