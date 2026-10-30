@@ -35,19 +35,22 @@ export async function GET(req: NextRequest) {
       .limit(100)
       .toArray();
 
+    const allMsgs = [...(globalThis.__globalWhatsAppFeed || []), ...(dbMessages || [])];
+    const uniqueMsgs = allMsgs.filter(
+      (m, idx, arr) =>
+        idx ===
+        arr.findIndex(
+          (o) =>
+            (m.id && o.id === m.id) ||
+            ((m.text || "").trim() === (o.text || "").trim() && (m.direction || m.sender) === (o.direction || o.sender))
+        )
+    );
+
     return NextResponse.json({
       success: true,
-      messages: (dbMessages.length > 0 ? dbMessages : (globalThis.__globalWhatsAppFeed || [])).filter(
-        (m, idx, arr) =>
-          idx ===
-          arr.findIndex(
-            (o) =>
-              (m.id && o.id === m.id) ||
-              ((m.text || "").trim() === (o.text || "").trim() && (m.direction || m.sender) === (o.direction || o.sender))
-          )
-      ),
+      messages: uniqueMsgs,
       health,
-      storage: "mongodb",
+      storage: "hybrid",
     });
   } catch (err: any) {
     const feed = globalThis.__globalWhatsAppFeed || [];
