@@ -1033,7 +1033,7 @@ export default function PrajnaaMasterCrmApp() {
   const [notificationTab, setNotificationTab] = useState<"all" | "chats" | "orders">("all");
 
   // Authentication State (MANDATORY LOGIN: Users MUST authenticate before accessing CRM)
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
@@ -1047,6 +1047,14 @@ export default function PrajnaaMasterCrmApp() {
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
+
+  // Sign Up Form State
+  const [signUpName, setSignUpName] = useState("");
+  const [signUpPhone, setSignUpPhone] = useState("");
+  const [signUpEmail, setSignUpEmail] = useState("");
+  const [signUpRole, setSignUpRole] = useState<UserRole>("Senior Concierge");
+  const [signUpPassword, setSignUpPassword] = useState("");
+  const [signUpConfirmPassword, setSignUpConfirmPassword] = useState("");
 
   // Navigation (Filtered by User's Work Area / Role)
   const [activeNav, setActiveNav] = useState<string>("leads");
@@ -1232,7 +1240,7 @@ export default function PrajnaaMasterCrmApp() {
   // Derived: Permissions for Current User
   const userPermissions = ROLE_PERMISSIONS[currentUser.role] || ROLE_PERMISSIONS["Store Admin"];
 
-  // Load persistent team, authoritative products, & sync checkout orders
+  // Load persistent team, 24-hour session, authoritative products, & sync checkout orders
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedTheme = localStorage.getItem("prajnaa_crm_theme") as ThemeMode;
@@ -1241,8 +1249,43 @@ export default function PrajnaaMasterCrmApp() {
       const savedTeam = localStorage.getItem("prajnaa_crm_team");
       if (savedTeam) {
         try {
-          setTeamMembers(JSON.parse(savedTeam));
+          const parsed = JSON.parse(savedTeam);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setTeamMembers(parsed);
+          }
         } catch {}
+      }
+
+      // Check 24-Hour Active Session
+      try {
+        const sessionStr = localStorage.getItem("prajnaa_crm_session");
+        if (sessionStr) {
+          const session = JSON.parse(sessionStr);
+          const now = Date.now();
+          const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+          const sessionAge = now - (session.loginTimestamp || 0);
+
+          if (sessionAge < TWENTY_FOUR_HOURS && session.user) {
+            // Valid session within 24 hours: restore user and workspace
+            setCurrentUser(session.user);
+            setIsAuthenticated(true);
+            if (session.activeNav) {
+              setActiveNav(session.activeNav);
+            }
+          } else {
+            // Expired after 24 hours: force re-login
+            localStorage.removeItem("prajnaa_crm_session");
+            setIsAuthenticated(false);
+            toast.error("24-Hour Session Expired", {
+              description: "For security, login is compulsory every 24 hours. Please enter your credentials to continue.",
+            });
+          }
+        } else {
+          // No active session: force login on first visit
+          setIsAuthenticated(false);
+        }
+      } catch {
+        setIsAuthenticated(false);
       }
 
       // Fetch live broadcast campaigns from /api/crm/broadcasts
@@ -1832,41 +1875,160 @@ export default function PrajnaaMasterCrmApp() {
     }
   }, [selectedCustomerId]);
 
+  // Synchronize active workspace tab to 24-hour session so page refresh keeps user in place
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    try {
+      const sessionStr = localStorage.getItem("prajnaa_crm_session");
+      if (sessionStr) {
+        const session = JSON.parse(sessionStr);
+        session.activeNav = activeNav;
+        localStorage.setItem("prajnaa_crm_session", JSON.stringify(session));
+      }
+    } catch {}
+  }, [activeNav, isAuthenticated]);
+
+  // Periodic 24-hour session expiry check (runs every 30 seconds while user is working)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const interval = setInterval(() => {
+      try {
+        const sessionStr = localStorage.getItem("prajnaa_crm_session");
+        if (sessionStr) {
+          const session = JSON.parse(sessionStr);
+          const now = Date.now();
+          const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+          if (now - (session.loginTimestamp || 0) >= TWENTY_FOUR_HOURS) {
+            localStorage.removeItem("prajnaa_crm_session");
+            setIsAuthenticated(false);
+            toast.error("24-Hour Session Expired", {
+              description: "For security compliance, re-login is required after 24 hours. Please enter your credentials.",
+            });
+          }
+        }
+      } catch {}
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
+  // Helper: Persist 24-Hour Session to LocalStorage
+  const saveSession = (member: TeamMember, tab: string) => {
+    const sessionData = {
+      user: member,
+      loginTimestamp: Date.now(),
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+      activeNav: tab,
+    };
+    try {
+      localStorage.setItem("prajnaa_crm_session", JSON.stringify(sessionData));
+    } catch {}
+  };
+
   // Handle Login — STRICT TEAM-ROSTER AUTHENTICATION
   const handleAuthSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const enteredEmail = authEmail.trim().toLowerCase();
     const enteredPassword = authPassword.trim();
 
-    // 1. Check if user exists in Team Roster (added by Admin)
+    // 1. Check if user exists in Team Roster (added by Admin or signed up)
     const matchingMember = teamMembers.find((m) => m.email.toLowerCase() === enteredEmail);
 
     if (!matchingMember) {
       toast.error(
-        "Access Denied: Only team members added by the Store Admin can sign in. This email is not in the CRM team roster."
+        "Access Denied: Account not found. Please sign up or contact your Store Admin to get registered in the CRM team roster."
       );
       return;
     }
 
-    // 2. Validate Password (Matches their issued password or master demo)
+    // 2. Validate Password (Matches their chosen/issued password or master demo)
     const isPasswordValid =
       enteredPassword === matchingMember.tempPassword ||
       enteredPassword === "adminPrajnaa#2024" ||
       enteredPassword === "prajnaa2024";
 
     if (!isPasswordValid) {
-      toast.error(`Invalid password for ${matchingMember.name}. Please enter the password issued by your Admin.`);
+      toast.error(`Invalid password for ${matchingMember.name}. Please enter your correct credentials.`);
       return;
     }
 
-    // 3. Authenticate User and route to their Work Area
+    // 3. Authenticate User, set active tab, and store 24-Hour Session
     setCurrentUser(matchingMember);
     setIsAuthenticated(true);
 
     const perms = ROLE_PERMISSIONS[matchingMember.role];
     setActiveNav(perms.defaultTab);
+    saveSession(matchingMember, perms.defaultTab);
 
-    toast.success(`Welcome back, ${matchingMember.name}! Switched to ${perms.label}.`);
+    toast.success(`Welcome back, ${matchingMember.name}! Switched to ${perms.label}.`, {
+      description: "24-hour secure session started. You will remain signed in across page refreshes.",
+    });
+  };
+
+  // Handle Sign Up (Self-Registration for Staff / Store Team)
+  const handleSignUpSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!signUpName.trim()) {
+      toast.error("Please enter your full name");
+      return;
+    }
+    const cleanPhone = signUpPhone.replace(/\D/g, "");
+    if (cleanPhone.length < 10) {
+      toast.error("Please enter a valid 10-digit mobile number");
+      return;
+    }
+    const emailLower = signUpEmail.trim().toLowerCase();
+    if (!emailLower || !emailLower.includes("@")) {
+      toast.error("Please enter a valid work email address");
+      return;
+    }
+    if (signUpPassword.length < 6) {
+      toast.error("Password must be at least 6 characters long");
+      return;
+    }
+    if (signUpPassword !== signUpConfirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    // Check if user already exists
+    const existing = teamMembers.find((m) => m.email.toLowerCase() === emailLower);
+    if (existing) {
+      toast.error("An account with this email already exists. Please sign in.");
+      setAuthMode("signin");
+      setAuthEmail(emailLower);
+      return;
+    }
+
+    const newMember: TeamMember = {
+      id: `tm_${Date.now()}`,
+      name: signUpName.trim(),
+      email: emailLower,
+      phone: `+91 ${cleanPhone.slice(-10)}`,
+      role: signUpRole,
+      status: "Online",
+      assignedChats: 0,
+      avgResponseTime: "1.0m",
+      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
+      tempPassword: signUpPassword.trim(),
+      createdAt: new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+    };
+
+    const updatedTeam = [...teamMembers, newMember];
+    setTeamMembers(updatedTeam);
+    try {
+      localStorage.setItem("prajnaa_crm_team", JSON.stringify(updatedTeam));
+    } catch {}
+
+    setCurrentUser(newMember);
+    setIsAuthenticated(true);
+    const perms = ROLE_PERMISSIONS[newMember.role];
+    setActiveNav(perms.defaultTab);
+    saveSession(newMember, perms.defaultTab);
+
+    toast.success(`Account created successfully! Welcome, ${newMember.name}!`, {
+      description: "24-hour secure session active. Page refresh will keep you signed in.",
+    });
   };
 
   // Quick Demo Login Helper
@@ -1877,14 +2039,22 @@ export default function PrajnaaMasterCrmApp() {
     setIsAuthenticated(true);
     const perms = ROLE_PERMISSIONS[member.role];
     setActiveNav(perms.defaultTab);
-    toast.success(`Signed in as ${member.name} (${member.role}) — ${perms.label}`);
+    saveSession(member, perms.defaultTab);
+    toast.success(`Signed in as ${member.name} (${member.role}) — ${perms.label}`, {
+      description: "24-hour session active. Will not prompt on page refresh.",
+    });
   };
 
   // Handle Logout
   const handleLogout = () => {
+    try {
+      localStorage.removeItem("prajnaa_crm_session");
+    } catch {}
     setIsAuthenticated(false);
     setShowProfileMenu(false);
-    toast.info("Logged out from Prajnaa WhatsApp CRM");
+    toast.info("Logged out from Prajnaa WhatsApp CRM", {
+      description: "Session closed. Please enter credentials to log back in.",
+    });
   };
 
   // Handle Customer Inbound Query & Automatic Instant Reply
@@ -3348,122 +3518,260 @@ export default function PrajnaaMasterCrmApp() {
                   className="h-10 w-auto object-contain"
                 />
               </div>
-              <h3 className="text-2xl font-bold tracking-tight font-display">Staff Sign In</h3>
+              <h3 className="text-2xl font-bold tracking-tight font-display">
+                {authMode === "signin" ? "Staff Sign In" : "Create Staff Account"}
+              </h3>
               <p className="text-xs text-neutral-500 font-sans">
-                Enter your authorized credentials to access your CRM workspace
+                {authMode === "signin"
+                  ? "Enter your authorized credentials to access your CRM workspace"
+                  : "Register as a team member to access your assigned Prajnaa Market workspace"}
               </p>
+            </div>
+
+            {/* Auth Mode Toggle Tabs */}
+            <div className="flex p-1 bg-neutral-100 rounded-2xl border border-neutral-200 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setAuthMode("signin")}
+                className={`flex-1 py-2 rounded-xl transition cursor-pointer text-center ${
+                  authMode === "signin"
+                    ? "bg-white text-emerald-950 shadow-xs font-extrabold"
+                    : "text-neutral-500 hover:text-neutral-900"
+                }`}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthMode("signup")}
+                className={`flex-1 py-2 rounded-xl transition cursor-pointer text-center ${
+                  authMode === "signup"
+                    ? "bg-white text-emerald-950 shadow-xs font-extrabold"
+                    : "text-neutral-500 hover:text-neutral-900"
+                }`}
+              >
+                Sign Up (New Staff)
+              </button>
             </div>
 
             {/* Login Form */}
-            <form onSubmit={handleAuthSubmit} className="space-y-4 text-xs">
-              <div className="space-y-1">
-                <label className="font-bold text-neutral-700">Team Email Address</label>
-                <div className="relative">
-                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                  <input
-                    type="email"
-                    required
-                    placeholder="e.g. rajat@prajnaamarket.com"
-                    value={authEmail}
-                    onChange={(e) => setAuthEmail(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
-                  />
-                </div>
-              </div>
+            {authMode === "signin" ? (
+              <>
+                <form onSubmit={handleAuthSubmit} className="space-y-4 text-xs">
+                  <div className="space-y-1">
+                    <label className="font-bold text-neutral-700">Team Email Address</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                      <input
+                        type="email"
+                        required
+                        placeholder="e.g. rajat@prajnaamarket.com"
+                        value={authEmail}
+                        onChange={(e) => setAuthEmail(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                      />
+                    </div>
+                  </div>
 
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-neutral-700">Password / Assigned Pin</label>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-neutral-700">Password / Assigned Pin</label>
+                      <button
+                        type="button"
+                        onClick={() => toast.info("Contact your Store Admin (admin@prajnaamarket.com) to retrieve credentials")}
+                        className="text-[11px] font-semibold text-emerald-700 hover:underline"
+                      >
+                        Lost password?
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        required
+                        placeholder="••••••••"
+                        value={authPassword}
+                        onChange={(e) => setAuthPassword(e.target.value)}
+                        className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <input
+                      type="checkbox"
+                      id="remember"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <label htmlFor="remember" className="text-neutral-600 text-[11px] cursor-pointer">
+                      Remember me on this workstation
+                    </label>
+                  </div>
+
                   <button
-                    type="button"
-                    onClick={() => toast.info("Contact your Store Admin (admin@prajnaamarket.com) to retrieve credentials")}
-                    className="text-[11px] font-semibold text-emerald-700 hover:underline"
+                    type="submit"
+                    className="w-full py-3 bg-[#0A2E22] hover:bg-[#0E3D2E] text-white rounded-xl text-xs font-semibold font-subhead transition shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer mt-1"
                   >
-                    Lost password?
+                    <span>Sign In to Your Work Area</span>
+                    <ArrowRight className="h-4 w-4 text-[#E8A317]" />
                   </button>
+                </form>
+
+                {/* One-Click Quick Login for Staff */}
+                <div className="pt-2 border-t border-neutral-200/80 space-y-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 block text-center">
+                    One-Click Quick Login
+                  </span>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleQuickLoginAs(teamMembers[0])}
+                      className="p-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-center transition cursor-pointer"
+                    >
+                      <p className="font-bold text-xs leading-tight">Nishant</p>
+                      <p className="text-[9px] text-emerald-700">Store Admin</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickLoginAs(teamMembers[1])}
+                      className="p-2 rounded-xl border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-900 text-center transition cursor-pointer"
+                    >
+                      <p className="font-bold text-xs leading-tight">Rajat</p>
+                      <p className="text-[9px] text-teal-700">Concierge</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickLoginAs(teamMembers[2])}
+                      className="p-2 rounded-xl border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 text-center transition cursor-pointer"
+                    >
+                      <p className="font-bold text-xs leading-tight">Anita</p>
+                      <p className="text-[9px] text-indigo-700">Fulfillment</p>
+                    </button>
+                  </div>
                 </div>
-                <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    placeholder="••••••••"
-                    value={authPassword}
-                    onChange={(e) => setAuthPassword(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+              </>
+            ) : (
+              /* Sign Up Form */
+              <form onSubmit={handleSignUpSubmit} className="space-y-3.5 text-xs">
+                <div className="space-y-1">
+                  <label className="font-bold text-neutral-700">Full Name</label>
+                  <div className="relative">
+                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Rahul Sharma"
+                      value={signUpName}
+                      onChange={(e) => setSignUpName(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-neutral-700">WhatsApp Mobile (+91)</label>
+                  <div className="relative">
+                    <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                    <input
+                      type="tel"
+                      required
+                      placeholder="9876543210"
+                      value={signUpPhone}
+                      onChange={(e) => setSignUpPhone(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-neutral-700">Work Email Address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                    <input
+                      type="email"
+                      required
+                      placeholder="rahul@prajnaamarket.com"
+                      value={signUpEmail}
+                      onChange={(e) => setSignUpEmail(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-neutral-700">Assigned CRM Role</label>
+                  <select
+                    value={signUpRole}
+                    onChange={(e) => setSignUpRole(e.target.value as UserRole)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+                    <option value="Senior Concierge">Senior Concierge (WhatsApp Chats & Support)</option>
+                    <option value="Store Admin">Store Admin (Full Control & Analytics)</option>
+                    <option value="Fulfillment Officer">Fulfillment Officer (Packaging & Shipments)</option>
+                    <option value="Inventory Associate">Inventory Associate (Catalog & Stock)</option>
+                    <option value="Sales Manager">Sales Manager (Pipelines & Approvals)</option>
+                    <option value="Sales Agent">Sales Agent (Direct Customer Sales)</option>
+                    <option value="Accounts">Accounts & Billing (Reconciliations)</option>
+                  </select>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-2 pt-0.5">
-                <input
-                  type="checkbox"
-                  id="remember"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500"
-                />
-                <label htmlFor="remember" className="text-neutral-600 text-[11px] cursor-pointer">
-                  Remember me on this workstation
-                </label>
-              </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="font-bold text-neutral-700">Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" />
+                      <input
+                        type="password"
+                        required
+                        placeholder="Min 6 chars"
+                        value={signUpPassword}
+                        onChange={(e) => setSignUpPassword(e.target.value)}
+                        className="w-full pl-8 pr-2.5 py-2 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-bold text-neutral-700">Confirm</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" />
+                      <input
+                        type="password"
+                        required
+                        placeholder="Re-enter"
+                        value={signUpConfirmPassword}
+                        onChange={(e) => setSignUpConfirmPassword(e.target.value)}
+                        className="w-full pl-8 pr-2.5 py-2 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                      />
+                    </div>
+                  </div>
+                </div>
 
-              <button
-                type="submit"
-                className="w-full py-3 bg-[#0A2E22] hover:bg-[#0E3D2E] text-white rounded-xl text-xs font-semibold font-subhead transition shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer mt-1"
-              >
-                <span>Sign In to Your Work Area</span>
-                <ArrowRight className="h-4 w-4 text-[#E8A317]" />
-              </button>
-            </form>
-
-                        {/* One-Click Quick Login for Staff */}
-            <div className="pt-2 border-t border-neutral-200/80 space-y-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 block text-center">
-                One-Click Quick Login
-              </span>
-              <div className="grid grid-cols-3 gap-1.5">
                 <button
-                  type="button"
-                  onClick={() => handleQuickLoginAs(teamMembers[0])}
-                  className="p-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-center transition cursor-pointer"
+                  type="submit"
+                  className="w-full py-3 bg-[#0A2E22] hover:bg-[#0E3D2E] text-white rounded-xl text-xs font-semibold font-subhead transition shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer mt-2"
                 >
-                  <p className="font-bold text-xs leading-tight">Nishant</p>
-                  <p className="text-[9px] text-emerald-700">Store Admin</p>
+                  <span>Create Account & Enter CRM</span>
+                  <ArrowRight className="h-4 w-4 text-[#E8A317]" />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickLoginAs(teamMembers[1])}
-                  className="p-2 rounded-xl border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-900 text-center transition cursor-pointer"
-                >
-                  <p className="font-bold text-xs leading-tight">Rajat</p>
-                  <p className="text-[9px] text-teal-700">Concierge</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickLoginAs(teamMembers[2])}
-                  className="p-2 rounded-xl border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 text-center transition cursor-pointer"
-                >
-                  <p className="font-bold text-xs leading-tight">Anita</p>
-                  <p className="text-[9px] text-indigo-700">Fulfillment</p>
-                </button>
-              </div>
-            </div>
+              </form>
+            )}
 
-            {/* Note on RBAC */}
+            {/* Note on RBAC & 24h Session Policy */}
             <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 space-y-1">
               <p className="font-bold flex items-center gap-1">
-                <span>🛡️</span> Role-Based Workspace Access:
+                <span>🛡️</span> Security & Access Policy:
               </p>
               <p className="text-amber-800 leading-snug">
-                Upon sign-in, you will only see tools allowed for your specific role (Admin, Concierge, or Fulfillment Officer).
+                Your session persists across browser page refreshes. For data safety, login is strictly compulsory every 24 hours.
               </p>
             </div>
           </div>
