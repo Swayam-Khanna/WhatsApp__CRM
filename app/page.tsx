@@ -1034,6 +1034,17 @@ export default function PrajnaaMasterCrmApp() {
 
   // Authentication State (MANDATORY LOGIN: Users MUST authenticate before accessing CRM)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const isAuthRef = useRef<boolean>(false);
+  const isInitialSyncRef = useRef<boolean>(true);
+
+  // Suppress all notifications on the login page
+  useEffect(() => {
+    isAuthRef.current = isAuthenticated;
+    if (!isAuthenticated && typeof window !== "undefined") {
+      toast.dismiss();
+    }
+  }, [isAuthenticated]);
+
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
@@ -1500,22 +1511,25 @@ export default function PrajnaaMasterCrmApp() {
                 // If this is a newly arrived order in this session, auto-select customer and notify
                 if (isNewToSession && orderIdStr) {
                   notifiedOrdersRef.current.add(orderIdStr);
-                  setSelectedCustomerId(targetCustId);
-                  playOrderChime();
-                  toast.success(
-                    `🌾 New WhatsApp Order #${ord.orderNumber || ord.id} from ${ord.customerName || "Customer"} (₹${orderTotal.toLocaleString("en-IN")}) received!`,
-                    {
-                      description: "Customer conversation opened in CRM Inbox.",
-                      action: {
-                        label: "Open Chat",
-                        onClick: () => {
-                          setActiveNav("inbox");
-                          setSelectedCustomerId(targetCustId);
+                  // WhatsApp notifications and audio chimes MUST NOT be shown on the login page or during cold startup
+                  if (isAuthRef.current && !isInitialSyncRef.current) {
+                    setSelectedCustomerId(targetCustId);
+                    playOrderChime();
+                    toast.success(
+                      `🌾 New WhatsApp Order #${ord.orderNumber || ord.id} from ${ord.customerName || "Customer"} (₹${orderTotal.toLocaleString("en-IN")}) received!`,
+                      {
+                        description: "Customer conversation opened in CRM Inbox.",
+                        action: {
+                          label: "Open Chat",
+                          onClick: () => {
+                            setActiveNav("inbox");
+                            setSelectedCustomerId(targetCustId);
+                          },
                         },
-                      },
-                      duration: 8000,
-                    }
-                  );
+                        duration: 8000,
+                      }
+                    );
+                  }
                 }
 
                 // Move target customer to the very top (index 0) of the list
@@ -1544,8 +1558,13 @@ export default function PrajnaaMasterCrmApp() {
                 return [newShipment, ...prevShipments];
               });
             });
+            isInitialSyncRef.current = false;
+          } else {
+            isInitialSyncRef.current = false;
           }
-        } catch {}
+        } catch {
+          isInitialSyncRef.current = false;
+        }
       };
 
       // 3. Sync Live WhatsApp CRM Messages from MongoDB Atlas & Webhooks
@@ -3556,109 +3575,74 @@ export default function PrajnaaMasterCrmApp() {
 
             {/* Login Form */}
             {authMode === "signin" ? (
-              <>
-                <form onSubmit={handleAuthSubmit} className="space-y-4 text-xs">
-                  <div className="space-y-1">
-                    <label className="font-bold text-neutral-700">Team Email Address</label>
-                    <div className="relative">
-                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                      <input
-                        type="email"
-                        required
-                        placeholder="e.g. rajat@prajnaamarket.com"
-                        value={authEmail}
-                        onChange={(e) => setAuthEmail(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="font-bold text-neutral-700">Password / Assigned Pin</label>
-                      <button
-                        type="button"
-                        onClick={() => toast.info("Contact your Store Admin (admin@prajnaamarket.com) to retrieve credentials")}
-                        className="text-[11px] font-semibold text-emerald-700 hover:underline"
-                      >
-                        Lost password?
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        required
-                        placeholder="••••••••"
-                        value={authPassword}
-                        onChange={(e) => setAuthPassword(e.target.value)}
-                        className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 cursor-pointer"
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-0.5">
+              <form onSubmit={handleAuthSubmit} className="space-y-4 text-xs">
+                <div className="space-y-1">
+                  <label className="font-bold text-neutral-700">Team Email Address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
                     <input
-                      type="checkbox"
-                      id="remember"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500"
+                      type="email"
+                      required
+                      placeholder="e.g. rajat@prajnaamarket.com"
+                      value={authEmail}
+                      onChange={(e) => setAuthEmail(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
                     />
-                    <label htmlFor="remember" className="text-neutral-600 text-[11px] cursor-pointer">
-                      Remember me on this workstation
-                    </label>
                   </div>
+                </div>
 
-                  <button
-                    type="submit"
-                    className="w-full py-3 bg-[#0A2E22] hover:bg-[#0E3D2E] text-white rounded-xl text-xs font-semibold font-subhead transition shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer mt-1"
-                  >
-                    <span>Sign In to Your Work Area</span>
-                    <ArrowRight className="h-4 w-4 text-[#E8A317]" />
-                  </button>
-                </form>
-
-                {/* One-Click Quick Login for Staff */}
-                <div className="pt-2 border-t border-neutral-200/80 space-y-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 block text-center">
-                    One-Click Quick Login
-                  </span>
-                  <div className="grid grid-cols-3 gap-1.5">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-neutral-700">Password / Assigned Pin</label>
                     <button
                       type="button"
-                      onClick={() => handleQuickLoginAs(teamMembers[0])}
-                      className="p-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-center transition cursor-pointer"
+                      onClick={() => toast.info("Contact your Store Admin (admin@prajnaamarket.com) to retrieve credentials")}
+                      className="text-[11px] font-semibold text-emerald-700 hover:underline"
                     >
-                      <p className="font-bold text-xs leading-tight">Nishant</p>
-                      <p className="text-[9px] text-emerald-700">Store Admin</p>
+                      Lost password?
                     </button>
+                  </div>
+                  <div className="relative">
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      placeholder="••••••••"
+                      value={authPassword}
+                      onChange={(e) => setAuthPassword(e.target.value)}
+                      className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                    />
                     <button
                       type="button"
-                      onClick={() => handleQuickLoginAs(teamMembers[1])}
-                      className="p-2 rounded-xl border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-900 text-center transition cursor-pointer"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 cursor-pointer"
                     >
-                      <p className="font-bold text-xs leading-tight">Rajat</p>
-                      <p className="text-[9px] text-teal-700">Concierge</p>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleQuickLoginAs(teamMembers[2])}
-                      className="p-2 rounded-xl border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 text-center transition cursor-pointer"
-                    >
-                      <p className="font-bold text-xs leading-tight">Anita</p>
-                      <p className="text-[9px] text-indigo-700">Fulfillment</p>
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
-              </>
+
+                <div className="flex items-center gap-2 pt-0.5">
+                  <input
+                    type="checkbox"
+                    id="remember"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <label htmlFor="remember" className="text-neutral-600 text-[11px] cursor-pointer">
+                    Remember me on this workstation
+                  </label>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-3 bg-[#0A2E22] hover:bg-[#0E3D2E] text-white rounded-xl text-xs font-semibold font-subhead transition shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer mt-1"
+                >
+                  <span>Sign In to Your Work Area</span>
+                  <ArrowRight className="h-4 w-4 text-[#E8A317]" />
+                </button>
+              </form>
             ) : (
               /* Sign Up Form */
               <form onSubmit={handleSignUpSubmit} className="space-y-3.5 text-xs">
