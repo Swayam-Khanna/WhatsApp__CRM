@@ -752,18 +752,61 @@ const INITIAL_TEAM: TeamMember[] = [
 const REAL_PRODUCT_IMAGES: Record<string, string> = {
   "himalayan-dried-apricots": "/assets/cat-dryfruits.jpg",
   "walnuts": "/assets/cat-nuts.jpg",
+  "himalayan-mountain-walnuts": "/assets/cat-nuts.jpg",
   "organic-almonds": "/assets/prod-almonds.jpg",
+  "mamra-almonds": "/assets/prod-almonds.jpg",
   "turmeric-powder": "/assets/prod-turmeric.jpg",
+  "stone-ground-turmeric": "/assets/prod-turmeric.jpg",
   "mango-pickle": "/assets/prod-pickle.jpg",
+  "heirloom-mango-pickle": "/assets/prod-pickle.jpg",
   "pink-himalayan-salt": "/assets/prod-salt.jpg",
   "garam-masala": "/assets/prod-masala.jpg",
+  "house-garam-masala": "/assets/prod-masala.jpg",
   "mixed-seeds": "/assets/prod-seeds.jpg",
+  "five-seed-mix": "/assets/prod-seeds.jpg",
   "california-almonds": "/assets/prod-almonds.jpg",
   "chilli-powder": "/assets/cat-spices.jpg",
+  "guntur-red-chilli": "/assets/cat-spices.jpg",
   "lemon-pickle": "/assets/cat-pickles.jpg",
+  "salt-cured-lemon-pickle": "/assets/cat-pickles.jpg",
   "black-salt": "/assets/cat-salts.jpg",
   "chai-masala": "/assets/cat-spices.jpg",
+  "spiced-chai-masala": "/assets/cat-spices.jpg",
   "chia-seeds": "/assets/cat-seeds.jpg",
+  "black-chia-seeds": "/assets/cat-seeds.jpg",
+};
+
+const REAL_CATEGORY_IMAGES: Record<string, string> = {
+  "dry-fruits": "/assets/cat-dryfruits.jpg",
+  "dry fruits": "/assets/cat-dryfruits.jpg",
+  "spices": "/assets/cat-spices.jpg",
+  "pickles": "/assets/cat-pickles.jpg",
+  "salts": "/assets/cat-salts.jpg",
+  "masalas": "/assets/cat-spices.jpg",
+  "seeds": "/assets/cat-seeds.jpg",
+  "nuts": "/assets/cat-nuts.jpg",
+  "honey": "/assets/cat-honey.jpg",
+};
+
+const getRealProductImage = (prod: { id?: string; slug?: string; name?: string; category?: string; image?: string }): string => {
+  if (prod.image && (prod.image.startsWith("/") || prod.image.startsWith("http"))) {
+    return prod.image;
+  }
+  const byId = prod.id && REAL_PRODUCT_IMAGES[prod.id];
+  if (byId) return byId;
+
+  const bySlug = prod.slug && REAL_PRODUCT_IMAGES[prod.slug];
+  if (bySlug) return bySlug;
+
+  const nameKey = (prod.name || "").toLowerCase().replace(/[^a-z0-9]/g, "-");
+  for (const [k, v] of Object.entries(REAL_PRODUCT_IMAGES)) {
+    if (nameKey.includes(k) || k.includes(nameKey)) return v;
+  }
+
+  const catKey = (prod.category || "").toLowerCase();
+  if (REAL_CATEGORY_IMAGES[catKey]) return REAL_CATEGORY_IMAGES[catKey];
+
+  return "/assets/cat-dryfruits.jpg";
 };
 
 // Initial Products Data (All 14 Authoritative Himalayan Store Items with Real Photographs)
@@ -1180,27 +1223,19 @@ export default function PrajnaaMasterCrmApp() {
               } catch {}
             }
 
-            const categoryEmojiMap: Record<string, string> = {
-              "dry-fruits": "🍑",
-              spices: "🌿",
-              pickles: "🥭",
-              salts: "🧂",
-              masalas: "🌶️",
-              seeds: "🌱",
-            };
-
             const mapped: ProductItem[] = data.products.map((p: any) => {
               const override = savedOverrides[p.id] || savedOverrides[p.slug];
               const isPreOrder = p.is_preorder || p.preOrder?.enabled;
               const defaultStock: StockStatus = isPreOrder ? "Pre-Order" : p.stock > 0 ? "In Stock" : "Out of Stock";
               const defaultUnits = typeof p.stock === "number" ? p.stock : 50;
+              const realImg = getRealProductImage(p);
 
               return {
                 id: p.id || p.slug,
                 name: p.name,
                 price: override?.price !== undefined ? override.price : Number(p.price) || 0,
                 stock: override?.stock || defaultStock,
-                image: categoryEmojiMap[p.category] || "🌾",
+                image: realImg,
                 category: p.category ? p.category.charAt(0).toUpperCase() + p.category.slice(1) : "Produce",
                 unitsLeft: override?.unitsLeft !== undefined ? override.unitsLeft : defaultUnits,
                 origin: p.origin || (p.preOrder?.reservationNote ? "Ladakh High Altitude" : "Himalayan Farms"),
@@ -7269,15 +7304,14 @@ export default function PrajnaaMasterCrmApp() {
                       <tr key={prod.id} className="hover:bg-neutral-50/70 dark:hover:bg-slate-800/40 transition">
                         <td className="p-3.5">
                           <div className="flex items-center gap-3">
-                            {prod.image && (prod.image.startsWith("/") || prod.image.startsWith("http")) ? (
                             <img
-                              src={prod.image}
+                              src={getRealProductImage(prod)}
                               alt={prod.name}
-                              className="h-11 w-11 md:h-12 md:w-12 rounded-xl object-cover border border-neutral-200/80 dark:border-slate-700 shadow-2xs shrink-0"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = "/assets/cat-dryfruits.jpg";
+                              }}
+                              className="h-12 w-12 rounded-xl object-cover border border-neutral-200/80 dark:border-slate-700 shadow-xs shrink-0 bg-neutral-100"
                             />
-                          ) : (
-                            <span className="text-3xl shrink-0 p-1 rounded-xl bg-neutral-100 dark:bg-slate-800">{prod.image || "🌿"}</span>
-                          )}
                             <div>
                               <div className="font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
                                 <span>{prod.name}</span>
