@@ -392,3 +392,74 @@ div[data-nextjs-dialog-overlay] {
   opacity: 0 !important;
   pointer-events: none !important;
 }
+
+/* ========================================================= */
+/* OFFICIAL TAX INVOICE PRINT ENGINE                         */
+/* ========================================================= */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #111827 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 11pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    overflow: visible !important;
+  }
+
+  /* Hide interactive CRM UI elements during print */
+  header,
+  nav,
+  aside,
+  footer,
+  button,
+  input,
+  textarea,
+  select,
+  [data-no-print],
+  .no-print,
+  .print\:hidden {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Modal backdrop reset for print */
+  .fixed.inset-0 {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Render ONLY the official tax invoice container */
+  #prajnaa-tax-invoice {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+  }
+
+  #prajnaa-tax-invoice * {
+    visibility: visible !important;
+    box-shadow: none !important;
+  }
+
+  #prajnaa-tax-invoice tr,
+  #prajnaa-tax-invoice .print-keep {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}

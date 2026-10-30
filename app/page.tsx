@@ -809,6 +809,53 @@ const getRealProductImage = (prod: { id?: string; slug?: string; name?: string; 
   return "/assets/cat-dryfruits.jpg";
 };
 
+// HSN Code Helper for Tax Invoices
+const getProductHsn = (name: string): string => {
+  const n = (name || "").toLowerCase();
+  if (n.includes("turmeric") || n.includes("haldi")) return "0910 30 20";
+  if (n.includes("tea") || n.includes("chai")) return "0902 10 20";
+  if (n.includes("honey") || n.includes("shahad")) return "0409 00 00";
+  if (n.includes("almond") || n.includes("badam") || n.includes("walnut") || n.includes("akhrot")) return "0802 11 00";
+  if (n.includes("pickle") || n.includes("achar")) return "2001 90 00";
+  if (n.includes("salt") || n.includes("namak")) return "2501 00 10";
+  if (n.includes("seed")) return "1207 99 90";
+  if (n.includes("masala") || n.includes("spice") || n.includes("chilli")) return "0910 99 29";
+  return "0910 99 90";
+};
+
+// Convert numbers to Indian Rupees in words
+const numberToWordsIndian = (num: number): string => {
+  const a = [
+    "", "One ", "Two ", "Three ", "Four ", "Five ", "Six ", "Seven ", "Eight ", "Nine ", "Ten ",
+    "Eleven ", "Twelve ", "Thirteen ", "Fourteen ", "Fifteen ", "Sixteen ", "Seventeen ", "Eighteen ", "Nineteen "
+  ];
+  const b = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+  if (!num || num === 0) return "Zero Rupees Only";
+
+  const n = Math.floor(num);
+  let str = "";
+
+  const convertTwoDigits = (val: number): string => {
+    if (val < 20) return a[val];
+    return b[Math.floor(val / 10)] + (val % 10 !== 0 ? " " + a[val % 10] : " ");
+  };
+
+  const crores = Math.floor(n / 10000000);
+  const lakhs = Math.floor((n % 10000000) / 100000);
+  const thousands = Math.floor((n % 100000) / 1000);
+  const hundreds = Math.floor((n % 1000) / 100);
+  const remaining = n % 100;
+
+  if (crores > 0) str += convertTwoDigits(crores) + "Crore ";
+  if (lakhs > 0) str += convertTwoDigits(lakhs) + "Lakh ";
+  if (thousands > 0) str += convertTwoDigits(thousands) + "Thousand ";
+  if (hundreds > 0) str += a[hundreds] + "Hundred ";
+  if (remaining > 0) str += convertTwoDigits(remaining);
+
+  return str.trim() + " Rupees Only";
+};
+
 // Initial Products Data (All 14 Authoritative Himalayan Store Items with Real Photographs)
 const INITIAL_PRODUCTS: ProductItem[] = [
   { id: "himalayan-dried-apricots", name: "Himalayan Dried Apricots (Red)", price: 999, stock: "Pre-Order", image: "/assets/cat-dryfruits.jpg", category: "Dry Fruits", unitsLeft: 0, origin: "Sham Valley Orchard, Ladakh", sku: "PM-APR-500", weight: "500 gm" },
@@ -1060,6 +1107,7 @@ export default function PrajnaaMasterCrmApp() {
   const [ordersSearch, setOrdersSearch] = useState<string>("");
   const [showAddOrderModal, setShowAddOrderModal] = useState<boolean>(false);
   const [createdOrders, setCreatedOrders] = useState<Order[]>([]);
+  const [showInvoiceModal, setShowInvoiceModal] = useState<boolean>(false);
 
   // State: Global Universal Search Bar (Dashboard Header)
   const [globalSearch, setGlobalSearch] = useState<string>("");
@@ -6430,10 +6478,10 @@ export default function PrajnaaMasterCrmApp() {
 
               <div className="flex items-center gap-2.5">
                 <button
-                  onClick={() => window.print()}
+                  onClick={() => setShowInvoiceModal(true)}
                   className="px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-100 dark:hover:bg-slate-700 text-xs font-bold text-neutral-700 dark:text-slate-200 flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
                 >
-                  <Printer className="h-3.5 w-3.5" /> Print Invoice
+                  <Printer className="h-3.5 w-3.5 text-emerald-600" /> Print Invoice
                 </button>
                 <button
                   onClick={() => setShowStatusModal(true)}
@@ -9357,6 +9405,352 @@ export default function PrajnaaMasterCrmApp() {
             setActiveNav("leads");
           }}
         />
+      )}
+
+      {/* ========================================================= */}
+      {/* 5.8. OFFICIAL TAX INVOICE & COMMERCIAL SLIP MODAL           */}
+      {/* ========================================================= */}
+      {showInvoiceModal && selectedOrderForView && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-neutral-100 dark:bg-slate-900 rounded-3xl w-full max-w-4xl max-h-[94vh] flex flex-col shadow-2xl border border-neutral-300 dark:border-slate-800 overflow-hidden my-auto">
+            {/* Top Modal Controls Bar (Hidden during Print) */}
+            <div className="px-5 py-3.5 bg-white dark:bg-slate-800 border-b border-neutral-200 dark:border-slate-700 flex items-center justify-between gap-3 shrink-0 print:hidden">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold">
+                  <Printer className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-neutral-900 dark:text-white flex items-center gap-2">
+                    <span>Tax Invoice & Dispatch Slip</span>
+                    <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-slate-700 text-neutral-600 dark:text-slate-300">
+                      {selectedOrderForView.orderNumber}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-neutral-500 dark:text-slate-400">
+                    Complies with Rule 46 of CGST Rules, 2017 & India Post Speed Post fulfillment
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  <span>Print Invoice / Save as PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowInvoiceModal(false)}
+                  className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-slate-700 text-neutral-400 hover:text-neutral-700 dark:hover:text-slate-200 transition cursor-pointer"
+                  title="Close Invoice Preview"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Document Preview Area */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-6 bg-neutral-200/60 dark:bg-slate-950 flex justify-center">
+              {/* THE OFFICIAL TAX INVOICE A4 SHEET */}
+              <div
+                id="prajnaa-tax-invoice"
+                className="bg-white text-neutral-900 p-6 sm:p-10 w-full max-w-[800px] shadow-lg rounded-2xl print:rounded-none print:shadow-none print:border-none print:p-0 print:m-0 space-y-6 text-xs font-sans border border-neutral-300"
+              >
+                {/* 1. Header: Brand Letterhead & Tax Invoice Heading */}
+                <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-4 border-b-2 border-emerald-900/80">
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <div className="h-9 w-9 rounded-xl bg-[#0F3D2E] text-white flex items-center justify-center font-bold text-base shrink-0">
+                        🌿
+                      </div>
+                      <div>
+                        <h2 className="font-extrabold text-sm sm:text-base text-[#0F3D2E] uppercase tracking-wide font-mono">
+                          Prajnaa Natural Products Pvt. Ltd.
+                        </h2>
+                        <p className="text-[10px] font-semibold text-neutral-600">
+                          Pure Himalayan Origin Harvest • Farm-to-Table Marketplace
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-[10px] text-neutral-600 space-y-0.5 pt-1 font-mono">
+                      <p>14 Rajpur Road, Dehradun, Uttarakhand - 248001, India</p>
+                      <p className="font-semibold text-neutral-800">
+                        GSTIN: <span className="text-emerald-900">05AABCP1234F1Z8</span> • State: Uttarakhand (05) • PAN: AABCP1234F
+                      </p>
+                      <p>FSSAI Lic No: 12622005000189 • CIN: U01111UR2024PTC016789</p>
+                      <p>Desk: +91 80912 65690 • concierge@prajnaa.in • https://market.prajnaa.in</p>
+                    </div>
+                  </div>
+
+                  <div className="text-left sm:text-right shrink-0 w-full sm:w-auto">
+                    <div className="inline-block bg-[#0F3D2E] text-white px-3 py-1 rounded-lg font-bold text-xs uppercase tracking-wider mb-2">
+                      TAX INVOICE
+                    </div>
+                    <div className="text-[10px] text-neutral-500 font-mono space-y-1">
+                      <p><strong>Original for Recipient</strong></p>
+                      <div className="p-2.5 rounded-xl bg-neutral-50 border border-neutral-200 text-left space-y-1 mt-1">
+                        <div className="flex justify-between gap-3">
+                          <span className="text-neutral-500">Invoice No:</span>
+                          <strong className="font-mono text-neutral-900">
+                            INV-{selectedOrderForView.orderNumber.replace(/[^a-zA-Z0-9]/g, "")}
+                          </strong>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <span className="text-neutral-500">Invoice Date:</span>
+                          <strong className="text-neutral-900">{selectedOrderForView.date}</strong>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <span className="text-neutral-500">Order Ref:</span>
+                          <strong className="font-mono text-emerald-800">{selectedOrderForView.orderNumber}</strong>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <span className="text-neutral-500">Place of Supply:</span>
+                          <strong className="text-neutral-900">Uttarakhand (05)</strong>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Customer & Transport Logistics Section */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Billed To / Consignee */}
+                  <div className="p-3.5 rounded-xl border border-neutral-200 bg-neutral-50/70 space-y-1 text-[11px]">
+                    <div className="flex items-center justify-between border-b border-neutral-200 pb-1 mb-1.5">
+                      <span className="font-bold uppercase tracking-wider text-[10px] text-neutral-500">
+                        Billed & Shipped To (Customer)
+                      </span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-sm bg-emerald-100 text-emerald-800">
+                        Verified Patron
+                      </span>
+                    </div>
+                    <h4 className="font-bold text-xs text-neutral-900">
+                      {selectedOrderForView.customerName || "Customer Patron"}
+                    </h4>
+                    <p className="font-mono text-neutral-600">
+                      Phone: <strong>{selectedOrderForView.customerPhone || "+91 98765 43210"}</strong>
+                    </p>
+                    {selectedOrderForView.customerEmail && (
+                      <p className="text-neutral-600 truncate">Email: {selectedOrderForView.customerEmail}</p>
+                    )}
+                    <p className="text-neutral-700 leading-snug pt-0.5">
+                      Address: {selectedOrderForView.shippingAddress || "Direct Dispatch Address, Dehradun, Uttarakhand - 248001"}
+                    </p>
+                    <p className="text-[10px] text-neutral-500">State / Code: Uttarakhand (05)</p>
+                  </div>
+
+                  {/* Logistics Dispatch & India Post */}
+                  <div className="p-3.5 rounded-xl border border-neutral-200 bg-neutral-50/70 space-y-1 text-[11px]">
+                    <div className="flex items-center justify-between border-b border-neutral-200 pb-1 mb-1.5">
+                      <span className="font-bold uppercase tracking-wider text-[10px] text-neutral-500">
+                        Fulfillment & Speed Post Dispatch
+                      </span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-sm bg-sky-100 text-sky-800 font-mono">
+                        Speed Post
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-neutral-500">Carrier:</span>
+                        <strong className="text-neutral-800">India Post (Speed Post Parcel)</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-neutral-500">Consignment No:</span>
+                        <strong className="font-mono text-emerald-800 font-bold">
+                          {selectedOrderForView.trackingNumber || "ET809126569IN"}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-neutral-500">Dispatch Hub:</span>
+                        <span className="text-neutral-800">Dehradun Head Post Office (GPO)</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-neutral-500">Fulfillment Status:</span>
+                        <strong className="text-neutral-900 capitalize font-mono">
+                          {selectedOrderForView.orderStatus}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between pt-0.5 text-[10px] text-neutral-500 border-t border-neutral-200">
+                        <span>Insurance Cover:</span>
+                        <span className="text-emerald-700 font-semibold">100% In-Transit Protected</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Itemized Goods Table */}
+                <div className="border border-neutral-300 rounded-xl overflow-hidden">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-[#0F3D2E] text-white text-[11px]">
+                      <tr>
+                        <th className="py-2.5 px-3 font-semibold text-center w-8">#</th>
+                        <th className="py-2.5 px-3 font-semibold">Description of Produce & Harvest</th>
+                        <th className="py-2.5 px-3 font-semibold text-center w-24">HSN Code</th>
+                        <th className="py-2.5 px-3 font-semibold text-center w-20">Qty</th>
+                        <th className="py-2.5 px-3 font-semibold text-right w-24">Unit Rate</th>
+                        <th className="py-2.5 px-3 font-semibold text-right w-28">Amount (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-200 text-neutral-800">
+                      {selectedOrderForView.items && selectedOrderForView.items.length > 0 ? (
+                        selectedOrderForView.items.map((it, idx) => (
+                          <tr key={idx} className="hover:bg-neutral-50">
+                            <td className="py-2.5 px-3 text-center font-mono text-[11px] text-neutral-500">{idx + 1}</td>
+                            <td className="py-2.5 px-3">
+                              <span className="font-bold text-neutral-900 block">{it.name}</span>
+                              <span className="text-[10px] text-neutral-500 font-mono">
+                                Pack / Weight: {it.weight || "Standard Pack"} • Certified Himalayan Single-Origin
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-mono text-[11px] text-neutral-600">
+                              {getProductHsn(it.name)}
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-mono font-bold">{it.qty || 1}</td>
+                            <td className="py-2.5 px-3 text-right font-mono">
+                              ₹{Number(it.price || 0).toLocaleString("en-IN")}.00
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-neutral-900">
+                              ₹{Number(it.total || (it.price * (it.qty || 1)) || 0).toLocaleString("en-IN")}.00
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td className="py-2.5 px-3 text-center font-mono text-[11px] text-neutral-500">1</td>
+                          <td className="py-2.5 px-3">
+                            <span className="font-bold text-neutral-900 block">Himalayan Artisanal Produce Consignment</span>
+                            <span className="text-[10px] text-neutral-500 font-mono">
+                              Natural high-altitude harvest package ({selectedOrderForView.itemsCount || 1} items)
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-center font-mono text-[11px] text-neutral-600">0910 99 90</td>
+                          <td className="py-2.5 px-3 text-center font-mono font-bold">{selectedOrderForView.itemsCount || 1}</td>
+                          <td className="py-2.5 px-3 text-right font-mono">
+                            ₹{Number(selectedOrderForView.amount || 0).toLocaleString("en-IN")}.00
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-neutral-900">
+                            ₹{Number(selectedOrderForView.amount || 0).toLocaleString("en-IN")}.00
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 4. Commercial Summary & Tax Calculation */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 pt-1 print-keep">
+                  {/* Left (7 cols): Words, Payment Details & Notes */}
+                  <div className="sm:col-span-7 space-y-3">
+                    <div className="p-3 rounded-xl border border-neutral-200 bg-neutral-50/80 space-y-1">
+                      <span className="text-[10px] font-bold uppercase text-neutral-500 tracking-wider block">
+                        Invoice Total in Words:
+                      </span>
+                      <p className="font-bold text-neutral-900 text-xs">
+                        {numberToWordsIndian(selectedOrderForView.amount || 0)}
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-xl border border-neutral-200 space-y-1 text-[11px]">
+                      <div className="flex items-center justify-between border-b border-neutral-100 pb-1">
+                        <span className="font-bold text-neutral-600">Payment Method:</span>
+                        <strong className="text-neutral-900">{selectedOrderForView.paymentMethod || "UPI Direct"}</strong>
+                      </div>
+                      <div className="flex items-center justify-between border-b border-neutral-100 pb-1">
+                        <span className="font-bold text-neutral-600">Payment Status:</span>
+                        <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded">
+                          ● {selectedOrderForView.paymentStatus || "Paid"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-neutral-500">Transaction Desk:</span>
+                        <span className="font-mono text-[10px] text-neutral-700">Official Desk (prajnaa@upi)</span>
+                      </div>
+                    </div>
+
+                    <div className="text-[10px] text-neutral-500 space-y-0.5 leading-relaxed pt-1">
+                      <p className="font-semibold text-neutral-700">Terms & Harvest Warranty:</p>
+                      <p>• Certified pesticide-free Himalayan single-origin farm harvest with zero adulteration.</p>
+                      <p>• Goods dispatched via India Post Speed Post are tracked and insured under postal transit rules.</p>
+                      <p>• For queries or re-orders, reach concierge at <strong>+91 80912 65690</strong> on WhatsApp.</p>
+                    </div>
+                  </div>
+
+                  {/* Right (5 cols): Calculation Box */}
+                  <div className="sm:col-span-5">
+                    <div className="p-3.5 rounded-xl border border-neutral-300 bg-neutral-50/70 space-y-2 text-xs">
+                      <div className="flex justify-between text-neutral-600">
+                        <span>Produce Subtotal:</span>
+                        <span className="font-mono font-semibold text-neutral-900">
+                          ₹{Number(selectedOrderForView.subtotal || selectedOrderForView.amount || 0).toLocaleString("en-IN")}.00
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between text-neutral-600">
+                        <span>Speed Post Delivery:</span>
+                        <span className="font-mono font-semibold text-neutral-900">
+                          {Number(selectedOrderForView.shipping || 0) > 0
+                            ? `₹${Number(selectedOrderForView.shipping).toLocaleString("en-IN")}.00`
+                            : "FREE (Included)"}
+                        </span>
+                      </div>
+
+                      {Number(selectedOrderForView.discount || 0) > 0 && (
+                        <div className="flex justify-between text-emerald-700 font-semibold">
+                          <span>Discount Applied:</span>
+                          <span className="font-mono">-₹{Number(selectedOrderForView.discount).toLocaleString("en-IN")}.00</span>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between text-[11px] text-neutral-500 pt-1 border-t border-neutral-200">
+                        <span>Applicable GST (5% Included):</span>
+                        <span className="font-mono">
+                          ₹{(Number(selectedOrderForView.amount || 0) * 0.05 / 1.05).toFixed(2)}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center text-sm font-extrabold text-neutral-900 pt-2 border-t-2 border-neutral-300">
+                        <span>Total Amount:</span>
+                        <span className="text-base font-mono text-emerald-800 font-extrabold">
+                          ₹{Number(selectedOrderForView.amount || 0).toLocaleString("en-IN")}.00
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. Official Stamp & Authorized Signatory */}
+                <div className="pt-4 border-t border-neutral-200 flex flex-col sm:flex-row items-center justify-between gap-4 print-keep">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-1.5 bg-neutral-100 rounded-lg border border-neutral-200">
+                      <QrCode className="h-8 w-8 text-[#0F3D2E]" />
+                    </div>
+                    <div className="text-[10px] text-neutral-500 leading-tight">
+                      <strong className="block text-neutral-800">Scan to Verify Invoice</strong>
+                      <span>Authentication via Prajnaa Digital Ledger</span>
+                    </div>
+                  </div>
+
+                  <div className="text-right space-y-1">
+                    <p className="text-[10px] text-neutral-500">For <strong>PRAJNAA NATURAL PRODUCTS PVT. LTD.</strong></p>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-300 text-emerald-800 text-[10px] font-bold">
+                      <span className="h-2 w-2 rounded-full bg-emerald-600" />
+                      <span>Digitally Verified & Authorized Signatory</span>
+                    </div>
+                    <p className="text-[9px] text-neutral-400">Operations & Concierge Fulfillment Team</p>
+                  </div>
+                </div>
+
+                <div className="text-center text-[9px] text-neutral-400 pt-2 border-t border-neutral-100">
+                  This is a computer-generated tax invoice issued by Prajnaa Market under the Information Technology Act, 2000. All disputes subject to Dehradun jurisdiction.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
