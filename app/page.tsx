@@ -1052,6 +1052,21 @@ export default function PrajnaaMasterCrmApp() {
   const [editUnitsInput, setEditUnitsInput] = useState<number>(0);
   const [editStockStatusInput, setEditStockStatusInput] = useState<StockStatus>("In Stock");
   const [editPriceInput, setEditPriceInput] = useState<number>(0);
+  const [showManageProductModal, setShowManageProductModal] = useState<boolean>(false);
+  const [showDeleteProductConfirm, setShowDeleteProductConfirm] = useState<boolean>(false);
+  const [productToDelete, setProductToDelete] = useState<ProductItem | null>(null);
+  const [productFormData, setProductFormData] = useState<ProductItem>({
+    id: "",
+    name: "",
+    price: 450,
+    stock: "In Stock",
+    image: "🌿",
+    category: "Dry Fruits",
+    unitsLeft: 50,
+    origin: "High Altitude Farm, Himachal Pradesh",
+    sku: "",
+    weight: "500g",
+  });
 
   // State: CRM Orders synchronized with Web Checkout & Server
   const [crmOrders, setCrmOrders] = useState<any[]>([]);
@@ -1436,6 +1451,56 @@ export default function PrajnaaMasterCrmApp() {
   }, []);
 
   // Stock Status Update Handler
+  // Manage & Save Product (Add / Edit)
+  const handleSaveProduct = (prod: ProductItem) => {
+    if (!prod.name.trim()) {
+      toast.error("Product name cannot be empty");
+      return;
+    }
+    if (prod.price <= 0) {
+      toast.error("Product price must be greater than 0");
+      return;
+    }
+
+    setProductsList((prev) => {
+      const exists = prev.some((p) => p.id === prod.id);
+      let updated: ProductItem[];
+      if (exists) {
+        updated = prev.map((p) => (p.id === prod.id ? prod : p));
+        toast.success(`Product "${prod.name}" updated successfully!`);
+      } else {
+        const newProduct: ProductItem = {
+          ...prod,
+          id: prod.id || `prod_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          sku: prod.sku || `PM-${Math.floor(1000 + Math.random() * 9000)}`,
+        };
+        updated = [newProduct, ...prev];
+        toast.success(`Product "${newProduct.name}" added to catalog!`);
+      }
+      if (typeof window !== "undefined") {
+        localStorage.setItem("prajnaa_crm_products", JSON.stringify(updated));
+      }
+      return updated;
+    });
+
+    setShowManageProductModal(false);
+  };
+
+  // Remove / Delete Product from Catalog
+  const handleDeleteProduct = (productId: string) => {
+    setProductsList((prev) => {
+      const target = prev.find((p) => p.id === productId);
+      const updated = prev.filter((p) => p.id !== productId);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("prajnaa_crm_products", JSON.stringify(updated));
+      }
+      toast.success(`Product "${target?.name || "Item"}" removed from catalog`);
+      return updated;
+    });
+    setShowDeleteProductConfirm(false);
+    setProductToDelete(null);
+  };
+
   const handleUpdateProductStock = (productId: string, newStock: StockStatus, newUnits?: number, newPrice?: number) => {
     setProductsList((prev) => {
       const updated = prev.map((p) =>
@@ -7567,6 +7632,266 @@ export default function PrajnaaMasterCrmApp() {
           </div>
         </div>
       )}
+            {/* MODAL: MANAGE / ADD PRODUCT */}
+      {showManageProductModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-lg w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-neutral-200 dark:border-slate-800 space-y-4 text-neutral-900 dark:text-white">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold text-sm">
+                  {editingProduct ? <Edit3 className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-neutral-900 dark:text-white">
+                    {editingProduct ? `Manage: ${editingProduct.name}` : "Add New Product to Catalog"}
+                  </h3>
+                  <p className="text-[11px] text-neutral-500 dark:text-slate-400">
+                    Configure SKU, pricing, packaging weight, origin, and live stock count
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowManageProductModal(false)}
+                className="p-1 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-slate-200 hover:bg-neutral-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              {/* Product Name */}
+              <div>
+                <label className="text-xs font-bold text-neutral-700 dark:text-slate-300 block mb-1">
+                  Product Name *
+                </label>
+                <input
+                  type="text"
+                  value={productFormData.name}
+                  onChange={(e) => setProductFormData({ ...productFormData, name: e.target.value })}
+                  placeholder="e.g. Raw Himalayan Flora Honey (500g)"
+                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-slate-800 border border-neutral-200 dark:border-slate-700 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Grid: Category & Packaging Weight */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-neutral-700 dark:text-slate-300 block mb-1">
+                    Category
+                  </label>
+                  <select
+                    value={productFormData.category}
+                    onChange={(e) => setProductFormData({ ...productFormData, category: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-slate-800 border border-neutral-200 dark:border-slate-700 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="Dry Fruits">Dry Fruits</option>
+                    <option value="Spices">Spices</option>
+                    <option value="Honey & Preserves">Honey & Preserves</option>
+                    <option value="Pickles">Pickles</option>
+                    <option value="Salts">Salts</option>
+                    <option value="Masalas">Masalas</option>
+                    <option value="Seeds">Seeds</option>
+                    <option value="Pantry Staples">Pantry Staples</option>
+                    <option value="Herbal & Wellness">Herbal & Wellness</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-neutral-700 dark:text-slate-300 block mb-1">
+                    Pack / Weight
+                  </label>
+                  <input
+                    type="text"
+                    value={productFormData.weight || ""}
+                    onChange={(e) => setProductFormData({ ...productFormData, weight: e.target.value })}
+                    placeholder="e.g. 500g, 1kg, 250g"
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-slate-800 border border-neutral-200 dark:border-slate-700 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Grid: Selling Price & Available Units */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-neutral-700 dark:text-slate-300 block mb-1">
+                    Selling Price (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={productFormData.price || ""}
+                    onChange={(e) => setProductFormData({ ...productFormData, price: parseInt(e.target.value) || 0 })}
+                    placeholder="e.g. 650"
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-slate-800 border border-neutral-200 dark:border-slate-700 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-neutral-700 dark:text-slate-300 block mb-1">
+                    Available Units in Stock
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={productFormData.unitsLeft || 0}
+                    onChange={(e) => setProductFormData({ ...productFormData, unitsLeft: parseInt(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-slate-800 border border-neutral-200 dark:border-slate-700 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Grid: Stock Status & Emoji Icon */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-neutral-700 dark:text-slate-300 block mb-1">
+                    Stock Availability Status
+                  </label>
+                  <select
+                    value={productFormData.stock}
+                    onChange={(e) => setProductFormData({ ...productFormData, stock: e.target.value as StockStatus })}
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-slate-800 border border-neutral-200 dark:border-slate-700 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="In Stock">🟢 In Stock</option>
+                    <option value="Low Stock">🟡 Low Stock</option>
+                    <option value="Out of Stock">🔴 Out of Stock</option>
+                    <option value="Pre-Order">🔵 Pre-Order</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-neutral-700 dark:text-slate-300 block mb-1">
+                    Emoji Icon / Symbol
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      maxLength={4}
+                      value={productFormData.image || "🌿"}
+                      onChange={(e) => setProductFormData({ ...productFormData, image: e.target.value })}
+                      placeholder="e.g. 🍯"
+                      className="w-16 text-center text-lg px-2 py-1.5 rounded-xl bg-neutral-100 dark:bg-slate-800 border border-neutral-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <div className="flex items-center gap-1">
+                      {["🌿", "🍯", "🌰", "🧂", "🍵", "🌶️"].map((em) => (
+                        <button
+                          key={em}
+                          type="button"
+                          onClick={() => setProductFormData({ ...productFormData, image: em })}
+                          className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-slate-800 text-sm cursor-pointer"
+                        >
+                          {em}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid: Himalayan Origin & SKU */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-neutral-700 dark:text-slate-300 block mb-1">
+                    Himalayan Origin
+                  </label>
+                  <input
+                    type="text"
+                    value={productFormData.origin}
+                    onChange={(e) => setProductFormData({ ...productFormData, origin: e.target.value })}
+                    placeholder="e.g. Kullu Valley, Himachal Pradesh"
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-slate-800 border border-neutral-200 dark:border-slate-700 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-neutral-700 dark:text-slate-300 block mb-1">
+                    SKU Code
+                  </label>
+                  <input
+                    type="text"
+                    value={productFormData.sku || ""}
+                    onChange={(e) => setProductFormData({ ...productFormData, sku: e.target.value })}
+                    placeholder="e.g. PM-HNY-500"
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-slate-800 border border-neutral-200 dark:border-slate-700 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-neutral-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowManageProductModal(false)}
+                className="px-4 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 text-xs font-semibold text-neutral-600 dark:text-slate-300 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSaveProduct(productFormData)}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <Check className="h-3.5 w-3.5" />
+                <span>{editingProduct ? "Save Changes" : "Create Product"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: DELETE PRODUCT CONFIRMATION */}
+      {showDeleteProductConfirm && productToDelete && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-md w-full shadow-2xl border border-neutral-200 dark:border-slate-800 space-y-4 text-neutral-900 dark:text-white">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-neutral-900 dark:text-white">Remove Product</h3>
+                <p className="text-xs text-neutral-500 dark:text-slate-400">
+                  Are you sure you want to delete this product from the catalog?
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-slate-800/60 border border-neutral-200/80 dark:border-slate-700 text-xs space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">{productToDelete.image}</span>
+                <span className="font-bold text-neutral-900 dark:text-white">{productToDelete.name}</span>
+              </div>
+              <p className="text-neutral-500 dark:text-slate-400">
+                Category: <strong>{productToDelete.category}</strong> | Price: <strong>₹{productToDelete.price}</strong> | Units: <strong>{productToDelete.unitsLeft}</strong>
+              </p>
+              <p className="text-[11px] text-rose-600 dark:text-rose-400 pt-1 font-medium">
+                ⚠️ Removing this product will exclude it from WhatsApp quick quotes and catalog selection.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteProductConfirm(false);
+                  setProductToDelete(null);
+                }}
+                className="px-4 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 text-xs font-semibold text-neutral-600 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteProduct(productToDelete.id)}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Confirm Remove</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showConvertLeadModal && selectedLeadForConvert && (
         <NewLeadModal
           isOpen={showConvertLeadModal}
