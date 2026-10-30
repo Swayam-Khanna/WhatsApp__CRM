@@ -9468,7 +9468,7 @@ export default function PrajnaaMasterCrmApp() {
                       </div>
                       <div>
                         <h2 className="font-extrabold text-sm sm:text-base text-[#0F3D2E] uppercase tracking-wide font-mono">
-                          Prajnaa Natural Products Pvt. Ltd.
+                          Prajnaa Market
                         </h2>
                         <p className="text-[10px] font-semibold text-neutral-600">
                           Pure Himalayan Origin Harvest • Farm-to-Table Marketplace
@@ -9735,7 +9735,7 @@ export default function PrajnaaMasterCrmApp() {
                   </div>
 
                   <div className="text-right space-y-1">
-                    <p className="text-[10px] text-neutral-500">For <strong>PRAJNAA NATURAL PRODUCTS PVT. LTD.</strong></p>
+                    <p className="text-[10px] text-neutral-500">For <strong>PRAJNAA MARKET</strong></p>
                     <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-300 text-emerald-800 text-[10px] font-bold">
                       <span className="h-2 w-2 rounded-full bg-emerald-600" />
                       <span>Digitally Verified & Authorized Signatory</span>
