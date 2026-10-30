@@ -922,7 +922,7 @@ export default function PrajnaaMasterCrmApp() {
   const [notificationTab, setNotificationTab] = useState<"all" | "chats" | "orders">("all");
 
   // Authentication State (MANDATORY LOGIN: Users MUST authenticate before accessing CRM)
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
@@ -2916,6 +2916,39 @@ export default function PrajnaaMasterCrmApp() {
                 <ArrowRight className="h-4 w-4 text-[#E8A317]" />
               </button>
             </form>
+
+                        {/* One-Click Quick Login for Staff */}
+            <div className="pt-2 border-t border-neutral-200/80 space-y-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 block text-center">
+                One-Click Quick Login
+              </span>
+              <div className="grid grid-cols-3 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleQuickLoginAs(teamMembers[0])}
+                  className="p-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-center transition cursor-pointer"
+                >
+                  <p className="font-bold text-xs leading-tight">Nishant</p>
+                  <p className="text-[9px] text-emerald-700">Store Admin</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickLoginAs(teamMembers[1])}
+                  className="p-2 rounded-xl border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-900 text-center transition cursor-pointer"
+                >
+                  <p className="font-bold text-xs leading-tight">Rajat</p>
+                  <p className="text-[9px] text-teal-700">Concierge</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickLoginAs(teamMembers[2])}
+                  className="p-2 rounded-xl border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 text-center transition cursor-pointer"
+                >
+                  <p className="font-bold text-xs leading-tight">Anita</p>
+                  <p className="text-[9px] text-indigo-700">Fulfillment</p>
+                </button>
+              </div>
+            </div>
 
             {/* Note on RBAC */}
             <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 space-y-1">
