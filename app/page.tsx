@@ -302,6 +302,7 @@ const ROLE_PERMISSIONS: Record<
 > = {
   "Store Admin": {
     allowedTabs: [
+      "leads",
       "dashboard",
       "inbox",
       "orders",
@@ -315,13 +316,13 @@ const ROLE_PERMISSIONS: Record<
       "team",
       "settings",
     ],
-    defaultTab: "dashboard",
+    defaultTab: "leads",
     label: "Store Admin (Master Control)",
     description: "Full access to revenue analytics, broadcasts, team management & settings",
     badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-300",
   },
   "Senior Concierge": {
-    allowedTabs: ["inbox", "orders", "order_details", "customers", "products", "templates"],
+    allowedTabs: ["leads", "inbox", "orders", "order_details", "customers", "products", "templates"],
     defaultTab: "inbox",
     label: "Concierge Work Area",
     description: "Customer WhatsApp chats, order status confirmation & product lookup",
@@ -937,7 +938,7 @@ export default function PrajnaaMasterCrmApp() {
   const [rememberMe, setRememberMe] = useState(false);
 
   // Navigation (Filtered by User's Work Area / Role)
-  const [activeNav, setActiveNav] = useState<string>("dashboard");
+  const [activeNav, setActiveNav] = useState<string>("leads");
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [mobileChatView, setMobileChatView] = useState<"list" | "chat" | "details">("list");
 
@@ -6123,8 +6124,33 @@ export default function PrajnaaMasterCrmApp() {
                 </p>
               </div>
 
-              {/* Status Counters */}
-              <div className="flex items-center gap-2">
+              {/* Status Counters & Add Product Button */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingProduct(null);
+                    setProductFormData({
+                      id: "",
+                      name: "",
+                      price: 450,
+                      stock: "In Stock",
+                      image: "🌿",
+                      category: "Dry Fruits",
+                      unitsLeft: 50,
+                      origin: "High Altitude Farm, Himachal Pradesh",
+                      sku: "PM-" + Math.floor(1000 + Math.random() * 9000),
+                      weight: "500g",
+                    });
+                    setShowManageProductModal(true);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
+                  title="Add New Product to Catalog"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>+ Add Product</span>
+                </button>
+
                 <span className="px-3 py-1.5 rounded-xl border border-neutral-200 bg-white dark:bg-slate-800 text-xs font-semibold shadow-2xs">
                   Total SKUs: <strong className="text-neutral-900 dark:text-white font-mono">{productsList.length}</strong>
                 </span>
@@ -6271,19 +6297,32 @@ export default function PrajnaaMasterCrmApp() {
 
                         {/* Action Buttons */}
                         <td className="p-3.5 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center justify-end gap-1.5">
                             <button
+                              type="button"
                               onClick={() => {
                                 setEditingProduct(prod);
-                                setEditStockStatusInput(prod.stock);
-                                setEditUnitsInput(prod.unitsLeft);
-                                setEditPriceInput(prod.price);
-                                setShowEditStockModal(true);
+                                setProductFormData({ ...prod });
+                                setShowManageProductModal(true);
                               }}
                               className="px-2.5 py-1 rounded-lg border border-neutral-200 hover:bg-neutral-100 dark:border-slate-700 dark:hover:bg-slate-800 text-neutral-700 dark:text-slate-300 font-semibold text-[11px] transition cursor-pointer flex items-center gap-1 shadow-2xs"
-                              title="Edit Units & Status"
+                              title="Manage & Edit Full Product Details"
                             >
-                              <Edit3 className="h-3 w-3" /> Edit Stock
+                              <Edit3 className="h-3 w-3 text-emerald-600" />
+                              <span>Manage</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setProductToDelete(prod);
+                                setShowDeleteProductConfirm(true);
+                              }}
+                              className="px-2 py-1 rounded-lg border border-rose-200 hover:bg-rose-50 dark:border-rose-900/60 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-semibold text-[11px] transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                              title="Remove Product from Catalog"
+                            >
+                              <Trash2 className="h-3 w-3 text-rose-500" />
+                              <span>Remove</span>
                             </button>
 
                             <button
