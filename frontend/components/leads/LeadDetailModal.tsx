@@ -289,9 +289,9 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
 
         {/* 3-Column Body Layout */}
         {lead ? (
-          <div className="grid grid-cols-1 lg:grid-cols-12 overflow-y-auto flex-1 text-xs divide-y lg:divide-y-0 lg:divide-x divide-neutral-200/80 dark:divide-slate-800">
-            {/* Column 1: CUSTOMER PROFILE (3 cols out of 12) */}
-            <div className="lg:col-span-3 p-5 space-y-4 bg-neutral-50/60 dark:bg-slate-900/40">
+          <div className="flex flex-col lg:flex-row overflow-y-auto flex-1 text-xs divide-y lg:divide-y-0 lg:divide-x divide-neutral-200/80 dark:divide-slate-800">
+            {/* Column 1: CUSTOMER PROFILE */}
+            <div className="w-full lg:w-[280px] xl:w-[300px] shrink-0 p-5 space-y-4 bg-neutral-50/60 dark:bg-slate-900/40">
               <span className="font-bold text-neutral-500 uppercase tracking-wider text-[10px] block">
                 1. Customer & Profile
               </span>
@@ -387,8 +387,8 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
               </div>
             </div>
 
-            {/* Column 2: ACTIVITY & CONVERSATION (5 cols out of 12) */}
-            <div className="lg:col-span-5 p-5 space-y-4 flex flex-col bg-white dark:bg-slate-900">
+            {/* Column 2: ACTIVITY & CONVERSATION */}
+            <div className="flex-1 min-w-0 p-5 space-y-4 flex flex-col bg-white dark:bg-slate-900">
               <div className="flex items-center justify-between border-b border-neutral-100 dark:border-slate-800 pb-2">
                 <div className="flex items-center gap-2">
                   <button
@@ -580,8 +580,8 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
               </form>
             </div>
 
-            {/* Column 3: COMMERCIAL DETAILS (4 cols out of 12) */}
-            <div className="lg:col-span-4 p-5 space-y-4 bg-neutral-50/60 dark:bg-slate-900/40">
+            {/* Column 3: COMMERCIAL DETAILS */}
+            <div className="w-full lg:w-[340px] xl:w-[380px] shrink-0 p-5 space-y-4 bg-neutral-50/60 dark:bg-slate-900/40">
               <span className="font-bold text-neutral-500 uppercase tracking-wider text-[10px] block">
                 3. Commercial Details
               </span>
@@ -592,18 +592,18 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                 {lead.items.length === 0 ? (
                   <p className="text-neutral-400 text-xs py-2">No products itemized yet.</p>
                 ) : (
-                  <div className="space-y-2 divide-y divide-neutral-100 dark:divide-slate-700/60">
+                  <div className="space-y-2.5 divide-y divide-neutral-100 dark:divide-slate-700/60">
                     {lead.items.map((it) => (
-                      <div key={it.id} className="flex items-center justify-between gap-3 pt-2 first:pt-0">
+                      <div key={it.id} className="flex items-center justify-between gap-3 pt-2.5 first:pt-0">
                         <div className="min-w-0 flex-1">
-                          <span className="font-semibold text-neutral-900 dark:text-white block text-xs truncate">
+                          <span className="font-semibold text-neutral-900 dark:text-white block text-xs truncate" title={it.productName}>
                             {it.productName}
                           </span>
-                          <span className="text-[10px] text-neutral-500 font-mono">
+                          <span className="text-[10px] text-neutral-500 font-mono block">
                             {it.quantity} {it.unit || "unit"}
                           </span>
                         </div>
-                        <span className="font-mono font-bold text-neutral-900 dark:text-slate-100 text-xs shrink-0 text-right">
+                        <span className="font-mono font-bold text-neutral-900 dark:text-slate-100 text-xs shrink-0 text-right whitespace-nowrap pl-2">
                           ₹{(it.indicativeTotalPaise / 100).toLocaleString("en-IN")}
                         </span>
                       </div>
@@ -612,8 +612,8 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                 )}
 
                 <div className="pt-2.5 flex items-center justify-between gap-2 font-bold text-xs border-t border-neutral-100 dark:border-slate-700">
-                  <span className="text-neutral-600 dark:text-slate-400">Estimated Value:</span>
-                  <span className="font-mono text-emerald-700 dark:text-emerald-400 text-base font-extrabold shrink-0">
+                  <span className="text-neutral-600 dark:text-slate-400">Estimated Opportunity Value:</span>
+                  <span className="font-mono text-emerald-700 dark:text-emerald-400 text-sm font-extrabold shrink-0 whitespace-nowrap">
                     ₹{((lead.estimatedValuePaise || 0) / 100).toLocaleString("en-IN")}
                   </span>
                 </div>
@@ -626,7 +626,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                   {lead.nextAction || "None specified"}
                 </p>
                 {lead.nextFollowUpAt && (
-                  <div className="pt-1.5 border-t border-neutral-100 dark:border-slate-700 flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-mono text-[11px]">
+                  <div className="pt-1.5 border-t border-neutral-100 dark:border-slate-700 flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-mono text-[11px] flex-wrap">
                     <Clock className="h-3.5 w-3.5 shrink-0" />
                     <span>{new Date(lead.nextFollowUpAt).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                   </div>

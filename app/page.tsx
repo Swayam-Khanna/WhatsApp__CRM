@@ -1462,7 +1462,7 @@ export default function PrajnaaMasterCrmApp() {
         try {
           const res = await fetch("/api/crm/messages");
           const json = await res.json();
-          if (json && json.success && Array.isArray(json.messages)) {
+          if (json && json.success && Array.isArray(json.messages) && json.messages.length > 0) {
             const dbMsgs = json.messages;
             setMessagesMap((prevMap) => {
               let hasChanges = false;
@@ -1521,7 +1521,7 @@ export default function PrajnaaMasterCrmApp() {
                     }
                   }
                 });
-                return [...currentCusts];
+                return hasChanges ? [...currentCusts] : currentCusts;
               });
 
               return hasChanges ? nextMap : prevMap;
@@ -1535,7 +1535,7 @@ export default function PrajnaaMasterCrmApp() {
       const interval = setInterval(() => {
         syncCrmOrders();
         syncCrmMessages();
-      }, 3000);
+      }, 8000);
       window.addEventListener("prajnaa_order_placed", syncCrmOrders);
       window.addEventListener("storage", syncCrmOrders);
 
@@ -1776,6 +1776,13 @@ export default function PrajnaaMasterCrmApp() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [currentMessages]);
+
+  // Synchronize internal agent notes when switching customers
+  useEffect(() => {
+    if (currentCustomer) {
+      setCustomerNotes(currentCustomer.notes || "Pre-booked Himalayan organic produce. Preferred morning delivery.");
+    }
+  }, [selectedCustomerId]);
 
   // Handle Login — STRICT TEAM-ROSTER AUTHENTICATION
   const handleAuthSubmit = (e: React.FormEvent) => {
@@ -4721,7 +4728,7 @@ export default function PrajnaaMasterCrmApp() {
                     <button
                       type="button"
                       onClick={() => handleToggleCustomerVip(currentCustomer.id)}
-                      className={`hidden sm:flex p-2 rounded-xl transition cursor-pointer ${
+                      className={`flex p-2 rounded-xl transition cursor-pointer shrink-0 ${
                         currentCustomer.isVip ? "text-amber-500 bg-amber-50 border border-amber-200" : "text-neutral-400 hover:bg-neutral-100"
                       }`}
                       title={currentCustomer.isVip ? "Starred VIP Customer (Click to toggle)" : "Star Customer as VIP"}
@@ -4729,7 +4736,7 @@ export default function PrajnaaMasterCrmApp() {
                       <Star className="h-4 w-4" fill={currentCustomer.isVip ? "currentColor" : "none"} />
                     </button>
 
-                    <div className="relative hidden sm:block">
+                    <div className="relative shrink-0">
                       <button
                         type="button"
                         onClick={() => {
