@@ -1018,6 +1018,27 @@ export default function PrajnaaMasterCrmApp() {
   const [newOrderStatus, setNewOrderStatus] = useState<"Pending" | "Processing" | "Packed" | "Shipped" | "Completed">("Pending");
   const [newOrderNotes, setNewOrderNotes] = useState<string>("");
   const [isSubmittingNewOrder, setIsSubmittingNewOrder] = useState<boolean>(false);
+  // Multi-product order items and payment method
+  const [newOrderItemsList, setNewOrderItemsList] = useState<Array<{ productId: string; qty: number }>>([
+    { productId: "prajnaa-almond-500g", qty: 1 }
+  ]);
+  const [newOrderPaymentMethodChoice, setNewOrderPaymentMethodChoice] = useState<string>("UPI");
+
+  // WhatsApp Inbox Interactive states
+  const [showEditCustomerModal, setShowEditCustomerModal] = useState<boolean>(false);
+  const [editCustName, setEditCustName] = useState<string>("");
+  const [editCustPhone, setEditCustPhone] = useState<string>("");
+  const [editCustEmail, setEditCustEmail] = useState<string>("");
+  const [editCustAddress, setEditCustAddress] = useState<string>("");
+  const [editCustCity, setEditCustCity] = useState<string>("");
+  const [editCustPincode, setEditCustPincode] = useState<string>("");
+  const [editCustIsVip, setEditCustIsVip] = useState<boolean>(false);
+
+  const [showTagMenu, setShowTagMenu] = useState<boolean>(false);
+  const [showMoreChatMenu, setShowMoreChatMenu] = useState<boolean>(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState<boolean>(false);
+
 
   // State: Dashboard Graph Filter
   const [graphTimeframe, setGraphTimeframe] = useState<"7d" | "30d" | "quarter">("30d");
@@ -1957,6 +1978,128 @@ export default function PrajnaaMasterCrmApp() {
   };
 
   // Handle Create New Order
+  // Multi-Product Line Item Helpers
+  const handleAddOrderItemLine = () => {
+    const nextProd = productsList.find((p) => !newOrderItemsList.some((it) => it.productId === p.id)) || productsList[0];
+    setNewOrderItemsList((prev) => [...prev, { productId: nextProd?.id || "raw-forest-honey", qty: 1 }]);
+  };
+
+  const handleUpdateOrderItemLine = (index: number, productId: string, qty: number) => {
+    setNewOrderItemsList((prev: any[]) => {
+      const updated = [...prev];
+      updated[index] = { productId, qty: Math.max(1, qty) };
+      return updated;
+    });
+  };
+
+  const handleRemoveOrderItemLine = (index: number) => {
+    if (newOrderItemsList.length <= 1) {
+      toast.error("An order must contain at least one produce item");
+      return;
+    }
+    setNewOrderItemsList((prev: any[]) => prev.filter((_: any, i: number) => i !== index));
+  };
+
+  // WhatsApp Inbox: Customer Management Handlers
+  const handleOpenEditCustomer = () => {
+    setEditCustName(currentCustomer.name);
+    setEditCustPhone(currentCustomer.phone);
+    setEditCustEmail(currentCustomer.email);
+    setEditCustAddress(currentCustomer.address?.line1 || "");
+    setEditCustCity(currentCustomer.address?.city || "Dehradun");
+    setEditCustPincode(currentCustomer.address?.pincode || "248001");
+    setEditCustIsVip(Boolean(currentCustomer.isVip));
+    setShowEditCustomerModal(true);
+    setShowMoreChatMenu(false);
+  };
+
+  const handleSaveCustomerProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editCustName.trim()) {
+      toast.error("Please enter customer name");
+      return;
+    }
+    const cleanPhone = editCustPhone.replace(/\D/g, "");
+    if (cleanPhone.length < 10) {
+      toast.error("Please enter a valid 10-digit mobile number");
+      return;
+    }
+
+    setCustomers((prev) =>
+      prev.map((c) =>
+        c.id === currentCustomer.id
+          ? {
+              ...c,
+              name: editCustName.trim(),
+              phone: cleanPhone.length === 10 ? `+91 ${cleanPhone}` : `+${cleanPhone}`,
+              email: editCustEmail.trim() || c.email,
+              location: `${editCustCity.trim() || "Dehradun"}, Uttarakhand`,
+              isVip: editCustIsVip,
+              address: {
+                ...c.address,
+                line1: editCustAddress.trim() || c.address.line1,
+                city: editCustCity.trim() || c.address.city,
+                pincode: editCustPincode.trim() || c.address.pincode,
+              },
+            }
+          : c
+      )
+    );
+
+    setShowEditCustomerModal(false);
+    toast.success(`Updated customer profile for ${editCustName}!`);
+  };
+
+  const handleToggleCustomerVip = (custId: string) => {
+    setCustomers((prev) =>
+      prev.map((c) => (c.id === custId ? { ...c, isVip: !c.isVip } : c))
+    );
+    toast.success(currentCustomer.isVip ? "Removed VIP status" : "Customer marked as VIP ⭐");
+  };
+
+  const handleToggleCustomerTag = (tag: string) => {
+    setCustomers((prev) =>
+      prev.map((c) => {
+        if (c.id !== currentCustomer.id) return c;
+        const currentTags = c.tags || ["Lead Enquiry"];
+        const hasTag = currentTags.includes(tag);
+        const updatedTags = hasTag
+          ? currentTags.filter((t) => t !== tag)
+          : [...currentTags, tag];
+        return { ...c, tags: updatedTags };
+      })
+    );
+    toast.success(`Updated tag "${tag}" for ${currentCustomer.name}`);
+  };
+
+  const handleCreateOrderForCurrentCustomer = () => {
+    setNewOrderCustomerName(currentCustomer.name);
+    setNewOrderCustomerPhone(currentCustomer.phone);
+    setNewOrderCustomerEmail(currentCustomer.email);
+    setNewOrderAddress(currentCustomer.address?.line1 || "");
+    setNewOrderCity(currentCustomer.address?.city || "Dehradun");
+    setNewOrderPincode(currentCustomer.address?.pincode || "248001");
+    setShowAddOrderModal(true);
+    setShowMoreChatMenu(false);
+  };
+
+  const handleClearChatHistory = () => {
+    setMessagesMap((prev: any) => {
+      const updated = { ...prev };
+      delete updated[currentCustomer.id];
+      return updated;
+    });
+    setShowMoreChatMenu(false);
+    toast.success(`Cleared chat history for ${currentCustomer.name}`);
+  };
+
+  const handleSaveCustomerNotes = () => {
+    setCustomers((prev) =>
+      prev.map((c) => (c.id === currentCustomer.id ? { ...c, notes: customerNotes } : c))
+    );
+    toast.success(`Internal notes saved for ${currentCustomer.name}!`);
+  };
+
   const handleCreateNewOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newOrderCustomerName.trim()) {
@@ -1969,11 +2112,35 @@ export default function PrajnaaMasterCrmApp() {
       return;
     }
 
-    const selectedProduct = productsList.find((p) => p.id === newOrderProductId) || productsList[0];
-    const qty = Math.max(1, newOrderQuantity || 1);
-    const subtotal = (selectedProduct?.price || 950) * qty;
-    const shipping = 50;
+    // Multi-Product Line Items Mapping
+    const lineItems: OrderItem[] = newOrderItemsList.map((item: any) => {
+      const prod = productsList.find((p) => p.id === item.productId) || productsList[0];
+      const itemPrice = prod?.price || 950;
+      const itemQty = Math.max(1, item.qty || 1);
+      return {
+        name: prod?.name || "Himalayan Produce",
+        weight: prod?.weight || "500g",
+        qty: itemQty,
+        price: itemPrice,
+        total: itemPrice * itemQty,
+        image: prod?.image || "🍯",
+      };
+    });
+
+    const subtotal = lineItems.reduce((acc, it) => acc + it.total, 0);
+    const shipping = subtotal > 1500 ? 0 : 50;
     const total = subtotal + shipping;
+    const totalQty = lineItems.reduce((acc, it) => acc + it.qty, 0);
+
+    const paymentMethodLabels: Record<string, string> = {
+      COD: "Cash on Delivery (COD)",
+      UPI: "UPI Payment (prajnaa@upi)",
+      WhatsApp: "WhatsApp Pay Direct",
+      Credit: "B2B Credit Terms (15-Day Invoice)",
+      BankTransfer: "Bank Transfer (NEFT/RTGS)",
+      Card: "Credit / Debit Card",
+    };
+    const paymentMethodLabel = paymentMethodLabels[newOrderPaymentMethodChoice] || "UPI Payment";
     const orderNum = `PJ-OD-${Math.floor(1000 + Math.random() * 9000)}`;
     const fullOrderNum = `#${orderNum}`;
     const formattedDate = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
@@ -1986,26 +2153,17 @@ export default function PrajnaaMasterCrmApp() {
       customerPhone: cleanPhone.length === 10 ? `+91 ${cleanPhone}` : `+${cleanPhone}`,
       customerEmail: newOrderCustomerEmail.trim(),
       shippingAddress: `${newOrderAddress || "Main Market"}, ${newOrderCity || "Dehradun"} - ${newOrderPincode || "248001"}`,
-      itemsCount: qty,
+      itemsCount: totalQty,
       amount: total,
       paymentStatus: (newOrderPaymentStatus === "Paid" ? "Paid" : "Pending") as any,
       orderStatus: (newOrderStatus === "Completed" ? "Completed" : newOrderStatus) as any,
       date: formattedDate,
       time: formattedTime,
-      items: [
-        {
-          name: selectedProduct?.name || "Himalayan Forest Honey",
-          weight: selectedProduct?.weight || "500g",
-          qty,
-          price: selectedProduct?.price || 950,
-          total: subtotal,
-          image: selectedProduct?.image || "🍯",
-        },
-      ],
+      items: lineItems,
       subtotal,
       discount: 0,
       shipping,
-      paymentMethod: newOrderPaymentMethod === "COD" ? "Cash on Delivery" : newOrderPaymentMethod === "WhatsApp" ? "WhatsApp Order" : "UPI Payment",
+      paymentMethod: paymentMethodLabel,
       trackingNumber: `ET${Math.floor(100000000 + Math.random() * 900000000)}IN`,
     };
 
@@ -2058,7 +2216,7 @@ export default function PrajnaaMasterCrmApp() {
       });
 
       // 3. Add first WhatsApp message from Store Admin
-      const firstMsgText = `Namaste ${newOrderCustomerName.trim()}! 🙏 Prajnaa Market se connect karne ke liye dhanyawad.\n\nAapne hamare Prajnaa portal se yeh saman order kiya hai:\n\n📦 *Order ID:* ${fullOrderNum}\n🌾 *Saman / Items:* ${selectedProduct?.name || "Himalayan Forest Honey"} × ${qty}\n💰 *Total Amount:* ₹${total.toLocaleString("en-IN")}\n📍 *Delivery Address:* ${newOrderAddress || "Civil Lines"}, ${newOrderCity} - ${newOrderPincode}\n🚚 *Shipping Mode:* India Post Speed Post (2-3 din me dispatch)\n\nHum aapka order organic farms se pack kar rahe hain. Kisi bhi jaankari ya payment confirmation ke liye aap yahan reply kar sakte hain! 🌿`;
+      const firstMsgText = `Namaste ${newOrderCustomerName.trim()}! 🙏 Prajnaa Market se connect karne ke liye dhanyawad.\n\nAapne hamare Prajnaa portal se yeh saman order kiya hai:\n\n📦 *Order ID:* ${fullOrderNum}\n🌾 *Saman / Items:* ${lineItems.map((i: any) => `${i.name} × ${i.qty}`).join(", ")}\n💰 *Total Amount:* ₹${total.toLocaleString("en-IN")}\n📍 *Delivery Address:* ${newOrderAddress || "Civil Lines"}, ${newOrderCity} - ${newOrderPincode}\n🚚 *Shipping Mode:* India Post Speed Post (2-3 din me dispatch)\n\nHum aapka order organic farms se pack kar rahe hain. Kisi bhi jaankari ya payment confirmation ke liye aap yahan reply kar sakte hain! 🌿`;
 
       setMessagesMap((prev) => {
         const existing = prev[targetCustId] || [];
@@ -2097,14 +2255,12 @@ export default function PrajnaaMasterCrmApp() {
           paymentMethod: newOrderPaymentMethod.toLowerCase(),
           paymentStatus: newOrderPaymentStatus.toLowerCase(),
           status: newOrderStatus.toLowerCase(),
-          items: [
-            {
-              productName: selectedProduct?.name || "Himalayan Produce",
-              quantity: qty,
-              price: selectedProduct?.price || 950,
-              unitPricePaise: (selectedProduct?.price || 950) * 100,
-            },
-          ],
+          items: lineItems.map((i: any) => ({
+            productName: i.name,
+            quantity: i.qty,
+            price: i.price,
+            unitPricePaise: i.price * 100,
+          })),
           shippingAddressSnapshot: {
             line1: newOrderAddress || "Civil Lines",
             city: newOrderCity || "Dehradun",
@@ -4278,15 +4434,115 @@ export default function PrajnaaMasterCrmApp() {
                     >
                       <Info className="h-4 w-4" />
                     </button>
-                    <button className="hidden sm:block p-2 rounded-lg hover:bg-neutral-100 transition cursor-pointer">
-                      <Star className="h-4 w-4" />
+                    <button
+                      type="button"
+                      onClick={() => handleToggleCustomerVip(currentCustomer.id)}
+                      className={`hidden sm:flex p-2 rounded-xl transition cursor-pointer ${
+                        currentCustomer.isVip ? "text-amber-500 bg-amber-50 border border-amber-200" : "text-neutral-400 hover:bg-neutral-100"
+                      }`}
+                      title={currentCustomer.isVip ? "Starred VIP Customer (Click to toggle)" : "Star Customer as VIP"}
+                    >
+                      <Star className="h-4 w-4" fill={currentCustomer.isVip ? "currentColor" : "none"} />
                     </button>
-                    <button className="hidden sm:block p-2 rounded-lg hover:bg-neutral-100 transition cursor-pointer">
-                      <Tag className="h-4 w-4" />
-                    </button>
-                    <button className="p-2 rounded-lg hover:bg-neutral-100 transition cursor-pointer">
-                      <MoreVertical className="h-4 w-4" />
-                    </button>
+
+                    <div className="relative hidden sm:block">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowTagMenu(!showTagMenu);
+                          setShowMoreChatMenu(false);
+                        }}
+                        className={`p-2 rounded-xl transition cursor-pointer ${
+                          showTagMenu ? "bg-emerald-100 text-emerald-800" : "text-neutral-500 hover:bg-neutral-100"
+                        }`}
+                        title="Manage Customer Tags"
+                      >
+                        <Tag className="h-4 w-4" />
+                      </button>
+
+                      {showTagMenu && (
+                        <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-slate-900 border border-neutral-200 dark:border-slate-800 rounded-2xl shadow-xl p-2 z-50 text-xs space-y-1">
+                          <p className="text-[10px] font-bold text-neutral-400 uppercase font-mono px-2 py-1">Customer Tags</p>
+                          {["VIP Customer", "Wholesale Buyer", "Repeat Buyer", "Priority Lead", "COD Preferred"].map((t) => {
+                            const active = (currentCustomer.tags || []).includes(t);
+                            return (
+                              <button
+                                key={t}
+                                type="button"
+                                onClick={() => handleToggleCustomerTag(t)}
+                                className={`w-full text-left px-2.5 py-1.5 rounded-xl font-medium transition flex items-center justify-between cursor-pointer ${
+                                  active
+                                    ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 font-bold"
+                                    : "text-neutral-700 hover:bg-neutral-50 dark:text-slate-300"
+                                }`}
+                              >
+                                <span>{t}</span>
+                                {active && <Check className="h-3 w-3 text-emerald-600" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMoreChatMenu(!showMoreChatMenu);
+                          setShowTagMenu(false);
+                        }}
+                        className={`p-2 rounded-xl transition cursor-pointer ${
+                          showMoreChatMenu ? "bg-neutral-200" : "hover:bg-neutral-100 text-neutral-600"
+                        }`}
+                        title="Conversation Actions"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+
+                      {showMoreChatMenu && (
+                        <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-slate-900 border border-neutral-200 dark:border-slate-800 rounded-2xl shadow-xl p-1.5 z-50 text-xs space-y-1">
+                          <button
+                            type="button"
+                            onClick={handleCreateOrderForCurrentCustomer}
+                            className="w-full text-left px-3 py-2 rounded-xl hover:bg-emerald-50 text-emerald-900 font-semibold flex items-center gap-2 cursor-pointer transition"
+                          >
+                            <ShoppingBag className="h-3.5 w-3.5 text-emerald-600" />
+                            <span>Create Order for Customer</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleOpenEditCustomer}
+                            className="w-full text-left px-3 py-2 rounded-xl hover:bg-neutral-100 text-neutral-800 font-medium flex items-center gap-2 cursor-pointer transition"
+                          >
+                            <Edit3 className="h-3.5 w-3.5 text-neutral-600" />
+                            <span>Edit Customer Profile</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const clean = (currentCustomer.phone || "").replace(/\D/g, "");
+                              navigator.clipboard.writeText(`https://wa.me/${clean}`);
+                              toast.success("Copied WhatsApp chat link!");
+                              setShowMoreChatMenu(false);
+                            }}
+                            className="w-full text-left px-3 py-2 rounded-xl hover:bg-neutral-100 text-neutral-800 font-medium flex items-center gap-2 cursor-pointer transition"
+                          >
+                            <Copy className="h-3.5 w-3.5 text-neutral-600" />
+                            <span>Copy WhatsApp Direct Link</span>
+                          </button>
+                          <div className="border-t border-neutral-100 my-1" />
+                          <button
+                            type="button"
+                            onClick={handleClearChatHistory}
+                            className="w-full text-left px-3 py-2 rounded-xl hover:bg-rose-50 text-rose-700 font-medium flex items-center gap-2 cursor-pointer transition"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                            <span>Clear Conversation Messages</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -4725,9 +4981,39 @@ export default function PrajnaaMasterCrmApp() {
                     </button>
                   </div>
 
-                  <button type="button" className="p-2 rounded-xl text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition cursor-pointer">
-                    <Smile className="h-5 w-5" />
-                  </button>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowEmojiPicker(!showEmojiPicker);
+                        setShowAttachmentMenu(false);
+                      }}
+                      className={`p-2 rounded-xl transition cursor-pointer ${
+                        showEmojiPicker ? "bg-emerald-100 text-emerald-800" : "text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100"
+                      }`}
+                      title="Insert Emoji"
+                    >
+                      <Smile className="h-5 w-5" />
+                    </button>
+
+                    {showEmojiPicker && (
+                      <div className="absolute bottom-full left-0 mb-2 p-2 bg-white dark:bg-slate-900 border border-neutral-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 grid grid-cols-6 gap-1 w-52">
+                        {["🙏", "📦", "🌿", "🍯", "🚚", "💰", "✨", "👍", "❤️", "📍", "🧾", "✅", "🌾", "🌰", "🥛", "⛰️", "⭐", "🎉"].map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => {
+                              setInputMessage((prev) => prev + " " + emoji);
+                              setShowEmojiPicker(false);
+                            }}
+                            className="p-1.5 text-lg hover:bg-neutral-100 dark:hover:bg-slate-800 rounded-lg transition text-center cursor-pointer"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <input
                     type="text"
                     placeholder={
@@ -4743,9 +5029,60 @@ export default function PrajnaaMasterCrmApp() {
                         : "bg-neutral-100/80 border-neutral-200/60 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                     }`}
                   />
-                  <button type="button" className="p-2 rounded-xl text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition cursor-pointer">
-                    <Paperclip className="h-5 w-5" />
-                  </button>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAttachmentMenu(!showAttachmentMenu);
+                        setShowEmojiPicker(false);
+                      }}
+                      className={`p-2 rounded-xl transition cursor-pointer ${
+                        showAttachmentMenu ? "bg-emerald-100 text-emerald-800" : "text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100"
+                      }`}
+                      title="Attach Quick Items"
+                    >
+                      <Paperclip className="h-5 w-5" />
+                    </button>
+
+                    {showAttachmentMenu && (
+                      <div className="absolute bottom-full right-0 mb-2 w-60 bg-white dark:bg-slate-900 border border-neutral-200 dark:border-slate-800 rounded-2xl shadow-xl p-1.5 z-50 text-xs space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleSendPaymentQr();
+                            setShowAttachmentMenu(false);
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-xl hover:bg-emerald-50 text-emerald-900 font-semibold flex items-center gap-2 cursor-pointer transition"
+                        >
+                          <QrCode className="h-3.5 w-3.5 text-emerald-600" />
+                          <span>Send Official Payment QR</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCatalogQuoteMenu(true);
+                            setShowAttachmentMenu(false);
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-xl hover:bg-neutral-100 text-neutral-800 font-medium flex items-center gap-2 cursor-pointer transition"
+                        >
+                          <Package className="h-3.5 w-3.5 text-neutral-600" />
+                          <span>Attach Produce Catalog Quote</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInputMessage(`Namaste ${currentCustomer.name} ji! Aapka consignment Speed Post se dispatch ho gaya hai. Tracking Consignment: ET809126569IN. Track at: https://indiapost.gov.in`);
+                            setShowAttachmentMenu(false);
+                            toast.success("Inserted Speed Post tracking notice!");
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-xl hover:bg-neutral-100 text-neutral-800 font-medium flex items-center gap-2 cursor-pointer transition"
+                        >
+                          <Truck className="h-3.5 w-3.5 text-neutral-600" />
+                          <span>Attach Speed Post Tracking</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <button
                     type="submit"
                     className={`h-9 w-9 rounded-full flex items-center justify-center shadow-md transition cursor-pointer shrink-0 ${
@@ -4812,8 +5149,14 @@ export default function PrajnaaMasterCrmApp() {
                   {customerDrawerTab === "customer" && (
                     <>
                       <div className="flex flex-col items-center text-center p-4 rounded-2xl bg-neutral-50/70 border border-neutral-200/70 relative">
-                        <button className="absolute top-3 right-3 text-[11px] font-semibold text-neutral-600 hover:text-neutral-900 border border-neutral-300 rounded-lg px-2 py-0.5 cursor-pointer">
-                          Edit
+                        <button
+                          type="button"
+                          onClick={handleOpenEditCustomer}
+                          className="absolute top-3 right-3 text-[11px] font-bold text-neutral-700 hover:text-neutral-900 border border-neutral-300 hover:bg-neutral-100 rounded-lg px-2.5 py-1 transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                          title="Edit Customer Profile"
+                        >
+                          <Edit3 className="h-3 w-3 text-emerald-600" />
+                          <span>Edit</span>
                         </button>
                         <div className="relative mb-2">
                           {currentCustomer.avatar ? (
@@ -4985,10 +5328,12 @@ export default function PrajnaaMasterCrmApp() {
                         placeholder="Add notes about customer preferences..."
                       />
                       <button
-                        onClick={() => toast.success("Customer notes saved!")}
-                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+                        type="button"
+                        onClick={handleSaveCustomerNotes}
+                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
                       >
-                        Save Notes
+                        <Check className="h-3.5 w-3.5" />
+                        <span>Save Notes</span>
                       </button>
                     </div>
                   )}
@@ -7641,6 +7986,127 @@ export default function PrajnaaMasterCrmApp() {
       )}
 
       {/* ========================================================= */}
+      {/* 5.4. EDIT CUSTOMER PROFILE MODAL                           */}
+      {/* ========================================================= */}
+      {showEditCustomerModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-md w-full shadow-2xl border border-neutral-200 dark:border-slate-800 space-y-4 text-neutral-900 dark:text-white">
+            <div className="flex items-center justify-between border-b border-neutral-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold">
+                  <User className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">Edit Customer Profile</h3>
+                  <p className="text-[11px] text-neutral-500">Update contact and delivery details</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditCustomerModal(false)}
+                className="p-1.5 rounded-full hover:bg-neutral-100 dark:hover:bg-slate-800 text-neutral-400 hover:text-neutral-700 transition cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCustomerProfile} className="space-y-3.5 text-xs">
+              <div className="space-y-1">
+                <label className="font-semibold text-neutral-700 dark:text-slate-300">Customer Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={editCustName}
+                  onChange={(e) => setEditCustName(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-neutral-700 dark:text-slate-300">WhatsApp Mobile Number *</label>
+                <input
+                  type="tel"
+                  required
+                  value={editCustPhone}
+                  onChange={(e) => setEditCustPhone(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-neutral-700 dark:text-slate-300">Email Address</label>
+                <input
+                  type="email"
+                  value={editCustEmail}
+                  onChange={(e) => setEditCustEmail(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-neutral-700 dark:text-slate-300">Street / Area Address</label>
+                <input
+                  type="text"
+                  value={editCustAddress}
+                  onChange={(e) => setEditCustAddress(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="space-y-1">
+                  <label className="font-semibold text-neutral-700 dark:text-slate-300">City</label>
+                  <input
+                    type="text"
+                    value={editCustCity}
+                    onChange={(e) => setEditCustCity(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-neutral-700 dark:text-slate-300">Pincode</label>
+                  <input
+                    type="text"
+                    value={editCustPincode}
+                    onChange={(e) => setEditCustPincode(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-between border-t border-neutral-100 dark:border-slate-800">
+                <label className="font-semibold text-neutral-700 dark:text-slate-300 flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editCustIsVip}
+                    onChange={(e) => setEditCustIsVip(e.target.checked)}
+                    className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                  />
+                  <span>Mark as VIP Customer ⭐</span>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-neutral-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowEditCustomerModal(false)}
+                  className="px-4 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 text-neutral-600 dark:text-slate-300 hover:bg-neutral-50 text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                >
+                  Save Profile Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
       {/* 5.5. CREATE NEW ORDER MODAL                                */}
       {/* ========================================================= */}
       {showAddOrderModal && (
@@ -7749,47 +8215,95 @@ export default function PrajnaaMasterCrmApp() {
                 </div>
               </div>
 
-              {/* Product Selection */}
-              <div className="space-y-2.5 bg-neutral-50 p-3.5 rounded-2xl border border-neutral-200/70">
-                <h4 className="font-bold text-[11px] uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
-                  <Package className="h-3.5 w-3.5 text-emerald-700" /> Order Item
-                </h4>
-
-                <div className="space-y-1">
-                  <label className="font-semibold text-neutral-700">Select Himalayan Produce</label>
-                  <select
-                    value={newOrderProductId || productsList[0]?.id}
-                    onChange={(e) => setNewOrderProductId(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+              {/* Product Selection (Multi-Product Support) */}
+              <div className="space-y-3 bg-neutral-50 p-3.5 rounded-2xl border border-neutral-200/70">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-[11px] uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+                    <Package className="h-3.5 w-3.5 text-emerald-700" /> Order Produce ({newOrderItemsList.length} items)
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={handleAddOrderItemLine}
+                    className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer"
                   >
-                    {productsList.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} — ₹{p.price.toLocaleString("en-IN")} ({p.weight || "500g"})
-                      </option>
-                    ))}
-                  </select>
+                    <Plus className="h-3.5 w-3.5" /> Add Product
+                  </button>
                 </div>
 
-                <div className="flex items-center justify-between pt-1">
-                  <span className="font-semibold text-neutral-700">Quantity</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setNewOrderQuantity(Math.max(1, newOrderQuantity - 1))}
-                      className="h-7 w-7 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-100 flex items-center justify-center font-bold text-neutral-700 cursor-pointer"
-                    >
-                      -
-                    </button>
-                    <span className="w-8 text-center font-mono font-bold text-sm">{newOrderQuantity}</span>
-                    <button
-                      type="button"
-                      onClick={() => setNewOrderQuantity(newOrderQuantity + 1)}
-                      className="h-7 w-7 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-100 flex items-center justify-center font-bold text-neutral-700 cursor-pointer"
-                    >
-                      +
-                    </button>
-                  </div>
+                <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
+                  {newOrderItemsList.map((item: any, idx: number) => {
+                    const selectedProd = productsList.find((p) => p.id === item.productId) || productsList[0];
+                    const lineTotal = (selectedProd?.price || 0) * (item.qty || 1);
+
+                    return (
+                      <div
+                        key={idx}
+                        className="p-3 bg-white rounded-xl border border-neutral-200/80 shadow-2xs space-y-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold text-neutral-400 uppercase font-mono">Item #{idx + 1}</span>
+                          {newOrderItemsList.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveOrderItemLine(idx)}
+                              className="text-rose-500 hover:text-rose-700 p-1 rounded-md hover:bg-rose-50 cursor-pointer transition"
+                              title="Remove item"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                          <div className="sm:col-span-8">
+                            <select
+                              value={item.productId}
+                              onChange={(e) => handleUpdateOrderItemLine(idx, e.target.value, item.qty)}
+                              className="w-full p-2 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            >
+                              {productsList.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} — ₹{p.price.toLocaleString("en-IN")} ({p.weight || "500g"})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="sm:col-span-4 flex items-center justify-end gap-2">
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateOrderItemLine(idx, item.productId, Math.max(1, item.qty - 1))}
+                                className="h-7 w-7 rounded-lg border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 flex items-center justify-center font-bold text-neutral-700 cursor-pointer"
+                              >
+                                -
+                              </button>
+                              <span className="w-7 text-center font-mono font-bold text-xs">{item.qty}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateOrderItemLine(idx, item.productId, item.qty + 1)}
+                                className="h-7 w-7 rounded-lg border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 flex items-center justify-center font-bold text-neutral-700 cursor-pointer"
+                              >
+                                +
+                              </button>
+                            </div>
+                            <span className="font-mono font-bold text-xs text-neutral-900 w-16 text-right">
+                              ₹{lineTotal.toLocaleString("en-IN")}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddOrderItemLine}
+                  className="w-full py-2 rounded-xl border border-dashed border-emerald-300 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-800 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5 text-emerald-600" /> + Add Another Produce Item
+                </button>
               </div>
 
               {/* Payment & Status Choices */}
@@ -7797,13 +8311,20 @@ export default function PrajnaaMasterCrmApp() {
                 <div className="space-y-1">
                   <label className="font-semibold text-neutral-700">Payment Method</label>
                   <select
-                    value={newOrderPaymentMethod}
-                    onChange={(e) => setNewOrderPaymentMethod(e.target.value as any)}
+                    value={newOrderPaymentMethodChoice}
+                    onChange={(e) => {
+                      const val = e.target.value as any;
+                      setNewOrderPaymentMethodChoice(val);
+                      if (val === "COD") setNewOrderPaymentStatus("Pending");
+                    }}
                     className="w-full p-2 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                   >
+                    <option value="UPI">UPI / QR (GPay, PhonePe, Paytm)</option>
                     <option value="COD">Cash on Delivery (COD)</option>
-                    <option value="WhatsApp">WhatsApp Order</option>
-                    <option value="UPI">UPI / Online</option>
+                    <option value="WhatsApp">WhatsApp Pay Direct</option>
+                    <option value="Credit">B2B Credit Terms (15-Day Invoice)</option>
+                    <option value="BankTransfer">Bank Transfer (NEFT/RTGS)</option>
+                    <option value="Card">Credit / Debit Card</option>
                   </select>
                 </div>
 
@@ -7820,7 +8341,7 @@ export default function PrajnaaMasterCrmApp() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-semibold text-neutral-700">Initial Status</label>
+                  <label className="font-semibold text-neutral-700">Initial Order Status</label>
                   <select
                     value={newOrderStatus}
                     onChange={(e) => setNewOrderStatus(e.target.value as any)}
@@ -7847,25 +8368,30 @@ export default function PrajnaaMasterCrmApp() {
                 />
               </div>
 
-              {/* Pricing Summary Card */}
+              {/* Dynamic Pricing Summary Card */}
               {(() => {
-                const sel = productsList.find((p) => p.id === newOrderProductId) || productsList[0];
-                const sub = (sel?.price || 950) * Math.max(1, newOrderQuantity || 1);
-                const ship = 50;
-                const tot = sub + ship;
+                const subtotal = newOrderItemsList.reduce((acc: number, item: any) => {
+                  const prod = productsList.find((p) => p.id === item.productId) || productsList[0];
+                  return acc + (prod?.price || 0) * (item.qty || 1);
+                }, 0);
+                const shipping = subtotal > 1500 ? 0 : 50;
+                const total = subtotal + shipping;
+
                 return (
-                  <div className="bg-emerald-50/60 p-3 rounded-2xl border border-emerald-200/80 space-y-1.5">
+                  <div className="bg-emerald-50/70 p-3.5 rounded-2xl border border-emerald-200/80 space-y-1.5 text-xs">
                     <div className="flex justify-between text-neutral-600">
-                      <span>Subtotal ({sel?.name})</span>
-                      <span className="font-mono">₹{sub.toLocaleString("en-IN")}</span>
+                      <span>Produce Subtotal ({newOrderItemsList.reduce((a: number, b: any) => a + (b.qty || 1), 0)} items)</span>
+                      <span className="font-mono font-bold text-neutral-800">₹{subtotal.toLocaleString("en-IN")}</span>
                     </div>
                     <div className="flex justify-between text-neutral-600">
-                      <span>India Post Speed Post</span>
-                      <span className="font-mono">₹{ship}</span>
+                      <span>India Post Speed Post Delivery</span>
+                      <span className="font-mono font-bold text-neutral-800">
+                        {shipping === 0 ? "FREE (Orders > ₹1,500)" : `₹${shipping}`}
+                      </span>
                     </div>
-                    <div className="flex justify-between text-sm font-extrabold text-emerald-950 pt-1 border-t border-emerald-200">
-                      <span>Total Amount</span>
-                      <span className="font-mono text-emerald-800">₹{tot.toLocaleString("en-IN")}</span>
+                    <div className="flex justify-between text-sm font-extrabold text-neutral-900 pt-2 border-t border-emerald-200">
+                      <span>Total Amount Payable</span>
+                      <span className="font-mono text-emerald-800 text-base">₹{total.toLocaleString("en-IN")}</span>
                     </div>
                   </div>
                 );
