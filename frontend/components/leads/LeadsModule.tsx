@@ -26,6 +26,7 @@ import {
   Table as TableIcon,
   ListTodo,
   ExternalLink,
+  MessageSquare,
 } from "lucide-react";
 import {
   leadsService,
@@ -128,6 +129,28 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
       toast.error("Failed to load leads data");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Quick Advance lead stage to next stage in pipeline
+  const handleAdvanceStage = async (lead: LeadRecord, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const stages = lead.businessModel === "b2c_retail" ? RETAIL_STAGES : WHOLESALE_STAGES;
+    const currentIndex = stages.findIndex((s) => s.stageKey === lead.stageKey);
+    if (currentIndex === -1 || currentIndex >= stages.length - 2) {
+      toast.info("Lead is at or near final pipeline stage. Open details to convert or close.");
+      return;
+    }
+    const nextStage = stages[currentIndex + 1];
+    const res = await leadsService.transitionStage(lead.id, nextStage.stageKey, {
+      actorName: currentUser.name,
+      notes: `Quick advanced from Kanban to ${nextStage.name}`,
+    });
+    if (res.success) {
+      toast.success(`${lead.reference} advanced to "${nextStage.name}"`);
+      loadData();
+    } else {
+      toast.error(res.error || "Stage update failed");
     }
   };
 
@@ -606,6 +629,37 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
                               👉 {lead.nextAction}
                             </div>
                           )}
+
+                          {/* Quick Card Actions */}
+                          <div className="flex items-center justify-between pt-1 border-t border-neutral-100 dark:border-slate-700/60 gap-1.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const greeting = `Namaste ${lead.contactName} ji! Reference: ${lead.reference} (${lead.businessModel === "b2b_wholesale" ? "Wholesale Enquiry" : "Product Enquiry"}). Prajnaa Market team here!`;
+                                if (onOpenWhatsApp) {
+                                  onOpenWhatsApp(lead.contactPhone, greeting);
+                                } else {
+                                  window.open(`https://wa.me/${lead.contactPhone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(greeting)}`, "_blank");
+                                }
+                              }}
+                              className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-semibold text-[10px] flex items-center gap-1 transition cursor-pointer"
+                              title="Chat on WhatsApp"
+                            >
+                              <MessageSquare className="h-3 w-3" />
+                              <span>Chat</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => handleAdvanceStage(lead, e)}
+                              className="px-2 py-1 rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-neutral-700 dark:text-slate-200 font-semibold text-[10px] flex items-center gap-1 transition cursor-pointer"
+                              title="Advance to Next Stage"
+                            >
+                              <span>Advance</span>
+                              <ArrowRight className="h-3 w-3" />
+                            </button>
+                          </div>
                         </div>
                       ))
                     )}
@@ -687,15 +741,35 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
                         {l.nextAction || "—"}
                       </td>
                       <td className="p-3 pr-4 text-right">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedLeadId(l.id);
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 font-bold text-[11px] cursor-pointer"
-                        >
-                          Open
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const greeting = `Namaste ${l.contactName} ji! Reference: ${l.reference}. Prajnaa Market team here!`;
+                              if (onOpenWhatsApp) {
+                                onOpenWhatsApp(l.contactPhone, greeting);
+                              } else {
+                                window.open(`https://wa.me/${l.contactPhone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(greeting)}`, "_blank");
+                              }
+                            }}
+                            className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-bold text-[11px] flex items-center gap-1 cursor-pointer transition"
+                            title="Chat on WhatsApp"
+                          >
+                            <MessageSquare className="h-3 w-3" />
+                            <span>Chat</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedLeadId(l.id);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 font-bold text-[11px] cursor-pointer"
+                          >
+                            Open
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -872,15 +946,35 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
                       </span>
                     </td>
                     <td className="p-3 pr-4 text-right">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedLeadId(lead.id);
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-[11px]"
-                      >
-                        Inspect
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const quoteMsg = `Namaste ${lead.contactName} ji! 🌿 Yahan aapka Prajnaa Wholesale Quotation #${quote.quoteNumber} (v${quote.version}) hai: Total Value ₹${(quote.totalPaise / 100).toLocaleString("en-IN")}. Payment Terms: ${quote.paymentTerms}. Valid until ${new Date(quote.validUntil).toLocaleDateString()}. Thank you! Team Prajnaa Market.`;
+                            if (onOpenWhatsApp) {
+                              onOpenWhatsApp(lead.contactPhone, quoteMsg);
+                            } else {
+                              window.open(`https://wa.me/${lead.contactPhone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(quoteMsg)}`, "_blank");
+                            }
+                          }}
+                          className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-bold text-[11px] flex items-center gap-1 cursor-pointer transition"
+                          title="Share Quotation to WhatsApp"
+                        >
+                          <MessageSquare className="h-3 w-3" />
+                          <span>WhatsApp</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedLeadId(lead.id);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-[11px] cursor-pointer"
+                        >
+                          Inspect
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -1032,6 +1126,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
           onOpenWhatsApp={onOpenWhatsApp}
           currentUser={currentUser}
           teamMembers={teamMembers}
+          products={products}
         />
       )}
     </div>

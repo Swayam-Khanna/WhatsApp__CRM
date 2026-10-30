@@ -39,6 +39,7 @@ interface LeadDetailModalProps {
   onOpenWhatsApp?: (phone: string, text?: string) => void;
   currentUser?: { id: string; name: string; role: string };
   teamMembers?: Array<{ id: string; name: string; role: string }>;
+  products?: Array<{ id: string; name: string; price: number }>;
 }
 
 export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
@@ -49,6 +50,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   onOpenWhatsApp,
   currentUser = { id: "agent_nishant", name: "Nishant", role: "Store Admin" },
   teamMembers = [],
+  products,
 }) => {
   const [lead, setLead] = useState<LeadRecord | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -682,6 +684,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
             isOpen={isQuoteModalOpen}
             onClose={() => setIsQuoteModalOpen(false)}
             lead={lead}
+            products={products}
             onQuoteCreated={() => loadLead(lead.id)}
           />
         )}

@@ -3858,7 +3858,50 @@ export default function PrajnaaMasterCrmApp() {
         {/* SCREEN: LEADS & SALES MANAGEMENT */}
         {activeNav === "leads" && userPermissions.allowedTabs.includes("leads") && (
           <div className="flex-1 overflow-hidden flex flex-col">
-            <LeadsModule userRole={currentUser.role} userName={currentUser.name} />
+            <LeadsModule
+              userRole={currentUser.role}
+              userName={currentUser.name}
+              products={productsList.map((p) => ({ id: p.id, name: p.name, price: p.price }))}
+              onOpenWhatsApp={(phone, text) => {
+                const cleanPhone = phone.replace(/[^0-9]/g, "");
+                const existing = customers.find(
+                  (c) =>
+                    c.phone.replace(/[^0-9]/g, "").endsWith(cleanPhone.slice(-10)) ||
+                    cleanPhone.endsWith(c.phone.replace(/[^0-9]/g, "").slice(-10))
+                );
+                if (existing) {
+                  setSelectedCustomerId(existing.id);
+                } else {
+                  const newCustId = `cust_${cleanPhone || Date.now()}`;
+                  const newCust = {
+                    id: newCustId,
+                    name: phone,
+                    phone: phone,
+                    avatar: "👤",
+                    lastMessage: text || "Namaste!",
+                    timestamp: "Just now",
+                    unread: 0,
+                    status: "active" as const,
+                    tags: ["Lead Enquiry"],
+                    latestOrder: {
+                      id: `ORD-${Date.now().toString().slice(-4)}`,
+                      date: new Date().toISOString().split("T")[0],
+                      amount: 0,
+                      items: 0,
+                      status: "Processing" as const,
+                      payment: "COD" as const,
+                    },
+                  };
+                  setCustomers((prev) => [newCust, ...prev]);
+                  setSelectedCustomerId(newCustId);
+                }
+                if (text) {
+                  setInputMessage(text);
+                }
+                setActiveNav("inbox");
+                toast.success(`Opening WhatsApp chat for ${phone}`);
+              }}
+            />
           </div>
         )}
 
