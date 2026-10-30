@@ -211,7 +211,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 border border-neutral-200 dark:border-slate-800 rounded-3xl w-full max-w-5xl max-h-[95vh] flex flex-col shadow-2xl overflow-hidden my-auto">
+      <div className="bg-white dark:bg-slate-900 border border-neutral-200 dark:border-slate-800 rounded-3xl w-full max-w-6xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden my-auto">
         {/* Top Header Bar */}
         <div className="px-6 py-4 border-b border-neutral-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0 bg-neutral-50/80 dark:bg-slate-900/80">
           <div className="flex flex-wrap items-center gap-2.5">
@@ -289,26 +289,26 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
 
         {/* 3-Column Body Layout */}
         {lead ? (
-          <div className="grid grid-cols-1 md:grid-cols-12 overflow-y-auto flex-1 text-xs divide-y md:divide-y-0 md:divide-x divide-neutral-200/80 dark:divide-slate-800">
-            {/* Column 1: CONTACT (3 cols) */}
-            <div className="md:col-span-3.5 p-5 space-y-4 bg-neutral-50/40 dark:bg-slate-900/40">
+          <div className="grid grid-cols-1 lg:grid-cols-12 overflow-y-auto flex-1 text-xs divide-y lg:divide-y-0 lg:divide-x divide-neutral-200/80 dark:divide-slate-800">
+            {/* Column 1: CUSTOMER PROFILE (3 cols out of 12) */}
+            <div className="lg:col-span-3 p-5 space-y-4 bg-neutral-50/60 dark:bg-slate-900/40">
               <span className="font-bold text-neutral-500 uppercase tracking-wider text-[10px] block">
                 1. Customer & Profile
               </span>
 
-              <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-neutral-200/80 dark:border-slate-700 space-y-2.5">
-                <div className="flex items-center gap-2.5">
-                  <div className="h-10 w-10 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-base">
+              <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-neutral-200/80 dark:border-slate-700 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-base shrink-0">
                     {lead.contactName.charAt(0)}
                   </div>
-                  <div>
-                    <h4 className="font-bold text-neutral-900 dark:text-white text-sm">{lead.contactName}</h4>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-bold text-neutral-900 dark:text-white text-sm truncate">{lead.contactName}</h4>
                     <span className="font-mono text-neutral-500 text-[11px] block">{lead.contactPhone}</span>
                   </div>
                 </div>
 
                 {lead.contactEmail && (
-                  <div className="text-[11px] text-neutral-500 truncate">
+                  <div className="text-[11px] text-neutral-500 truncate pt-1 border-t border-neutral-100 dark:border-slate-700">
                     ✉️ {lead.contactEmail}
                   </div>
                 )}
@@ -316,8 +316,8 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                 {lead.businessName && (
                   <div className="pt-2 border-t border-neutral-100 dark:border-slate-700 space-y-1">
                     <span className="text-[10px] font-semibold text-neutral-500 block">Registered Business / Shop</span>
-                    <strong className="text-neutral-900 dark:text-white flex items-center gap-1">
-                      <Building2 className="h-3.5 w-3.5 text-emerald-600" /> {lead.businessName}
+                    <strong className="text-neutral-900 dark:text-white flex items-center gap-1 text-xs">
+                      <Building2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> {lead.businessName}
                     </strong>
                     {lead.deliveryPostalCode && (
                       <span className="text-[11px] text-neutral-500 font-mono block">
@@ -332,7 +332,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
               {lead.businessModel === "b2b_wholesale" && (
                 <div className="p-4 bg-amber-50/60 dark:bg-amber-950/20 rounded-2xl border border-amber-200 dark:border-amber-900/40 space-y-2.5">
                   <span className="font-bold text-amber-900 dark:text-amber-200 text-xs flex items-center gap-1.5">
-                    <CreditCard className="h-3.5 w-3.5 text-amber-700" /> Accounting & Credit Summary
+                    <CreditCard className="h-3.5 w-3.5 text-amber-700 shrink-0" /> Accounting & Credit Summary
                   </span>
 
                   <div className="space-y-1.5 text-[11px]">
@@ -380,15 +380,15 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                       );
                     }
                   }}
-                  className="w-full py-2.5 px-4 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-2.5 px-4 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
                 >
-                  <MessageSquare className="h-4 w-4" /> Open WhatsApp Chat
+                  <MessageSquare className="h-4 w-4 shrink-0" /> Open WhatsApp Chat
                 </button>
               </div>
             </div>
 
-            {/* Column 2: ACTIVITY & CONVERSATION (5 cols) */}
-            <div className="md:col-span-5 p-5 space-y-4 flex flex-col">
+            {/* Column 2: ACTIVITY & CONVERSATION (5 cols out of 12) */}
+            <div className="lg:col-span-5 p-5 space-y-4 flex flex-col bg-white dark:bg-slate-900">
               <div className="flex items-center justify-between border-b border-neutral-100 dark:border-slate-800 pb-2">
                 <div className="flex items-center gap-2">
                   <button
@@ -580,34 +580,40 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
               </form>
             </div>
 
-            {/* Column 3: SALES DETAILS (3.5 cols) */}
-            <div className="md:col-span-3.5 p-5 space-y-4 bg-neutral-50/40 dark:bg-slate-900/40">
+            {/* Column 3: COMMERCIAL DETAILS (4 cols out of 12) */}
+            <div className="lg:col-span-4 p-5 space-y-4 bg-neutral-50/60 dark:bg-slate-900/40">
               <span className="font-bold text-neutral-500 uppercase tracking-wider text-[10px] block">
                 3. Commercial Details
               </span>
 
               {/* Product Interests */}
-              <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-neutral-200/80 dark:border-slate-700 space-y-2">
-                <span className="text-[10px] font-semibold text-neutral-500 block">Product Interest</span>
+              <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-neutral-200/80 dark:border-slate-700 space-y-3">
+                <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">Product Interest</span>
                 {lead.items.length === 0 ? (
-                  <p className="text-neutral-400 text-xs">No products itemized yet.</p>
+                  <p className="text-neutral-400 text-xs py-2">No products itemized yet.</p>
                 ) : (
-                  lead.items.map((it) => (
-                    <div key={it.id} className="flex items-center justify-between text-xs py-1 border-b border-neutral-100 dark:border-slate-700/60 last:border-0">
-                      <div>
-                        <span className="font-semibold text-neutral-900 dark:text-white block">{it.productName}</span>
-                        <span className="text-[10px] text-neutral-500">{it.quantity} {it.unit}</span>
+                  <div className="space-y-2 divide-y divide-neutral-100 dark:divide-slate-700/60">
+                    {lead.items.map((it) => (
+                      <div key={it.id} className="flex items-center justify-between gap-3 pt-2 first:pt-0">
+                        <div className="min-w-0 flex-1">
+                          <span className="font-semibold text-neutral-900 dark:text-white block text-xs truncate">
+                            {it.productName}
+                          </span>
+                          <span className="text-[10px] text-neutral-500 font-mono">
+                            {it.quantity} {it.unit || "unit"}
+                          </span>
+                        </div>
+                        <span className="font-mono font-bold text-neutral-900 dark:text-slate-100 text-xs shrink-0 text-right">
+                          ₹{(it.indicativeTotalPaise / 100).toLocaleString("en-IN")}
+                        </span>
                       </div>
-                      <span className="font-mono font-bold text-neutral-800 dark:text-slate-200">
-                        ₹{(it.indicativeTotalPaise / 100).toLocaleString("en-IN")}
-                      </span>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )}
 
-                <div className="pt-2 flex items-center justify-between font-bold text-xs">
-                  <span>Estimated Opportunity Value:</span>
-                  <span className="font-mono text-emerald-700 dark:text-emerald-400 text-sm">
+                <div className="pt-2.5 flex items-center justify-between gap-2 font-bold text-xs border-t border-neutral-100 dark:border-slate-700">
+                  <span className="text-neutral-600 dark:text-slate-400">Estimated Value:</span>
+                  <span className="font-mono text-emerald-700 dark:text-emerald-400 text-base font-extrabold shrink-0">
                     ₹{((lead.estimatedValuePaise || 0) / 100).toLocaleString("en-IN")}
                   </span>
                 </div>
@@ -615,14 +621,15 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
 
               {/* Next Action & Schedule */}
               <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-neutral-200/80 dark:border-slate-700 space-y-2 text-xs">
-                <span className="text-[10px] font-semibold text-neutral-500 block">Next Action</span>
-                <p className="font-medium text-neutral-900 dark:text-white">
+                <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">Next Action</span>
+                <p className="font-medium text-neutral-900 dark:text-white leading-relaxed">
                   {lead.nextAction || "None specified"}
                 </p>
                 {lead.nextFollowUpAt && (
-                  <span className="text-[10px] text-amber-700 dark:text-amber-400 font-mono block">
-                    ⏰ {new Date(lead.nextFollowUpAt).toLocaleString()}
-                  </span>
+                  <div className="pt-1.5 border-t border-neutral-100 dark:border-slate-700 flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-mono text-[11px]">
+                    <Clock className="h-3.5 w-3.5 shrink-0" />
+                    <span>{new Date(lead.nextFollowUpAt).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                  </div>
                 )}
               </div>
 

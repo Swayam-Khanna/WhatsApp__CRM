@@ -205,7 +205,7 @@ export interface IntegrationJob {
   entityType: "business_account" | "order" | "invoice";
   provider: "zoho_books" | "zoho_invoice";
   payload?: any;
-  status: "pending" | "processing" | "completed" | "failed" | "retry_scheduled";
+  status: "pending" | "queued" | "processing" | "completed" | "failed" | "retry_scheduled";
   attempts: number;
   maxAttempts: number;
   lastError?: string;
