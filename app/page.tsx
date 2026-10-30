@@ -748,22 +748,40 @@ const INITIAL_TEAM: TeamMember[] = [
   },
 ];
 
-// Initial Products Data (All 14 Authoritative Himalayan Store Items)
+// Real Himalayan Catalog Photo Mapping
+const REAL_PRODUCT_IMAGES: Record<string, string> = {
+  "himalayan-dried-apricots": "/assets/cat-dryfruits.jpg",
+  "walnuts": "/assets/cat-nuts.jpg",
+  "organic-almonds": "/assets/prod-almonds.jpg",
+  "turmeric-powder": "/assets/prod-turmeric.jpg",
+  "mango-pickle": "/assets/prod-pickle.jpg",
+  "pink-himalayan-salt": "/assets/prod-salt.jpg",
+  "garam-masala": "/assets/prod-masala.jpg",
+  "mixed-seeds": "/assets/prod-seeds.jpg",
+  "california-almonds": "/assets/prod-almonds.jpg",
+  "chilli-powder": "/assets/cat-spices.jpg",
+  "lemon-pickle": "/assets/cat-pickles.jpg",
+  "black-salt": "/assets/cat-salts.jpg",
+  "chai-masala": "/assets/cat-spices.jpg",
+  "chia-seeds": "/assets/cat-seeds.jpg",
+};
+
+// Initial Products Data (All 14 Authoritative Himalayan Store Items with Real Photographs)
 const INITIAL_PRODUCTS: ProductItem[] = [
-  { id: "himalayan-dried-apricots", name: "Himalayan Dried Apricots (Red)", price: 999, stock: "Pre-Order", image: "🍑", category: "Dry Fruits", unitsLeft: 0, origin: "Sham Valley Orchard, Ladakh", sku: "PM-APR-500", weight: "500 gm" },
-  { id: "walnuts", name: "Himalayan Mountain Walnuts", price: 604, stock: "Pre-Order", image: "🌰", category: "Dry Fruits", unitsLeft: 0, origin: "Kashmir Giri High Oil", sku: "PM-WAL-250", weight: "250g" },
-  { id: "organic-almonds", name: "Mamra Almonds", price: 1250, stock: "In Stock", image: "🥜", category: "Dry Fruits", unitsLeft: 42, origin: "High Altitude Organic Orchards", sku: "PM-ALM-500", weight: "500 g" },
-  { id: "turmeric-powder", name: "Stone-Ground Turmeric", price: 240, stock: "In Stock", image: "🌿", category: "Spices", unitsLeft: 86, origin: "Lakadong High Curcumin", sku: "PM-TUR-250", weight: "250 g" },
-  { id: "mango-pickle", name: "Heirloom Mango Pickle", price: 380, stock: "In Stock", image: "🥭", category: "Pickles", unitsLeft: 24, origin: "Himalayan Foothills Wood Pressed", sku: "PM-PCK-400", weight: "400 g" },
-  { id: "pink-himalayan-salt", name: "Pink Himalayan Salt", price: 180, stock: "In Stock", image: "🧂", category: "Salts", unitsLeft: 120, origin: "Khewra Foothills Mineral Rich", sku: "PM-SLT-500", weight: "500 g" },
-  { id: "garam-masala", name: "House Garam Masala", price: 320, stock: "In Stock", image: "🌶️", category: "Masalas", unitsLeft: 58, origin: "Stone-Ground Whole Spices", sku: "PM-MAS-200", weight: "200 g" },
-  { id: "mixed-seeds", name: "Five-Seed Mix", price: 280, stock: "In Stock", image: "🌱", category: "Seeds", unitsLeft: 96, origin: "Uttarakhand Hill Farms", sku: "PM-SED-500", weight: "500 g" },
-  { id: "california-almonds", name: "California Almonds", price: 720, stock: "Out of Stock", image: "🌰", category: "Dry Fruits", unitsLeft: 0, origin: "Premium Kernels", sku: "PM-CAL-500", weight: "500 g" },
-  { id: "chilli-powder", name: "Guntur Red Chilli", price: 220, stock: "Out of Stock", image: "🌶️", category: "Spices", unitsLeft: 0, origin: "Sun-Dried Stone Ground", sku: "PM-CHL-250", weight: "250 g" },
-  { id: "lemon-pickle", name: "Salt-Cured Lemon Pickle", price: 320, stock: "In Stock", image: "🍋", category: "Pickles", unitsLeft: 42, origin: "Six-Week Sun-Aged Foothills", sku: "PM-LMN-400", weight: "400 g" },
-  { id: "black-salt", name: "Black Salt (Kala Namak)", price: 160, stock: "In Stock", image: "🧂", category: "Salts", unitsLeft: 86, origin: "Kiln-Fired Natural Crystals", sku: "PM-BSL-500", weight: "500 g" },
-  { id: "chai-masala", name: "Spiced Chai Masala", price: 260, stock: "In Stock", image: "☕", category: "Masalas", unitsLeft: 24, origin: "Pahari Cardamom & Clove", sku: "PM-CHM-150", weight: "150 g" },
-  { id: "chia-seeds", name: "Black Chia Seeds", price: 220, stock: "In Stock", image: "🌾", category: "Seeds", unitsLeft: 120, origin: "High Altitude Organic Cultivation", sku: "PM-CHI-250", weight: "250 g" },
+  { id: "himalayan-dried-apricots", name: "Himalayan Dried Apricots (Red)", price: 999, stock: "Pre-Order", image: "/assets/cat-dryfruits.jpg", category: "Dry Fruits", unitsLeft: 0, origin: "Sham Valley Orchard, Ladakh", sku: "PM-APR-500", weight: "500 gm" },
+  { id: "walnuts", name: "Himalayan Mountain Walnuts", price: 604, stock: "Pre-Order", image: "/assets/cat-nuts.jpg", category: "Dry Fruits", unitsLeft: 0, origin: "Kashmir Giri High Oil", sku: "PM-WAL-250", weight: "250g" },
+  { id: "organic-almonds", name: "Mamra Almonds", price: 1250, stock: "In Stock", image: "/assets/prod-almonds.jpg", category: "Dry Fruits", unitsLeft: 42, origin: "High Altitude Organic Orchards", sku: "PM-ALM-500", weight: "500 g" },
+  { id: "turmeric-powder", name: "Stone-Ground Turmeric", price: 240, stock: "In Stock", image: "/assets/prod-turmeric.jpg", category: "Spices", unitsLeft: 86, origin: "Lakadong High Curcumin", sku: "PM-TUR-250", weight: "250 g" },
+  { id: "mango-pickle", name: "Heirloom Mango Pickle", price: 380, stock: "In Stock", image: "/assets/prod-pickle.jpg", category: "Pickles", unitsLeft: 24, origin: "Himalayan Foothills Wood Pressed", sku: "PM-PCK-400", weight: "400 g" },
+  { id: "pink-himalayan-salt", name: "Pink Himalayan Salt", price: 180, stock: "In Stock", image: "/assets/prod-salt.jpg", category: "Salts", unitsLeft: 120, origin: "Khewra Foothills Mineral Rich", sku: "PM-SLT-500", weight: "500 g" },
+  { id: "garam-masala", name: "House Garam Masala", price: 320, stock: "In Stock", image: "/assets/prod-masala.jpg", category: "Masalas", unitsLeft: 58, origin: "Stone-Ground Whole Spices", sku: "PM-MAS-200", weight: "200 g" },
+  { id: "mixed-seeds", name: "Five-Seed Mix", price: 280, stock: "In Stock", image: "/assets/prod-seeds.jpg", category: "Seeds", unitsLeft: 96, origin: "Uttarakhand Hill Farms", sku: "PM-SED-500", weight: "500 g" },
+  { id: "california-almonds", name: "California Almonds", price: 720, stock: "Out of Stock", image: "/assets/prod-almonds.jpg", category: "Dry Fruits", unitsLeft: 0, origin: "Premium Kernels", sku: "PM-CAL-500", weight: "500 g" },
+  { id: "chilli-powder", name: "Guntur Red Chilli", price: 220, stock: "Out of Stock", image: "/assets/cat-spices.jpg", category: "Spices", unitsLeft: 0, origin: "Sun-Dried Stone Ground", sku: "PM-CHL-250", weight: "250 g" },
+  { id: "lemon-pickle", name: "Salt-Cured Lemon Pickle", price: 320, stock: "In Stock", image: "/assets/cat-pickles.jpg", category: "Pickles", unitsLeft: 42, origin: "Six-Week Sun-Aged Foothills", sku: "PM-LMN-400", weight: "400 g" },
+  { id: "black-salt", name: "Black Salt (Kala Namak)", price: 160, stock: "In Stock", image: "/assets/cat-salts.jpg", category: "Salts", unitsLeft: 86, origin: "Kiln-Fired Natural Crystals", sku: "PM-BSL-500", weight: "500 g" },
+  { id: "chai-masala", name: "Spiced Chai Masala", price: 260, stock: "In Stock", image: "/assets/cat-spices.jpg", category: "Masalas", unitsLeft: 24, origin: "Pahari Cardamom & Clove", sku: "PM-CHM-150", weight: "150 g" },
+  { id: "chia-seeds", name: "Black Chia Seeds", price: 220, stock: "In Stock", image: "/assets/cat-seeds.jpg", category: "Seeds", unitsLeft: 120, origin: "High Altitude Organic Cultivation", sku: "PM-CHI-250", weight: "250 g" },
 ];
 
 // Initial Shipments Data
@@ -1071,7 +1089,24 @@ export default function PrajnaaMasterCrmApp() {
   const [statusUpdateChoice, setStatusUpdateChoice] = useState<Order["orderStatus"]>("Processing");
 
   // State: Products & Stock Inventory Management
-  const [productsList, setProductsList] = useState<ProductItem[]>(INITIAL_PRODUCTS);
+  const [productsList, setProductsList] = useState<ProductItem[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("prajnaa_crm_products");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Upgrade any emoji-only image fields to real Himalayan catalog photos
+            return parsed.map((p) => ({
+              ...p,
+              image: p.image && (p.image.startsWith("/") || p.image.startsWith("http")) ? p.image : (REAL_PRODUCT_IMAGES[p.id] || "/assets/cat-dryfruits.jpg")
+            }));
+          }
+        }
+      } catch {}
+    }
+    return INITIAL_PRODUCTS;
+  });
   const [productStockFilter, setProductStockFilter] = useState<string>("all");
   const [productSearch, setProductSearch] = useState<string>("");
   const [editingProduct, setEditingProduct] = useState<ProductItem | null>(null);
@@ -4973,7 +5008,15 @@ export default function PrajnaaMasterCrmApp() {
                             className="pt-2 first:pt-0 p-2 rounded-2xl hover:bg-emerald-50/70 dark:hover:bg-slate-800/60 transition flex items-center justify-between gap-3 cursor-pointer group"
                           >
                             <div className="flex items-center gap-3 min-w-0">
-                              <span className="text-3xl shrink-0 p-1.5 rounded-xl bg-neutral-100 dark:bg-slate-800">{p.image}</span>
+                              {p.image && (p.image.startsWith("/") || p.image.startsWith("http")) ? (
+                            <img
+                              src={p.image}
+                              alt={p.name}
+                              className="h-10 w-10 rounded-xl object-cover border border-neutral-200 dark:border-slate-700 shadow-2xs shrink-0"
+                            />
+                          ) : (
+                            <span className="text-3xl shrink-0 p-1.5 rounded-xl bg-neutral-100 dark:bg-slate-800">{p.image || "🌿"}</span>
+                          )}
                               <div className="truncate">
                                 <p className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400">
                                   {p.name}
@@ -7226,7 +7269,15 @@ export default function PrajnaaMasterCrmApp() {
                       <tr key={prod.id} className="hover:bg-neutral-50/70 dark:hover:bg-slate-800/40 transition">
                         <td className="p-3.5">
                           <div className="flex items-center gap-3">
-                            <span className="text-3xl shrink-0">{prod.image}</span>
+                            {prod.image && (prod.image.startsWith("/") || prod.image.startsWith("http")) ? (
+                            <img
+                              src={prod.image}
+                              alt={prod.name}
+                              className="h-11 w-11 md:h-12 md:w-12 rounded-xl object-cover border border-neutral-200/80 dark:border-slate-700 shadow-2xs shrink-0"
+                            />
+                          ) : (
+                            <span className="text-3xl shrink-0 p-1 rounded-xl bg-neutral-100 dark:bg-slate-800">{prod.image || "🌿"}</span>
+                          )}
                             <div>
                               <div className="font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
                                 <span>{prod.name}</span>
@@ -8886,7 +8937,15 @@ export default function PrajnaaMasterCrmApp() {
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-neutral-200 space-y-4 text-neutral-900">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <span className="text-3xl">{editingProduct.image}</span>
+                {editingProduct.image && (editingProduct.image.startsWith("/") || editingProduct.image.startsWith("http")) ? (
+                <img
+                  src={editingProduct.image}
+                  alt={editingProduct.name}
+                  className="h-12 w-12 rounded-xl object-cover border border-neutral-200 shadow-xs shrink-0"
+                />
+              ) : (
+                <span className="text-3xl">{editingProduct.image || "🌿"}</span>
+              )}
                 <div>
                   <h3 className="font-bold text-base text-neutral-900">{editingProduct.name}</h3>
                   <p className="text-[11px] text-neutral-500 font-mono">{editingProduct.origin}</p>
