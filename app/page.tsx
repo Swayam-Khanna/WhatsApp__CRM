@@ -67,6 +67,7 @@ import {
   Sun,
   Moon,
   Compass,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -3926,7 +3927,7 @@ export default function PrajnaaMasterCrmApp() {
                       payment: "COD" as const,
                     },
                   };
-                  setCustomers((prev) => [newCust, ...prev]);
+                  setCustomers((prev) => [newCust as any, ...prev]);
                   setSelectedCustomerId(newCustId);
                 }
                 if (text) {
