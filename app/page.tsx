@@ -4608,42 +4608,37 @@ export default function PrajnaaMasterCrmApp() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 md:gap-2 text-neutral-500">
-                    {/* Auto-Responder Active Badge */}
-                    <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[10px] font-subhead font-bold shadow-2xs">
-                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <span>Auto-Responder: Active</span>
-                    </div>
-
-                    {/* CRM WhatsApp Gateway Active Indicator */}
+                  <div className="flex items-center gap-1.5 text-neutral-500 shrink-0 flex-nowrap">
+                    {/* Unified Clean Gateway & Bot Status Pill */}
                     <div
-                      className="px-2.5 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 text-[11px] md:text-xs font-bold border border-emerald-300 dark:border-emerald-700 flex items-center gap-1.5"
-                      title="CRM connected to Meta WhatsApp Cloud Gateway (+91 80912 65690)"
+                      className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[11px] font-bold shrink-0 whitespace-nowrap shadow-2xs"
+                      title="Official Meta Cloud API Gateway & Auto-Responder Active (+91 80912 65690)"
                     >
-                      <span className="text-xs">🌿</span>
-                      <span className="hidden sm:inline">CRM Gateway Active (+91 80912 65690)</span>
-                      <span className="sm:hidden">CRM Active</span>
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>Gateway Active</span>
                     </div>
 
                     {/* Simulate Customer Query Button */}
                     <button
                       type="button"
                       onClick={() => setShowSimulateCustomerMenu(true)}
-                      className="px-2 md:px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] md:text-xs font-semibold border border-amber-300 transition flex items-center gap-1 cursor-pointer shadow-2xs"
-                      title="Test customer asking something to see instant automated response"
+                      className="px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold border border-amber-300 transition flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap shadow-2xs"
+                      title="Simulate customer inquiry to test instant automated response"
                     >
                       <span>💬</span>
-                      <span className="hidden sm:inline">Simulate Ask</span>
-                      <span className="sm:hidden">Test</span>
+                      <span className="hidden md:inline">Simulate</span>
+                      <span className="md:hidden">Ask</span>
                     </button>
 
+                    {/* Send QR Quick Button */}
                     <button
+                      type="button"
                       onClick={handleSendPaymentQr}
-                      className="px-2 md:px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] md:text-xs font-semibold border border-emerald-200 transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                      className="px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold border border-emerald-200 transition flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap shadow-2xs"
+                      title="Send Official Prajnaa UPI QR Code to Customer"
                     >
                       <QrCode className="h-3.5 w-3.5 text-emerald-600" />
-                      <span className="hidden sm:inline">Send QR</span>
-                      <span className="sm:hidden">QR</span>
+                      <span>Send QR</span>
                     </button>
                     {/* View Details Info button on mobile & tablets */}
                     <button
@@ -4774,7 +4769,7 @@ export default function PrajnaaMasterCrmApp() {
                       return (
                         <div key={msg.id} className={`flex ${isBusiness ? "justify-end" : "justify-start"}`}>
                           <div
-                            className={`max-w-[70%] rounded-2xl p-3 text-xs shadow-2xs space-y-1 relative ${
+                            className={`max-w-[75%] min-w-[120px] rounded-2xl p-3 text-xs shadow-2xs space-y-1.5 relative ${
                               isBusiness ? "bg-[#DCF8C6] text-neutral-900 rounded-tr-xs" : "bg-white text-neutral-900 rounded-tl-xs"
                             }`}
                           >
@@ -4870,7 +4865,7 @@ export default function PrajnaaMasterCrmApp() {
                 </div>
 
                 {/* Quick Reply Pills Bar Above Input */}
-                <div className="px-4 py-2 bg-neutral-50/90 border-t border-neutral-200/60 flex items-center gap-2 overflow-x-auto text-[11px] shrink-0 text-neutral-800">
+                <div className="px-4 py-2 bg-neutral-50/90 border-t border-neutral-200/60 flex items-center gap-2 overflow-x-auto text-[11px] shrink-0 text-neutral-800 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                   <span className="text-neutral-400 font-bold text-[10px] uppercase font-mono">Test Query:</span>
                   <button
                     type="button"
@@ -5423,25 +5418,27 @@ export default function PrajnaaMasterCrmApp() {
 
                       {/* Latest Order Card */}
                       <div className="rounded-2xl border border-neutral-200/80 p-3.5 space-y-3 bg-white shadow-2xs">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="text-[10px] font-semibold text-neutral-500 block uppercase tracking-wider">Latest Order</span>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="font-bold text-xs text-neutral-900 font-mono">{currentCustomer.latestOrder.orderNumber}</span>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                                ● {currentCustomer.latestOrder.orderStatus}
-                              </span>
-                            </div>
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider">Latest Order</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 shrink-0">
+                              ● {currentCustomer.latestOrder.orderStatus}
+                            </span>
                           </div>
-                          <button
-                            onClick={() => {
-                              setSelectedOrderForView(currentCustomer.latestOrder);
-                              setActiveNav("order_details");
-                            }}
-                            className="text-[11px] font-semibold text-emerald-800 hover:text-emerald-900 border border-emerald-200 bg-emerald-50 rounded-lg px-2 py-1 transition cursor-pointer"
-                          >
-                            View Order
-                          </button>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-xs text-neutral-900 font-mono truncate" title={currentCustomer.latestOrder.orderNumber}>
+                              {currentCustomer.latestOrder.orderNumber}
+                            </span>
+                            <button
+                              onClick={() => {
+                                setSelectedOrderForView(currentCustomer.latestOrder);
+                                setActiveNav("order_details");
+                              }}
+                              className="text-[11px] font-semibold text-emerald-800 hover:text-emerald-900 border border-emerald-200 bg-emerald-50 rounded-lg px-2.5 py-1 transition cursor-pointer shrink-0"
+                            >
+                              View Order
+                            </button>
+                          </div>
                         </div>
 
                         <div className="space-y-2 pt-1 border-t border-neutral-100">
