@@ -50,3 +50,41 @@ export async function POST(
     );
   }
 }
+
+/**
+ * PATCH /api/leads/:id/tasks
+ * Updates an existing task (e.g. status completed/pending or schedule)
+ */
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await req.json();
+
+    if (!body || !body.taskId) {
+      return Response.json(
+        { success: false, error: "taskId is required" },
+        { status: 400 }
+      );
+    }
+
+    const task = await LeadsService.updateTask(id, body.taskId, {
+      status: body.status,
+      dueAt: body.dueAt,
+      title: body.title,
+      actorName: body.actorName,
+    });
+
+    return Response.json({
+      success: true,
+      task,
+    });
+  } catch (err: any) {
+    return Response.json(
+      { success: false, error: err.message || "Failed to update task" },
+      { status: 400 }
+    );
+  }
+}

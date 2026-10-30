@@ -911,6 +911,46 @@ export class LeadsService {
   }
 
   /**
+   * PATCH /api/leads/:id/tasks - Updates task status (e.g. pending -> completed) or schedule
+   */
+  static async updateTask(
+    leadId: string,
+    taskId: string,
+    updates: {
+      status?: "pending" | "completed" | "cancelled";
+      dueAt?: string;
+      title?: string;
+      actorName?: string;
+    }
+  ): Promise<LeadTask> {
+    initializeSeedData();
+    const lead = await this.getLeadById(leadId);
+    if (!lead) throw new Error("Lead not found");
+
+    const task = lead.tasks.find((t) => t.id === taskId);
+    if (!task) throw new Error("Task not found");
+
+    if (updates.status) task.status = updates.status;
+    if (updates.dueAt) task.dueAt = updates.dueAt;
+    if (updates.title) task.title = updates.title;
+
+    lead.updatedAt = new Date().toISOString();
+
+    if (updates.status === "completed") {
+      lead.activities.unshift({
+        id: `act_${Date.now()}`,
+        leadId: lead.id,
+        actorName: updates.actorName || "Agent",
+        activityType: "follow_up_completed",
+        summary: `Follow-up completed: ${task.title}`,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    return task;
+  }
+
+  /**
    * POST /api/leads/:id/quotes - Create versioned commercial offer
    */
   static async createQuote(

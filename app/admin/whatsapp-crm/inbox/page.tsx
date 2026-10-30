@@ -24,6 +24,7 @@ import {
   ChevronRight,
   Info,
   RefreshCw,
+  TrendingUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import {

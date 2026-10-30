@@ -106,9 +106,11 @@ export async function POST(req: Request) {
       const job = {
         id: `job_${Date.now()}`,
         integrationType: globalThis.__crmAccountingConfig!.provider,
+        provider: globalThis.__crmAccountingConfig!.provider,
+        jobType: body.entityType || "invoice",
         entityType: body.entityType || "invoice",
         entityId: body.entityId || `ENT-${Date.now()}`,
-        status: "queued",
+        status: "queued" as const,
         payload: body.payload || {},
         attempts: 0,
         maxAttempts: 3,

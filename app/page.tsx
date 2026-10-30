@@ -992,6 +992,7 @@ export default function PrajnaaMasterCrmApp() {
 
   // State: Orders & Selected Order Details
   const [selectedOrderForView, setSelectedOrderForView] = useState<Order>(INITIAL_CUSTOMERS[0].latestOrder);
+  const [orderPreviousNav, setOrderPreviousNav] = useState<string>("orders");
   const [ordersFilter, setOrdersFilter] = useState<string>("all");
   const [ordersSearch, setOrdersSearch] = useState<string>("");
   const [showAddOrderModal, setShowAddOrderModal] = useState<boolean>(false);
@@ -3897,6 +3898,66 @@ export default function PrajnaaMasterCrmApp() {
               userRole={currentUser.role}
               userName={currentUser.name}
               products={productsList.map((p) => ({ id: p.id, name: p.name, price: p.price }))}
+              onViewOrder={(orderNumberOrId, lead) => {
+                setOrderPreviousNav("leads");
+                const cleanId = String(orderNumberOrId).replace("#", "");
+                const foundOrder = unifiedOrders.find(
+                  (o) =>
+                    o.orderNumber.replace("#", "").toLowerCase() === cleanId.toLowerCase() ||
+                    o.id.toLowerCase() === cleanId.toLowerCase()
+                );
+                if (foundOrder) {
+                  setSelectedOrderForView(foundOrder);
+                } else if (lead) {
+                  const leadOrder: Order = {
+                    id: orderNumberOrId,
+                    orderNumber: orderNumberOrId.startsWith("#") ? orderNumberOrId : `#${orderNumberOrId}`,
+                    customerName: lead.contactName || lead.businessName || "Customer",
+                    customerPhone: lead.contactPhone || "",
+                    customerEmail: lead.contactEmail || "",
+                    shippingAddress: lead.businessName
+                      ? `${lead.businessName}, ${lead.deliveryPostalCode || ""}`
+                      : "Direct Dispatch Address, Uttarakhand",
+                    itemsCount: Array.isArray(lead.items) && lead.items.length > 0 ? lead.items.length : 1,
+                    amount: lead.quotes?.[0]?.totalPaise
+                      ? lead.quotes[0].totalPaise / 100
+                      : lead.estimatedValuePaise
+                      ? lead.estimatedValuePaise / 100
+                      : 999,
+                    paymentStatus: lead.businessModel === "b2b_wholesale" ? "Pending" : "Paid",
+                    orderStatus: "Processing",
+                    date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+                    time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+                    items:
+                      Array.isArray(lead.items) && lead.items.length > 0
+                        ? lead.items.map((it: any) => ({
+                            name: it.productName || "Himalayan Produce",
+                            weight: it.weight || "500g",
+                            qty: it.quantity || 1,
+                            price: (it.unitPricePaise ? it.unitPricePaise / 100 : it.price) || 950,
+                            total: (it.totalPaise ? it.totalPaise / 100 : it.total) || 950,
+                            image: "🍯",
+                          }))
+                        : [
+                            {
+                              name: "Himalayan Forest Produce",
+                              weight: "500g",
+                              qty: 1,
+                              price: lead.quotes?.[0]?.totalPaise ? lead.quotes[0].totalPaise / 100 : 950,
+                              total: lead.quotes?.[0]?.totalPaise ? lead.quotes[0].totalPaise / 100 : 950,
+                              image: "🍯",
+                            },
+                          ],
+                    subtotal: lead.quotes?.[0]?.totalPaise ? lead.quotes[0].totalPaise / 100 : 950,
+                    discount: 0,
+                    shipping: 50,
+                    paymentMethod: lead.businessModel === "b2b_wholesale" ? "B2B Credit Terms" : "WhatsApp Pay",
+                    trackingNumber: `ET${Math.floor(100000000 + Math.random() * 900000000)}IN`,
+                  };
+                  setSelectedOrderForView(leadOrder);
+                }
+                setActiveNav("order_details");
+              }}
               onOpenWhatsApp={(phone, text) => {
                 const cleanPhone = phone.replace(/[^0-9]/g, "");
                 const existing = customers.find(
@@ -5661,36 +5722,56 @@ export default function PrajnaaMasterCrmApp() {
 
         {/* SCREEN 4: ORDER DETAILS */}
         {activeNav === "order_details" && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            <div className="flex items-center justify-between">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+            {/* Header: Dynamic Navigation & Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200/80 dark:border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => setActiveNav("orders")}
-                  className="p-1.5 rounded-lg border border-neutral-300 text-neutral-600 hover:bg-neutral-100 cursor-pointer"
+                  onClick={() => setActiveNav(orderPreviousNav || "orders")}
+                  className="px-3 py-2 rounded-xl border border-neutral-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-100 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
                 >
-                  ←
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  <span>
+                    {orderPreviousNav === "leads"
+                      ? "Back to Leads & Sales"
+                      : orderPreviousNav === "inbox"
+                      ? "Back to WhatsApp Inbox"
+                      : "Back to Orders"}
+                  </span>
                 </button>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-xl font-bold text-neutral-900 font-mono">
+                    <h2 className="text-xl sm:text-2xl font-extrabold text-neutral-900 dark:text-white font-mono tracking-tight">
                       Order {selectedOrderForView.orderNumber}
                     </h2>
-                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                    <span
+                      className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                        ["Completed", "Delivered"].includes(selectedOrderForView.orderStatus)
+                          ? "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-700"
+                          : ["Shipped"].includes(selectedOrderForView.orderStatus)
+                          ? "bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-950/60 dark:text-sky-200 dark:border-sky-700"
+                          : ["Packed", "Processing"].includes(selectedOrderForView.orderStatus)
+                          ? "bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-950/60 dark:text-indigo-200 dark:border-indigo-700"
+                          : ["Cancelled"].includes(selectedOrderForView.orderStatus)
+                          ? "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/60 dark:text-rose-200 dark:border-rose-700"
+                          : "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-700"
+                      }`}
+                    >
                       ● {selectedOrderForView.orderStatus}
                     </span>
                   </div>
                   <p className="text-xs text-neutral-500 mt-0.5">
-                    {selectedOrderForView.date}, {selectedOrderForView.time || "10:15 AM"}
+                    Placed on {selectedOrderForView.date}, {selectedOrderForView.time || "10:15 AM"}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
                 <button
                   onClick={() => window.print()}
-                  className="px-3 py-2 rounded-xl border border-neutral-300 hover:bg-neutral-100 text-xs font-semibold text-neutral-700 flex items-center gap-1.5 transition cursor-pointer"
+                  className="px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-100 dark:hover:bg-slate-700 text-xs font-bold text-neutral-700 dark:text-slate-200 flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
                 >
-                  <Printer className="h-3.5 w-3.5" /> Print
+                  <Printer className="h-3.5 w-3.5" /> Print Invoice
                 </button>
                 <button
                   onClick={() => setShowStatusModal(true)}
@@ -5701,53 +5782,297 @@ export default function PrajnaaMasterCrmApp() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-6">
-              <div className="bg-white p-5 rounded-2xl border border-neutral-200/80 shadow-2xs space-y-4">
-                <h3 className="font-bold text-sm text-neutral-900">Customer Information</h3>
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-neutral-500">Name:</span>
-                    <span className="text-neutral-800 font-bold">{selectedOrderForView.customerName || currentCustomer.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-neutral-500">Phone:</span>
-                    <span className="text-neutral-800 font-mono">{selectedOrderForView.customerPhone || currentCustomer.phone}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-neutral-500">Address:</span>
-                    <span className="text-neutral-800 font-medium text-right max-w-[180px]">
-                      {selectedOrderForView.shippingAddress || `${currentCustomer.address.line1}, ${currentCustomer.address.city}`}
+            {/* Main Content: 2-Column Responsive Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Column 1 & 2: Items & Financial Breakdown & Journey (Span 2) */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* 1. Itemized Product Table */}
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-neutral-200/80 dark:border-slate-800 p-5 sm:p-6 shadow-2xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-neutral-100 dark:border-slate-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <ShoppingBag className="h-4 w-4 text-emerald-600" />
+                      <h3 className="font-extrabold text-sm text-neutral-900 dark:text-white">
+                        Order Items & Produce
+                      </h3>
+                    </div>
+                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-neutral-100 dark:bg-slate-800 text-neutral-600 dark:text-slate-300">
+                      {selectedOrderForView.items?.length || selectedOrderForView.itemsCount || 1} item(s)
                     </span>
                   </div>
-                </div>
-              </div>
 
-              <div className="bg-white p-5 rounded-2xl border border-neutral-200/80 shadow-2xs space-y-4">
-                <h3 className="font-bold text-sm text-neutral-900">Order Items</h3>
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between font-bold text-sm text-neutral-900 pt-1.5 border-t border-neutral-100">
-                    <span>Total Amount</span>
-                    <span className="text-emerald-800 font-extrabold">₹{selectedOrderForView.amount.toLocaleString("en-IN")}</span>
+                  <div className="divide-y divide-neutral-100 dark:divide-slate-800">
+                    {selectedOrderForView.items && selectedOrderForView.items.length > 0 ? (
+                      selectedOrderForView.items.map((item, idx) => (
+                        <div key={idx} className="py-3.5 flex items-center justify-between gap-4 first:pt-0 last:pb-0">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-11 h-11 rounded-2xl bg-amber-50 dark:bg-slate-800 border border-amber-200/60 dark:border-slate-700 flex items-center justify-center text-xl shrink-0">
+                              {item.image && typeof item.image === "string" && !item.image.startsWith("http") ? item.image : "🍯"}
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-xs sm:text-sm text-neutral-900 dark:text-white truncate">
+                                {item.name}
+                              </h4>
+                              <p className="text-[11px] text-neutral-500 font-mono">
+                                Pack / Weight: {item.weight || "Standard Pack"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <div className="font-mono font-bold text-xs sm:text-sm text-neutral-900 dark:text-white">
+                              ₹{Number(item.price || 0).toLocaleString("en-IN")} × {item.qty || 1}
+                            </div>
+                            <div className="text-xs font-extrabold text-emerald-700 dark:text-emerald-400 font-mono">
+                              ₹{Number(item.total || (item.price * (item.qty || 1)) || 0).toLocaleString("en-IN")}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="py-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-11 h-11 rounded-2xl bg-amber-50 dark:bg-slate-800 border border-amber-200/60 dark:border-slate-700 flex items-center justify-center text-xl">
+                            🍯
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-sm text-neutral-900 dark:text-white">
+                              Himalayan Artisanal Produce Package
+                            </h4>
+                            <p className="text-xs text-neutral-500">
+                              Direct Farm-to-Table Consignment ({selectedOrderForView.itemsCount || 1} item)
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-mono font-extrabold text-sm text-emerald-700 dark:text-emerald-400">
+                            ₹{Number(selectedOrderForView.amount || 0).toLocaleString("en-IN")}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. Commercial & Pricing Summary Card */}
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-neutral-200/80 dark:border-slate-800 p-5 sm:p-6 shadow-2xs space-y-3.5">
+                  <div className="flex items-center justify-between border-b border-neutral-100 dark:border-slate-800 pb-3">
+                    <h3 className="font-extrabold text-sm text-neutral-900 dark:text-white">
+                      Payment & Commercial Summary
+                    </h3>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                        String(selectedOrderForView.paymentStatus || "").toLowerCase() === "paid"
+                          ? "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-200"
+                          : "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-200"
+                      }`}
+                    >
+                      {selectedOrderForView.paymentStatus || "Pending"}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between text-neutral-600 dark:text-slate-400">
+                      <span>Produce Subtotal:</span>
+                      <span className="font-mono font-semibold text-neutral-900 dark:text-white">
+                        ₹{Number(selectedOrderForView.subtotal || selectedOrderForView.amount || 0).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-neutral-600 dark:text-slate-400">
+                      <span>India Post Speed Post Delivery:</span>
+                      <span className="font-mono font-semibold text-neutral-900 dark:text-white">
+                        {Number(selectedOrderForView.shipping || 0) > 0
+                          ? `₹${Number(selectedOrderForView.shipping).toLocaleString("en-IN")}`
+                          : "FREE (Complimentary)"}
+                      </span>
+                    </div>
+
+                    {Number(selectedOrderForView.discount || 0) > 0 && (
+                      <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold">
+                        <span>Commercial Discount Applied:</span>
+                        <span className="font-mono">-₹{Number(selectedOrderForView.discount).toLocaleString("en-IN")}</span>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between items-center text-sm font-extrabold text-neutral-900 dark:text-white pt-2.5 border-t border-neutral-100 dark:border-slate-800">
+                      <span>Total Amount Payable:</span>
+                      <span className="text-xl font-mono text-emerald-700 dark:text-emerald-400">
+                        ₹{Number(selectedOrderForView.amount || 0).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+
+                    <div className="pt-2 text-[11px] text-neutral-500 flex items-center justify-between">
+                      <span>Payment Method:</span>
+                      <span className="font-bold text-neutral-800 dark:text-slate-200">
+                        {selectedOrderForView.paymentMethod || "UPI / WhatsApp QR"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Speed Post Logistics & Dispatch Stepper */}
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-neutral-200/80 dark:border-slate-800 p-5 sm:p-6 shadow-2xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-neutral-100 dark:border-slate-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Truck className="h-4 w-4 text-emerald-600" />
+                      <h3 className="font-extrabold text-sm text-neutral-900 dark:text-white">
+                        Speed Post Fulfillment & Tracking
+                      </h3>
+                    </div>
+                    <span className="text-[11px] font-mono font-bold text-neutral-600 dark:text-slate-300">
+                      Consignment: {selectedOrderForView.trackingNumber || "ET809126569IN"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
+                    {[
+                      { step: "1. Confirmed", desc: "Order recorded & staged", done: true },
+                      {
+                        step: "2. Quality Packed",
+                        desc: "Himalayan produce sealed",
+                        done: ["Packed", "Shipped", "Delivered", "Completed"].includes(selectedOrderForView.orderStatus),
+                      },
+                      {
+                        step: "3. Dispatched",
+                        desc: "Speed Post transit",
+                        done: ["Shipped", "Delivered", "Completed"].includes(selectedOrderForView.orderStatus),
+                      },
+                      {
+                        step: "4. Delivered",
+                        desc: "Safely received",
+                        done: ["Delivered", "Completed"].includes(selectedOrderForView.orderStatus),
+                      },
+                    ].map((st, i) => (
+                      <div
+                        key={i}
+                        className={`p-3 rounded-2xl border text-xs ${
+                          st.done
+                            ? "bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200"
+                            : "bg-neutral-50 dark:bg-slate-800/40 border-neutral-200 dark:border-slate-800 text-neutral-400"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <CheckCircle2 className={`h-3.5 w-3.5 ${st.done ? "text-emerald-600" : "text-neutral-300"}`} />
+                          <span>{st.step}</span>
+                        </div>
+                        <p className="text-[10px] mt-1 opacity-80">{st.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-1">
+                    <span className="text-neutral-500">Carrier: Department of Posts, Govt. of India (Speed Post)</span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(selectedOrderForView.trackingNumber || "ET809126569IN");
+                        toast.success("Speed Post tracking number copied to clipboard!");
+                      }}
+                      className="text-emerald-700 dark:text-emerald-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Copy className="h-3 w-3" /> Copy Tracking ID
+                    </button>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white p-5 rounded-2xl border border-neutral-200/80 shadow-2xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-sm text-neutral-900">Payment Details</h3>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
-                    {selectedOrderForView.paymentStatus}
-                  </span>
+              {/* Column 3: Customer Information & Quick Action Cards */}
+              <div className="space-y-6">
+                {/* 1. Customer Information Card */}
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-neutral-200/80 dark:border-slate-800 p-5 sm:p-6 shadow-2xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-neutral-100 dark:border-slate-800 pb-3">
+                    <h3 className="font-extrabold text-sm text-neutral-900 dark:text-white">Customer Details</h3>
+                    <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-slate-800 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-xs">
+                      {(selectedOrderForView.customerName || "Customer").charAt(0).toUpperCase()}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <span className="text-neutral-400 text-[11px] block">Full Name</span>
+                      <span className="font-bold text-neutral-900 dark:text-white text-sm">
+                        {selectedOrderForView.customerName || "Valued Customer"}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-neutral-400 text-[11px] block">Contact Number</span>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <span className="font-mono font-bold text-neutral-800 dark:text-slate-200">
+                          {selectedOrderForView.customerPhone || "Not specified"}
+                        </span>
+                        {selectedOrderForView.customerPhone && (
+                          <a
+                            href={`https://wa.me/91${selectedOrderForView.customerPhone.replace(/\D/g, "").slice(-10)}?text=${encodeURIComponent(`Namaste ${selectedOrderForView.customerName || "ji"}! 🙏 Update on your Prajnaa order ${selectedOrderForView.orderNumber}: Status is ${selectedOrderForView.orderStatus}.`)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 font-bold text-[11px] flex items-center gap-1 transition"
+                          >
+                            <Phone className="h-3 w-3" /> WhatsApp
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-neutral-400 text-[11px] block">Delivery Address</span>
+                      <p className="font-medium text-neutral-800 dark:text-slate-200 mt-0.5 leading-relaxed">
+                        {selectedOrderForView.shippingAddress || "Uttarakhand, India"}
+                      </p>
+                    </div>
+
+                    {selectedOrderForView.customerEmail && (
+                      <div>
+                        <span className="text-neutral-400 text-[11px] block">Email Address</span>
+                        <span className="font-mono text-neutral-800 dark:text-slate-300">
+                          {selectedOrderForView.customerEmail}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <button
-                  onClick={() => {
-                    handleSendPaymentQr();
-                    toast.success("Sent payment QR directly to customer on WhatsApp!");
-                  }}
-                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Send className="h-3.5 w-3.5" /> Send QR via WhatsApp
-                </button>
+
+                {/* 2. Direct Operations & Notifications Card */}
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-neutral-200/80 dark:border-slate-800 p-5 sm:p-6 shadow-2xs space-y-3">
+                  <h3 className="font-extrabold text-sm text-neutral-900 dark:text-white">
+                    Operational Actions
+                  </h3>
+
+                  <button
+                    onClick={() => {
+                      handleSendPaymentQr();
+                      toast.success("Sent payment QR directly to customer WhatsApp!");
+                    }}
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Send className="h-3.5 w-3.5" /> Send QR via WhatsApp
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const cleanPhone = (selectedOrderForView.customerPhone || "").replace(/\D/g, "");
+                      if (cleanPhone) {
+                        const msg = encodeURIComponent(
+                          `Namaste ${selectedOrderForView.customerName || "ji"}! 🙏 Your Prajnaa order ${selectedOrderForView.orderNumber} is dispatched via India Post Speed Post. Consignment Tracking No: ${selectedOrderForView.trackingNumber || "ET809126569IN"}. Track online at indiapost.gov.in`
+                        );
+                        window.open(`https://wa.me/91${cleanPhone.slice(-10)}?text=${msg}`, "_blank");
+                      } else {
+                        toast.error("Customer phone number not available");
+                      }
+                    }}
+                    className="w-full py-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-50 dark:hover:bg-slate-700 text-xs font-bold text-neutral-700 dark:text-slate-200 transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Truck className="h-3.5 w-3.5 text-emerald-600" /> Send Dispatch Notice
+                  </button>
+
+                  {orderPreviousNav === "leads" && (
+                    <button
+                      onClick={() => setActiveNav("leads")}
+                      className="w-full py-2 rounded-xl text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <ArrowLeft className="h-3 w-3" /> Return to CRM Leads & Follow-ups
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>

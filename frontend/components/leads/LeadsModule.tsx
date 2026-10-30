@@ -27,6 +27,7 @@ import {
   ListTodo,
   ExternalLink,
   MessageSquare,
+  Phone,
 } from "lucide-react";
 import {
   leadsService,
@@ -47,6 +48,7 @@ interface LeadsModuleProps {
   teamMembers?: Array<{ id: string; name: string; role: string }>;
   products?: Array<{ id: string; name: string; price: number }>;
   onOpenWhatsApp?: (phone: string, text?: string) => void;
+  onViewOrder?: (orderNumberOrId: string, lead?: LeadRecord) => void;
   themeStyles?: any;
 }
 
@@ -68,6 +70,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
     { id: "raw-honey", name: "Raw Himalayan Flora Honey (Bulk 5kg)", price: 3200 },
   ],
   onOpenWhatsApp,
+  onViewOrder,
   themeStyles,
 }) => {
   const currentUser = propCurrentUser || {
@@ -87,6 +90,10 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [dateRangeFilter, setDateRangeFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Follow-ups sub-filters
+  const [followupFilter, setFollowupFilter] = useState<"all" | "pending" | "overdue" | "completed">("pending");
+  const [followupSearch, setFollowupSearch] = useState("");
 
   // Data states
   const [leads, setLeads] = useState<LeadRecord[]>([]);
@@ -191,6 +198,34 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
     list.sort((a, b) => new Date(a.task.dueAt).getTime() - new Date(b.task.dueAt).getTime());
     return list;
   }, [filteredLeads]);
+
+  // Filtered Follow-ups based on status and search query
+  const displayedFollowUps = useMemo(() => {
+    const now = Date.now();
+    return allFollowUps.filter(({ lead, task }) => {
+      // 1. Status Filter
+      if (followupFilter === "pending") {
+        if (task.status !== "pending") return false;
+      } else if (followupFilter === "completed") {
+        if (task.status !== "completed") return false;
+      } else if (followupFilter === "overdue") {
+        if (task.status !== "pending" || new Date(task.dueAt).getTime() >= now) return false;
+      }
+
+      // 2. Search Filter
+      if (followupSearch.trim()) {
+        const q = followupSearch.toLowerCase();
+        const matchesContact = lead.contactName?.toLowerCase().includes(q);
+        const matchesBusiness = lead.businessName?.toLowerCase().includes(q);
+        const matchesRef = lead.reference?.toLowerCase().includes(q);
+        const matchesTitle = task.title?.toLowerCase().includes(q);
+        const matchesDesc = task.description?.toLowerCase().includes(q);
+        if (!matchesContact && !matchesBusiness && !matchesRef && !matchesTitle && !matchesDesc) return false;
+      }
+
+      return true;
+    });
+  }, [allFollowUps, followupFilter, followupSearch]);
 
   // Unassigned leads
   const unassignedLeads = useMemo(
@@ -785,50 +820,252 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
       {/* ========================================================================= */}
       {activeSubTab === "followups" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-bold text-neutral-700 dark:text-slate-300">
-              Pending Follow-ups & Reminders ({allFollowUps.filter((f) => f.task.status === "pending").length})
-            </span>
+          {/* Sub-tab Toolbar: Filters & Quick Search */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-neutral-50 dark:bg-slate-800/50 rounded-2xl border border-neutral-200/80 dark:border-slate-800">
+            {/* Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto text-xs pb-1 sm:pb-0">
+              {[
+                {
+                  id: "pending",
+                  label: "Pending",
+                  count: allFollowUps.filter((f) => f.task.status === "pending").length,
+                  badgeClass: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200",
+                },
+                {
+                  id: "overdue",
+                  label: "Overdue",
+                  count: allFollowUps.filter(
+                    (f) => f.task.status === "pending" && new Date(f.task.dueAt).getTime() < Date.now()
+                  ).length,
+                  badgeClass: "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-200",
+                },
+                {
+                  id: "completed",
+                  label: "Completed",
+                  count: allFollowUps.filter((f) => f.task.status === "completed").length,
+                  badgeClass: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200",
+                },
+                {
+                  id: "all",
+                  label: "All Tasks",
+                  count: allFollowUps.length,
+                  badgeClass: "bg-neutral-200 text-neutral-800 dark:bg-slate-700 dark:text-slate-200",
+                },
+              ].map((pill) => {
+                const isActive = followupFilter === pill.id;
+                return (
+                  <button
+                    key={pill.id}
+                    onClick={() => setFollowupFilter(pill.id as any)}
+                    className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition shrink-0 cursor-pointer text-xs ${
+                      isActive
+                        ? "bg-white dark:bg-slate-900 text-neutral-900 dark:text-white shadow-xs border border-neutral-300 dark:border-slate-700"
+                        : "text-neutral-500 hover:text-neutral-900 dark:text-slate-400 dark:hover:text-white"
+                    }`}
+                  >
+                    <span>{pill.label}</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${pill.badgeClass}`}>
+                      {pill.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Quick Search in Tasks */}
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" />
+              <input
+                type="text"
+                value={followupSearch}
+                onChange={(e) => setFollowupSearch(e.target.value)}
+                placeholder="Filter tasks, contact..."
+                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-neutral-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              />
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {allFollowUps.length === 0 ? (
-              <div className="col-span-2 p-8 text-center text-neutral-400 bg-white dark:bg-slate-900 rounded-2xl border border-neutral-200">
-                No scheduled follow-ups pending.
+          {/* Follow-up Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {displayedFollowUps.length === 0 ? (
+              <div className="col-span-2 p-10 text-center bg-white dark:bg-slate-900 rounded-3xl border border-neutral-200/80 dark:border-slate-800 space-y-2">
+                <div className="text-3xl">📋</div>
+                <h4 className="font-bold text-neutral-700 dark:text-slate-300 text-sm">No follow-ups found</h4>
+                <p className="text-xs text-neutral-400">
+                  {followupFilter === "overdue"
+                    ? "Great job! There are no overdue follow-ups at this time."
+                    : followupSearch
+                    ? "No follow-up tasks match your search filter."
+                    : "No scheduled follow-up tasks in this category."}
+                </p>
               </div>
             ) : (
-              allFollowUps.map(({ lead, task }) => (
-                <div
-                  key={task.id}
-                  onClick={() => setSelectedLeadId(lead.id)}
-                  className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-neutral-200/80 dark:border-slate-800 shadow-2xs hover:border-emerald-500 transition cursor-pointer space-y-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono font-bold text-xs text-neutral-900 dark:text-white">
-                      {lead.reference} · {lead.contactName}
-                    </span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        task.status === "completed"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-amber-100 text-amber-800"
-                      }`}
-                    >
-                      {task.status}
-                    </span>
-                  </div>
+              displayedFollowUps.map(({ lead, task }) => {
+                const isCompleted = task.status === "completed";
+                const isOverdue = !isCompleted && new Date(task.dueAt).getTime() < Date.now();
+                const dueDate = new Date(task.dueAt);
+                const isToday = !isCompleted && dueDate.toDateString() === new Date().toDateString();
 
-                  <h5 className="font-bold text-sm text-neutral-900 dark:text-white">{task.title}</h5>
-                  {task.description && <p className="text-xs text-neutral-500">{task.description}</p>}
+                return (
+                  <div
+                    key={task.id}
+                    onClick={() => setSelectedLeadId(lead.id)}
+                    className={`p-5 rounded-3xl border transition shadow-2xs hover:shadow-md cursor-pointer space-y-3.5 ${
+                      isCompleted
+                        ? "bg-white/80 dark:bg-slate-900/60 border-neutral-200/60 dark:border-slate-800/80 opacity-80"
+                        : isOverdue
+                        ? "bg-rose-50/20 dark:bg-rose-950/10 border-rose-300 dark:border-rose-900/50 hover:border-rose-500"
+                        : "bg-white dark:bg-slate-900 border-neutral-200/80 dark:border-slate-800 hover:border-emerald-500"
+                    }`}
+                  >
+                    {/* Top Row: Lead Reference + Status Pill */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono font-bold text-xs text-emerald-700 dark:text-emerald-400 truncate">
+                          {lead.reference}
+                        </span>
+                        <span className="text-neutral-300 dark:text-slate-700">·</span>
+                        <span className="font-bold text-xs text-neutral-900 dark:text-white truncate">
+                          {lead.contactName}
+                        </span>
+                        {lead.businessName && (
+                          <span className="text-[10px] text-neutral-400 truncate hidden sm:inline">
+                            ({lead.businessName})
+                          </span>
+                        )}
+                      </div>
 
-                  <div className="pt-2 border-t border-neutral-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
-                    <span className="font-mono text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                      <Clock className="h-3 w-3" /> Due: {new Date(task.dueAt).toLocaleString()}
-                    </span>
-                    <span className="text-neutral-500">{task.assignedToName || lead.ownerName || "Unassigned"}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isOverdue && (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-950/80 dark:text-rose-200 animate-pulse">
+                            ● OVERDUE
+                          </span>
+                        )}
+                        {isToday && (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/80 dark:text-amber-200">
+                            ● TODAY
+                          </span>
+                        )}
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            isCompleted
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200"
+                              : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200"
+                          }`}
+                        >
+                          {task.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Task Title & Description */}
+                    <div>
+                      <h5
+                        className={`font-bold text-sm ${
+                          isCompleted
+                            ? "line-through text-neutral-400 dark:text-slate-500"
+                            : "text-neutral-900 dark:text-white"
+                        }`}
+                      >
+                        {task.title}
+                      </h5>
+                      {task.description && (
+                        <p className="text-xs text-neutral-500 mt-1 line-clamp-2">{task.description}</p>
+                      )}
+                    </div>
+
+                    {/* Linked Order Banner if present */}
+                    {lead.linkedOrderId && (
+                      <div className="p-2.5 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between text-xs">
+                        <span className="font-mono font-bold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
+                          <ShoppingBag className="h-3.5 w-3.5 text-emerald-600" /> Linked Order #{lead.linkedOrderId}
+                        </span>
+                        {onViewOrder && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onViewOrder(lead.linkedOrderId!, lead);
+                            }}
+                            className="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer transition shadow-2xs"
+                          >
+                            <ExternalLink className="h-3 w-3" /> View Order
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Due Date & Owner */}
+                    <div className="pt-2 border-t border-neutral-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                      <span
+                        className={`font-mono flex items-center gap-1 ${
+                          isOverdue
+                            ? "text-rose-700 dark:text-rose-400 font-bold"
+                            : isToday
+                            ? "text-amber-700 dark:text-amber-400 font-bold"
+                            : "text-neutral-500"
+                        }`}
+                      >
+                        <Clock className="h-3 w-3" /> Due: {dueDate.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                      <span className="text-neutral-500">{task.assignedToName || lead.ownerName || "Unassigned"}</span>
+                    </div>
+
+                    {/* Direct Action Buttons */}
+                    <div className="pt-2 border-t border-neutral-100 dark:border-slate-800 flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const nextStatus = isCompleted ? "pending" : "completed";
+                            const res = await leadsService.updateTask(lead.id, task.id, {
+                              status: nextStatus,
+                              actorName: currentUser.name,
+                            });
+                            if (res.success) {
+                              toast.success(isCompleted ? "Task reopened" : "Follow-up marked completed!");
+                              loadData();
+                            } else {
+                              toast.error(res.error || "Failed to update task");
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                            isCompleted
+                              ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 text-emerald-800"
+                              : "bg-white dark:bg-slate-800 border-neutral-300 dark:border-slate-700 text-neutral-700 dark:text-slate-200 hover:border-emerald-500 hover:text-emerald-700"
+                          }`}
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                          {isCompleted ? "Completed" : "Mark Done"}
+                        </button>
+
+                        {onOpenWhatsApp && lead.contactPhone && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onOpenWhatsApp(
+                                lead.contactPhone,
+                                `Namaste ${lead.contactName}! 🙏 Touching base regarding our follow-up: "${task.title}". Please let us know how we can assist you today.`
+                              );
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-bold text-xs border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5 transition cursor-pointer"
+                          >
+                            <Phone className="h-3.5 w-3.5" /> WhatsApp
+                          </button>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedLeadId(lead.id)}
+                        className="px-2.5 py-1.5 rounded-xl text-neutral-500 hover:text-neutral-900 dark:hover:text-white font-semibold text-xs flex items-center gap-1 transition cursor-pointer"
+                      >
+                        Lead Details <ChevronRight className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -1124,6 +1361,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
           onClose={() => setSelectedLeadId(null)}
           onUpdate={() => loadData()}
           onOpenWhatsApp={onOpenWhatsApp}
+          onViewOrder={onViewOrder}
           currentUser={currentUser}
           teamMembers={teamMembers}
           products={products}

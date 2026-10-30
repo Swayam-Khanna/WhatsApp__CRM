@@ -24,6 +24,7 @@ export interface LeadActivity {
     | "stage_change"
     | "quote_created"
     | "follow_up_scheduled"
+    | "follow_up_completed"
     | "order_linked"
     | "whatsapp_message"
     | "credit_decision"

@@ -20,6 +20,7 @@ import {
   ExternalLink,
   ChevronRight,
   CreditCard,
+  Phone,
 } from "lucide-react";
 import {
   leadsService,
@@ -37,6 +38,7 @@ interface LeadDetailModalProps {
   leadId: string | null;
   onUpdate: () => void;
   onOpenWhatsApp?: (phone: string, text?: string) => void;
+  onViewOrder?: (orderNumberOrId: string, lead?: LeadRecord) => void;
   currentUser?: { id: string; name: string; role: string };
   teamMembers?: Array<{ id: string; name: string; role: string }>;
   products?: Array<{ id: string; name: string; price: number }>;
@@ -48,6 +50,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   leadId,
   onUpdate,
   onOpenWhatsApp,
+  onViewOrder,
   currentUser = { id: "agent_nishant", name: "Nishant", role: "Store Admin" },
   teamMembers = [],
   products,
@@ -194,6 +197,10 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
         toast.success(`Successfully converted to Order #${res.order?.orderNumber}!`);
         await loadLead(lead.id);
         onUpdate();
+        if (onViewOrder && res.order?.orderNumber) {
+          onViewOrder(res.order.orderNumber, { ...lead, linkedOrderId: res.order.orderNumber });
+          onClose();
+        }
       } else {
         toast.error(res.error || "Order conversion failed");
       }
@@ -453,29 +460,73 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                     {lead.tasks.length === 0 ? (
                       <p className="text-neutral-400 text-center py-6">No follow-ups scheduled.</p>
                     ) : (
-                      lead.tasks.map((tsk) => (
-                        <div
-                          key={tsk.id}
-                          className="p-3 bg-white dark:bg-slate-800 rounded-2xl border border-neutral-200/80 dark:border-slate-700 flex items-center justify-between gap-3"
-                        >
-                          <div className="space-y-0.5">
-                            <h5 className="font-bold text-neutral-900 dark:text-white text-xs">{tsk.title}</h5>
-                            {tsk.description && <p className="text-[11px] text-neutral-500">{tsk.description}</p>}
-                            <span className="text-[10px] text-amber-700 dark:text-amber-400 font-mono flex items-center gap-1">
-                              <Clock className="h-3 w-3" /> Due: {new Date(tsk.dueAt).toLocaleString()}
-                            </span>
-                          </div>
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              tsk.status === "completed"
-                                ? "bg-emerald-100 text-emerald-800"
-                                : "bg-amber-100 text-amber-800"
+                      lead.tasks.map((tsk) => {
+                        const isCompleted = tsk.status === "completed";
+                        const isOverdue = !isCompleted && new Date(tsk.dueAt).getTime() < Date.now();
+                        return (
+                          <div
+                            key={tsk.id}
+                            className={`p-3 rounded-2xl border flex items-center justify-between gap-3 transition ${
+                              isCompleted
+                                ? "bg-neutral-50/70 dark:bg-slate-800/40 border-neutral-200/50 dark:border-slate-800 opacity-75"
+                                : isOverdue
+                                ? "bg-rose-50/40 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40"
+                                : "bg-white dark:bg-slate-800 border-neutral-200/80 dark:border-slate-700"
                             }`}
                           >
-                            {tsk.status}
-                          </span>
-                        </div>
-                      ))
+                            <div className="space-y-0.5 flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h5
+                                  className={`font-bold text-xs truncate ${
+                                    isCompleted
+                                      ? "line-through text-neutral-400 dark:text-slate-500"
+                                      : "text-neutral-900 dark:text-white"
+                                  }`}
+                                >
+                                  {tsk.title}
+                                </h5>
+                                {isOverdue && (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
+                                    OVERDUE
+                                  </span>
+                                )}
+                              </div>
+                              {tsk.description && <p className="text-[11px] text-neutral-500 truncate">{tsk.description}</p>}
+                              <span className="text-[10px] text-amber-700 dark:text-amber-400 font-mono flex items-center gap-1">
+                                <Clock className="h-3 w-3" /> Due: {new Date(tsk.dueAt).toLocaleString()}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const nextStatus = isCompleted ? "pending" : "completed";
+                                  const res = await leadsService.updateTask(lead.id, tsk.id, {
+                                    status: nextStatus,
+                                    actorName: currentUser.name,
+                                  });
+                                  if (res.success) {
+                                    toast.success(isCompleted ? "Task reopened" : "Task marked as completed");
+                                    await loadLead(lead.id);
+                                    onUpdate();
+                                  } else {
+                                    toast.error(res.error || "Failed to update task");
+                                  }
+                                }}
+                                className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition cursor-pointer flex items-center gap-1 ${
+                                  isCompleted
+                                    ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 text-emerald-800"
+                                    : "bg-white dark:bg-slate-700 border-neutral-300 text-neutral-700 hover:border-emerald-500 hover:text-emerald-700"
+                                }`}
+                              >
+                                <CheckCircle2 className="h-3 w-3" />
+                                {isCompleted ? "Done" : "Mark Done"}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 )}
@@ -577,13 +628,49 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
 
               {/* Order Linking Status */}
               {lead.linkedOrderId && (
-                <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-2xl border border-emerald-300 dark:border-emerald-800 text-xs space-y-1">
-                  <span className="font-bold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Linked Order #{lead.linkedOrderId}
-                  </span>
+                <div className="p-4 bg-emerald-50/80 dark:bg-emerald-950/40 rounded-2xl border border-emerald-300 dark:border-emerald-800 text-xs space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-emerald-950 dark:text-emerald-100 flex items-center gap-1.5 font-mono">
+                      <ShoppingBag className="h-4 w-4 text-emerald-600" /> Order #{lead.linkedOrderId}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700">
+                      Confirmed
+                    </span>
+                  </div>
+
                   <p className="text-[11px] text-emerald-800 dark:text-emerald-300">
-                    Policy: {lead.conversionRuleApplied}
+                    Policy: {lead.conversionRuleApplied || "Standard Fulfillment"}
                   </p>
+
+                  <div className="pt-2 border-t border-emerald-200/70 dark:border-emerald-800/60 flex items-center gap-2">
+                    {onViewOrder && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onViewOrder(lead.linkedOrderId!, lead);
+                          onClose();
+                        }}
+                        className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> View Order Details
+                      </button>
+                    )}
+                    {onOpenWhatsApp && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onOpenWhatsApp(
+                            lead.contactPhone,
+                            `Namaste ${lead.contactName}! 🙏 Your Prajnaa order #${lead.linkedOrderId} is confirmed and being prepared for dispatch.`
+                          );
+                        }}
+                        className="py-2 px-3 rounded-xl bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700 hover:bg-emerald-50 text-emerald-700 font-bold text-xs flex items-center justify-center gap-1 transition cursor-pointer"
+                        title="Notify via WhatsApp"
+                      >
+                        <Phone className="h-3.5 w-3.5" /> WA
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

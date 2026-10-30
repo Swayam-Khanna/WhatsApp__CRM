@@ -168,7 +168,8 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
       const res = await leadsService.createLead(payload);
       if (res.success && res.lead) {
         toast.success(`Opportunity ${res.lead.reference} created successfully!`);
-        onLeadCreated(res.lead);
+        if (onLeadCreated) onLeadCreated(res.lead);
+        if (onSuccess) onSuccess();
         onClose();
       } else {
         toast.error(res.error || "Failed to create lead");

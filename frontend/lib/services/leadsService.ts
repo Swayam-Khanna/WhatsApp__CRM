@@ -199,6 +199,32 @@ class LeadsClientService {
     }
   }
 
+  async updateTask(
+    leadId: string,
+    taskId: string,
+    updates: {
+      status?: "pending" | "completed" | "cancelled";
+      dueAt?: string;
+      title?: string;
+      actorName?: string;
+    }
+  ): Promise<{ success: boolean; task?: LeadTask; error?: string }> {
+    try {
+      const res = await fetch(`/api/leads/${leadId}/tasks`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId, ...updates }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, error: data.error || "Failed to update task" };
+      }
+      return { success: true, task: data.task };
+    } catch (e: any) {
+      return { success: false, error: e.message || "Network error" };
+    }
+  }
+
   async createQuote(
     leadId: string,
     quoteData: any
