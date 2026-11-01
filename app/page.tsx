@@ -268,12 +268,16 @@ interface TeamMember {
   email: string;
   phone: string;
   role: UserRole;
-  status: "Online" | "On Break" | "Offline";
+  status: "Online" | "On Break" | "Offline" | "Revoked" | "Deactivated";
   assignedChats: number;
   avgResponseTime: string;
   avatar: string;
   tempPassword?: string;
   createdAt: string;
+  credentialsStatus?: "active" | "revoked";
+  revokedAt?: string;
+  revokedReason?: string;
+  revokedBy?: string;
 }
 
 interface BroadcastCampaign {
@@ -1076,6 +1080,10 @@ export default function PrajnaaMasterCrmApp() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(INITIAL_TEAM);
   const [showAddTeamModal, setShowAddTeamModal] = useState<boolean>(false);
   const [showCredentialsModal, setShowCredentialsModal] = useState<boolean>(false);
+  const [memberToRevoke, setMemberToRevoke] = useState<TeamMember | null>(null);
+  const [showRevokeModal, setShowRevokeModal] = useState<boolean>(false);
+  const [revokeReason, setRevokeReason] = useState<string>("Employee Left Organization");
+  const [teamFilter, setTeamFilter] = useState<"all" | "active" | "revoked">("all");
   const [newTeamMember, setNewTeamMember] = useState({
     name: "",
     email: "",
@@ -1276,9 +1284,27 @@ export default function PrajnaaMasterCrmApp() {
           const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
           const sessionAge = now - (session.loginTimestamp || 0);
 
-          if (sessionAge < TWENTY_FOUR_HOURS && session.user) {
+          // Retrieve latest roster to ensure employee's access has not been cancelled/revoked
+          const latestRoster: TeamMember[] = savedTeam ? JSON.parse(savedTeam) : INITIAL_TEAM;
+          const activeUserRecord = latestRoster.find(
+            (m) => m.id === session.user?.id || m.email?.toLowerCase() === session.user?.email?.toLowerCase()
+          );
+
+          const isRevoked =
+            !activeUserRecord ||
+            activeUserRecord.credentialsStatus === "revoked" ||
+            activeUserRecord.status === "Revoked" ||
+            activeUserRecord.status === "Deactivated";
+
+          if (isRevoked) {
+            localStorage.removeItem("prajnaa_crm_session");
+            setIsAuthenticated(false);
+            toast.error("Access Revoked", {
+              description: "Your CRM account credentials have been cancelled by the administrator. Contact Store Admin.",
+            });
+          } else if (sessionAge < TWENTY_FOUR_HOURS && session.user) {
             // Valid session within 24 hours: restore user and workspace
-            setCurrentUser(session.user);
+            setCurrentUser(activeUserRecord);
             setIsAuthenticated(true);
             if (session.activeNav) {
               setActiveNav(session.activeNav);
@@ -1736,6 +1762,107 @@ export default function PrajnaaMasterCrmApp() {
     }
   };
 
+  // Open Cancel Credentials / Revocation Modal
+  const handleOpenRevokeModal = (member: TeamMember) => {
+    if (member.id === "tm_1" || member.email.toLowerCase() === "admin@prajnaamarket.com") {
+      toast.error("Security Restriction", {
+        description: "Primary Root Administrator (Nishant) credentials cannot be cancelled.",
+      });
+      return;
+    }
+    if (currentUser && (member.id === currentUser.id || member.email.toLowerCase() === currentUser.email.toLowerCase())) {
+      toast.error("Action Prohibited", {
+        description: "You cannot cancel your own credentials while currently logged into this session.",
+      });
+      return;
+    }
+    setMemberToRevoke(member);
+    setRevokeReason("Employee Left Organization");
+    setShowRevokeModal(true);
+  };
+
+  // Confirm Revocation or Permanent Removal
+  const handleConfirmRevoke = (actionType: "revoke" | "delete") => {
+    if (!memberToRevoke) return;
+
+    if (actionType === "delete") {
+      const updated = teamMembers.filter((m) => m.id !== memberToRevoke.id);
+      saveTeamMembers(updated);
+      toast.success(`Employee ${memberToRevoke.name} removed`, {
+        description: "All access and credentials permanently wiped from CRM roster.",
+      });
+    } else {
+      const nowFormatted = new Date().toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const updated = teamMembers.map((m) => {
+        if (m.id === memberToRevoke.id) {
+          return {
+            ...m,
+            credentialsStatus: "revoked" as const,
+            status: "Revoked" as const,
+            tempPassword: `REVOKED_${Date.now()}`,
+            revokedAt: nowFormatted,
+            revokedReason: revokeReason,
+            revokedBy: currentUser?.name || "Store Admin",
+          };
+        }
+        return m;
+      });
+      saveTeamMembers(updated);
+      toast.error(`Credentials Cancelled for ${memberToRevoke.name}`, {
+        description: `Login is blocked immediately. Reason: ${revokeReason}`,
+      });
+    }
+
+    // Invalidate active session if matches
+    try {
+      const sessionStr = localStorage.getItem("prajnaa_crm_session");
+      if (sessionStr) {
+        const session = JSON.parse(sessionStr);
+        if (
+          session.user?.id === memberToRevoke.id ||
+          session.user?.email?.toLowerCase() === memberToRevoke.email.toLowerCase()
+        ) {
+          localStorage.removeItem("prajnaa_crm_session");
+        }
+      }
+    } catch {}
+
+    setShowRevokeModal(false);
+    setMemberToRevoke(null);
+  };
+
+  // Reactivate credentials & issue new temporary password
+  const handleReactivateMember = (member: TeamMember) => {
+    const newTempPassword = `Prajnaa#${Math.floor(1000 + Math.random() * 9000)}`;
+    const updated = teamMembers.map((m) => {
+      if (m.id === member.id) {
+        return {
+          ...m,
+          credentialsStatus: "active" as const,
+          status: "Online" as const,
+          tempPassword: newTempPassword,
+          revokedAt: undefined,
+          revokedReason: undefined,
+          revokedBy: undefined,
+        };
+      }
+      return m;
+    });
+    saveTeamMembers(updated);
+    const reactivated = updated.find((m) => m.id === member.id) || member;
+    setLastCreatedMember(reactivated);
+    setShowCredentialsModal(true);
+    toast.success(`Credentials restored for ${member.name}!`, {
+      description: `New temporary password generated: ${newTempPassword}`,
+    });
+  };
+
   // Change Theme Handler
   const handleThemeChange = (t: ThemeMode) => {
     setCurrentTheme(t);
@@ -1907,7 +2034,7 @@ export default function PrajnaaMasterCrmApp() {
     } catch {}
   }, [activeNav, isAuthenticated]);
 
-  // Periodic 24-hour session expiry check (runs every 30 seconds while user is working)
+  // Periodic 24-hour session expiry & real-time credential revocation check
   useEffect(() => {
     if (!isAuthenticated) return;
     const interval = setInterval(() => {
@@ -1923,10 +2050,35 @@ export default function PrajnaaMasterCrmApp() {
             toast.error("24-Hour Session Expired", {
               description: "For security compliance, re-login is required after 24 hours. Please enter your credentials.",
             });
+            return;
+          }
+
+          // Real-time security verification: verify employee credentials have not been cancelled
+          const savedTeamStr = localStorage.getItem("prajnaa_crm_team");
+          if (savedTeamStr) {
+            const currentRoster: TeamMember[] = JSON.parse(savedTeamStr);
+            const activeRecord = currentRoster.find(
+              (m) =>
+                m.id === session.user?.id ||
+                m.email?.toLowerCase() === session.user?.email?.toLowerCase()
+            );
+
+            if (
+              !activeRecord ||
+              activeRecord.credentialsStatus === "revoked" ||
+              activeRecord.status === "Revoked" ||
+              activeRecord.status === "Deactivated"
+            ) {
+              localStorage.removeItem("prajnaa_crm_session");
+              setIsAuthenticated(false);
+              toast.error("Access Revoked: Session Terminated", {
+                description: "Your CRM account credentials were cancelled by the administrator.",
+              });
+            }
           }
         }
       } catch {}
-    }, 30000);
+    }, 5000);
 
     return () => clearInterval(interval);
   }, [isAuthenticated]);
@@ -1974,38 +2126,37 @@ export default function PrajnaaMasterCrmApp() {
     // Common shortcuts
     if (!matchingMember) {
       if (entered === "admin" || entered === "nishant" || entered === "store admin") {
-        matchingMember = teamMembers[0]; // Nishant - Store Admin
+        matchingMember = teamMembers.find((m) => m.id === "tm_1" || m.email.toLowerCase() === "admin@prajnaamarket.com") || teamMembers[0];
       } else if (entered === "rajat" || entered === "concierge") {
-        matchingMember = teamMembers[1] || teamMembers[0];
+        matchingMember = teamMembers.find((m) => m.name.toLowerCase().includes("rajat")) || teamMembers[1];
       } else if (entered === "anita" || entered === "fulfillment") {
-        matchingMember = teamMembers[2] || teamMembers[0];
+        matchingMember = teamMembers.find((m) => m.name.toLowerCase().includes("anita")) || teamMembers[2];
       }
     }
 
-    // If still not in initial roster, auto-onboard or authenticate as Store Admin so user is NEVER blocked
     if (!matchingMember) {
-      const displayName = entered.includes("@") ? entered.split("@")[0] : entered;
-      matchingMember = {
-        id: `tm_${Date.now()}`,
-        name: displayName.charAt(0).toUpperCase() + displayName.slice(1),
-        email: entered.includes("@") ? entered : `${entered}@prajnaamarket.com`,
-        phone: "+91 80912 65690",
-        role: "Store Admin",
-        status: "Online",
-        assignedChats: 0,
-        avgResponseTime: "1.0m",
-        avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80",
-        tempPassword: enteredPassword,
-        createdAt: "Today",
-      };
-      setTeamMembers((prev) => [...prev, matchingMember!]);
-      try {
-        localStorage.setItem("prajnaa_crm_team", JSON.stringify([...teamMembers, matchingMember]));
-      } catch {}
+      toast.error("Access Denied: Unrecognized credentials", {
+        description: "No registered team member found with this identity. Only authorized staff may sign in.",
+      });
+      return;
     }
 
-    // 2. Validate Password:
-    // Matches tempPassword, common master passwords (admin, prajnaa, prajnaa2024, admin123, 123456), or any password if user just created/typed it
+    // 2. Check Credential Status: Has this employee's credentials been cancelled or revoked?
+    if (
+      matchingMember.credentialsStatus === "revoked" ||
+      matchingMember.status === "Revoked" ||
+      matchingMember.status === "Deactivated"
+    ) {
+      toast.error("Access Revoked: Credentials Cancelled", {
+        description: `Credentials for ${matchingMember.name} were cancelled by the administrator${
+          matchingMember.revokedAt ? ` on ${matchingMember.revokedAt}` : ""
+        }.${matchingMember.revokedReason ? ` Reason: ${matchingMember.revokedReason}.` : ""} Sign-in is blocked for security.`,
+      });
+      return;
+    }
+
+    // 3. Validate Password:
+    // Matches tempPassword or common master passwords
     const isMasterPassword = [
       "adminprajnaa#2024",
       "prajnaa2024",
@@ -2015,13 +2166,12 @@ export default function PrajnaaMasterCrmApp() {
       "123456",
       "rajat#prajnaa88",
       "anita#dispatch33",
-      "vikram#negi2024"
+      "vikram#negi2024",
     ].includes(enteredPassword.toLowerCase());
 
     const isPasswordValid =
       isMasterPassword ||
-      enteredPassword === matchingMember.tempPassword ||
-      enteredPassword.length >= 3;
+      Boolean(matchingMember.tempPassword && enteredPassword === matchingMember.tempPassword);
 
     if (!isPasswordValid) {
       toast.error(`Invalid password for ${matchingMember.name}. Please enter your correct credentials.`);
@@ -2449,6 +2599,7 @@ export default function PrajnaaMasterCrmApp() {
       avgResponseTime: "1.5m",
       avatar: "",
       tempPassword: randomPassword,
+      credentialsStatus: "active",
       createdAt: new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
     };
 
@@ -3709,45 +3860,14 @@ export default function PrajnaaMasterCrmApp() {
                   className="h-10 w-auto object-contain"
                 />
               </div>
-              <h3 className="text-2xl font-bold tracking-tight font-display">
-                {authMode === "signin" ? "Staff Sign In" : "Create Staff Account"}
-              </h3>
+              <h3 className="text-2xl font-bold tracking-tight font-display">Staff Sign In</h3>
               <p className="text-xs text-neutral-500 font-sans">
-                {authMode === "signin"
-                  ? "Enter your authorized credentials to access your CRM workspace"
-                  : "Register as a team member to access your assigned Prajnaa Market workspace"}
+                Enter your authorized credentials to access your CRM workspace
               </p>
             </div>
 
-            {/* Auth Mode Toggle Tabs */}
-            <div className="flex p-1 bg-neutral-100 rounded-2xl border border-neutral-200 text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => setAuthMode("signin")}
-                className={`flex-1 py-2 rounded-xl transition cursor-pointer text-center ${
-                  authMode === "signin"
-                    ? "bg-white text-emerald-950 shadow-xs font-extrabold"
-                    : "text-neutral-500 hover:text-neutral-900"
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => setAuthMode("signup")}
-                className={`flex-1 py-2 rounded-xl transition cursor-pointer text-center ${
-                  authMode === "signup"
-                    ? "bg-white text-emerald-950 shadow-xs font-extrabold"
-                    : "text-neutral-500 hover:text-neutral-900"
-                }`}
-              >
-                Sign Up (New Staff)
-              </button>
-            </div>
-
             {/* Login Form */}
-            {authMode === "signin" ? (
-              <form onSubmit={handleAuthSubmit} className="space-y-4 text-xs">
+            <form onSubmit={handleAuthSubmit} className="space-y-4 text-xs">
                 <div className="space-y-1">
                   <label className="font-bold text-neutral-700">Email, Username, or Phone</label>
                   <div className="relative">
@@ -3815,111 +3935,6 @@ export default function PrajnaaMasterCrmApp() {
                   <ArrowRight className="h-4 w-4 text-[#E8A317]" />
                 </button>
               </form>
-            ) : (
-              /* Sign Up Form */
-              <form onSubmit={handleSignUpSubmit} className="space-y-3.5 text-xs">
-                <div className="space-y-1">
-                  <label className="font-bold text-neutral-700">Full Name</label>
-                  <div className="relative">
-                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Rahul Sharma"
-                      value={signUpName}
-                      onChange={(e) => setSignUpName(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-bold text-neutral-700">WhatsApp Mobile (+91)</label>
-                  <div className="relative">
-                    <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                    <input
-                      type="tel"
-                      required
-                      placeholder="9876543210"
-                      value={signUpPhone}
-                      onChange={(e) => setSignUpPhone(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-bold text-neutral-700">Work Email Address</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                    <input
-                      type="email"
-                      required
-                      placeholder="rahul@prajnaamarket.com"
-                      value={signUpEmail}
-                      onChange={(e) => setSignUpEmail(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-bold text-neutral-700">Assigned CRM Role</label>
-                  <select
-                    value={signUpRole}
-                    onChange={(e) => setSignUpRole(e.target.value as UserRole)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white"
-                  >
-                    <option value="Senior Concierge">Senior Concierge (WhatsApp Chats & Support)</option>
-                    <option value="Store Admin">Store Admin (Full Control & Analytics)</option>
-                    <option value="Fulfillment Officer">Fulfillment Officer (Packaging & Shipments)</option>
-                    <option value="Inventory Associate">Inventory Associate (Catalog & Stock)</option>
-                    <option value="Sales Manager">Sales Manager (Pipelines & Approvals)</option>
-                    <option value="Sales Agent">Sales Agent (Direct Customer Sales)</option>
-                    <option value="Accounts">Accounts & Billing (Reconciliations)</option>
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <label className="font-bold text-neutral-700">Password</label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" />
-                      <input
-                        type="password"
-                        required
-                        placeholder="Min 6 chars"
-                        value={signUpPassword}
-                        onChange={(e) => setSignUpPassword(e.target.value)}
-                        className="w-full pl-8 pr-2.5 py-2 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="font-bold text-neutral-700">Confirm</label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" />
-                      <input
-                        type="password"
-                        required
-                        placeholder="Re-enter"
-                        value={signUpConfirmPassword}
-                        onChange={(e) => setSignUpConfirmPassword(e.target.value)}
-                        className="w-full pl-8 pr-2.5 py-2 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full py-3 bg-[#0A2E22] hover:bg-[#0E3D2E] text-white rounded-xl text-xs font-semibold font-subhead transition shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer mt-2"
-                >
-                  <span>Create Account & Enter CRM</span>
-                  <ArrowRight className="h-4 w-4 text-[#E8A317]" />
-                </button>
-              </form>
-            )}
 
             {/* Note on RBAC & 24h Session Policy */}
             <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 space-y-1">
@@ -8433,87 +8448,262 @@ export default function PrajnaaMasterCrmApp() {
 
         {/* SCREEN 11: TEAM & AGENTS (Admin only) */}
         {activeNav === "team" && userPermissions.allowedTabs.includes("team") && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            <div className="flex items-center justify-between">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+            {/* Header with Title and Add Button */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold text-neutral-900">Team & Concierge Access Management</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-neutral-900">Team & Concierge Access Management</h2>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    RBAC Protected
+                  </span>
+                </div>
                 <p className="text-xs text-neutral-500 mt-0.5">
-                  Only staff added here can log into the CRM. Their role determines what work areas they can access.
+                  Manage employee credentials, cancel/revoke compromised access, and configure role-based permissions.
                 </p>
               </div>
 
               <button
                 onClick={() => setShowAddTeamModal(true)}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
               >
                 <Plus className="h-4 w-4" /> + Add Team Member
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              {teamMembers.map((member) => (
-                <div
-                  key={member.id}
-                  className="bg-white p-5 rounded-2xl border border-neutral-200/80 shadow-2xs hover:shadow-xs transition space-y-4 text-neutral-900"
+            {/* Security KPI & Filter Bar */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-2xl bg-white border border-neutral-200/80 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTeamFilter("all")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    teamFilter === "all"
+                      ? "bg-neutral-900 text-white shadow-2xs"
+                      : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                  }`}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      {member.avatar ? (
-                        <img src={member.avatar} alt={member.name} className="h-11 w-11 rounded-full object-cover border border-neutral-200 shadow-2xs" />
-                      ) : (
-                        <div className="h-11 w-11 rounded-full bg-emerald-100 text-emerald-800 font-bold text-sm flex items-center justify-center border border-emerald-200">
-                          {member.name.split(" ").map((n) => n[0]).join("")}
+                  All Staff ({teamMembers.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTeamFilter("active")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    teamFilter === "active"
+                      ? "bg-emerald-700 text-white shadow-2xs"
+                      : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200"
+                  }`}
+                >
+                  <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
+                  Active ({teamMembers.filter((m) => m.credentialsStatus !== "revoked" && m.status !== "Revoked" && m.status !== "Deactivated").length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTeamFilter("revoked")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    teamFilter === "revoked"
+                      ? "bg-rose-700 text-white shadow-2xs"
+                      : "bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200"
+                  }`}
+                >
+                  <Lock className="h-3 w-3" />
+                  Cancelled ({teamMembers.filter((m) => m.credentialsStatus === "revoked" || m.status === "Revoked" || m.status === "Deactivated").length})
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 text-[11px] text-neutral-500 font-medium">
+                <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>Zero-Trust: Revoked credentials immediately terminate active sessions.</span>
+              </div>
+            </div>
+
+            {/* Team Members Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {teamMembers
+                .filter((member) => {
+                  const isRevoked =
+                    member.credentialsStatus === "revoked" ||
+                    member.status === "Revoked" ||
+                    member.status === "Deactivated";
+                  if (teamFilter === "active") return !isRevoked;
+                  if (teamFilter === "revoked") return isRevoked;
+                  return true;
+                })
+                .map((member) => {
+                  const isRevoked =
+                    member.credentialsStatus === "revoked" ||
+                    member.status === "Revoked" ||
+                    member.status === "Deactivated";
+                  const isRootAdmin =
+                    member.id === "tm_1" || member.email.toLowerCase() === "admin@prajnaamarket.com";
+                  const isCurrentLoggedIn =
+                    currentUser &&
+                    (member.id === currentUser.id ||
+                      member.email.toLowerCase() === currentUser.email.toLowerCase());
+
+                  return (
+                    <div
+                      key={member.id}
+                      className={`p-5 rounded-2xl border transition space-y-4 text-neutral-900 ${
+                        isRevoked
+                          ? "bg-rose-50/20 border-rose-200 shadow-2xs"
+                          : "bg-white border-neutral-200/80 shadow-2xs hover:shadow-xs"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                          {member.avatar ? (
+                            <img
+                              src={member.avatar}
+                              alt={member.name}
+                              className={`h-11 w-11 rounded-full object-cover border shadow-2xs shrink-0 ${
+                                isRevoked ? "border-rose-300 opacity-60 grayscale" : "border-neutral-200"
+                              }`}
+                            />
+                          ) : (
+                            <div
+                              className={`h-11 w-11 rounded-full font-bold text-sm flex items-center justify-center border shrink-0 ${
+                                isRevoked
+                                  ? "bg-rose-100 text-rose-800 border-rose-300"
+                                  : "bg-emerald-100 text-emerald-800 border-emerald-200"
+                              }`}
+                            >
+                              {member.name.split(" ").map((n) => n[0]).join("")}
+                            </div>
+                          )}
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-bold text-sm text-neutral-900 truncate">{member.name}</h4>
+                              {isCurrentLoggedIn && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                                  You
+                                </span>
+                              )}
+                              {isRevoked ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200 flex items-center gap-1">
+                                  <Lock className="h-2.5 w-2.5 text-rose-600" />
+                                  Credentials Cancelled
+                                </span>
+                              ) : isRootAdmin ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
+                                  <ShieldCheck className="h-2.5 w-2.5 text-amber-600" />
+                                  Root Admin
+                                </span>
+                              ) : (
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    member.status === "Online"
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : "bg-neutral-100 text-neutral-600"
+                                  }`}
+                                >
+                                  ● {member.status}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-neutral-500 font-medium mt-0.5">{member.role}</p>
+                          </div>
+                        </div>
+
+                        <span className="text-[10px] text-neutral-400 shrink-0">Added: {member.createdAt}</span>
+                      </div>
+
+                      {/* Revocation Warning Box if Cancelled */}
+                      {isRevoked && (
+                        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200/80 text-xs text-rose-900 space-y-1">
+                          <div className="flex items-center justify-between font-bold text-[11px]">
+                            <span className="flex items-center gap-1 text-rose-800">
+                              <AlertCircle className="h-3.5 w-3.5 text-rose-600" />
+                              Access Inactive & Credentials Blocked
+                            </span>
+                            <span className="text-rose-600 font-normal">{member.revokedAt}</span>
+                          </div>
+                          {member.revokedReason && (
+                            <p className="text-[11px] text-rose-700">
+                              Reason: <span className="font-semibold">{member.revokedReason}</span>
+                            </p>
+                          )}
+                          <p className="text-[10px] text-rose-600">
+                            This user cannot authenticate or access CRM endpoints until reactivated.
+                          </p>
                         </div>
                       )}
 
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-sm text-neutral-900">{member.name}</h4>
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              member.status === "Online" ? "bg-emerald-100 text-emerald-800" : "bg-neutral-100 text-neutral-600"
-                            }`}
-                          >
-                            ● {member.status}
-                          </span>
+                      <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-neutral-100">
+                        <div className="p-2 rounded-xl bg-neutral-50">
+                          <span className="text-[10px] text-neutral-500 block">Login Username (Email)</span>
+                          <span className="font-medium text-neutral-800 truncate block">{member.email}</span>
                         </div>
-                        <p className="text-xs text-neutral-500 font-medium">{member.role}</p>
+                        <div className="p-2 rounded-xl bg-neutral-50">
+                          <span className="text-[10px] text-neutral-500 block">WhatsApp Phone</span>
+                          <span className="font-mono text-neutral-800 block">{member.phone}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs pt-1 border-t border-neutral-100 gap-2">
+                        <div className="flex items-center gap-3 text-neutral-600 text-[11px]">
+                          <span>Chats: <strong className="text-neutral-900">{member.assignedChats}</strong></span>
+                          <span>Avg: <strong className="text-neutral-900">{member.avgResponseTime}</strong></span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {!isRevoked ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setLastCreatedMember(member);
+                                  setShowCredentialsModal(true);
+                                }}
+                                className="px-2.5 py-1 rounded-lg border border-neutral-300 hover:bg-neutral-50 text-[11px] font-semibold text-neutral-700 transition flex items-center gap-1 cursor-pointer"
+                              >
+                                <Key className="h-3 w-3 text-neutral-500" />
+                                <span>Credentials</span>
+                              </button>
+
+                              {!isRootAdmin && !isCurrentLoggedIn && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenRevokeModal(member)}
+                                  title="Cancel Employee Credentials and Revoke Access"
+                                  className="px-2.5 py-1 rounded-lg border border-rose-300 bg-rose-50/60 hover:bg-rose-100 text-[11px] font-bold text-rose-700 transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                                >
+                                  <Lock className="h-3 w-3 text-rose-600" />
+                                  <span>Cancel Credentials</span>
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleReactivateMember(member)}
+                                className="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shadow-xs"
+                              >
+                                <ShieldCheck className="h-3 w-3" />
+                                <span>Reactivate</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setMemberToRevoke(member);
+                                  setRevokeReason("Permanent Offboarding");
+                                  handleConfirmRevoke("delete");
+                                }}
+                                title="Permanently Delete Employee from CRM"
+                                className="p-1 rounded-xl border border-neutral-200 hover:bg-neutral-100 text-neutral-500 hover:text-rose-600 transition cursor-pointer"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
-
-                    <span className="text-[10px] text-neutral-400">Added: {member.createdAt}</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-neutral-100">
-                    <div className="p-2 rounded-xl bg-neutral-50">
-                      <span className="text-[10px] text-neutral-500 block">Login Username (Email)</span>
-                      <span className="font-medium text-neutral-800 truncate block">{member.email}</span>
-                    </div>
-                    <div className="p-2 rounded-xl bg-neutral-50">
-                      <span className="text-[10px] text-neutral-500 block">WhatsApp Phone</span>
-                      <span className="font-mono text-neutral-800 block">{member.phone}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs pt-1 border-t border-neutral-100">
-                    <div className="flex items-center gap-4 text-neutral-600">
-                      <span>Assigned Chats: <strong className="text-neutral-900">{member.assignedChats}</strong></span>
-                      <span>Avg Response: <strong className="text-neutral-900">{member.avgResponseTime}</strong></span>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        setLastCreatedMember(member);
-                        setShowCredentialsModal(true);
-                      }}
-                      className="px-2.5 py-1 rounded-lg border border-neutral-300 hover:bg-neutral-50 text-[11px] font-semibold text-neutral-700 transition flex items-center gap-1 cursor-pointer"
-                    >
-                      <Key className="h-3 w-3 text-neutral-500" />
-                      <span>View Credentials</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
+                  );
+                })}
             </div>
           </div>
         )}
@@ -9009,6 +9199,113 @@ export default function PrajnaaMasterCrmApp() {
                 <Share2 className="h-3.5 w-3.5" />
                 <span>Send via WhatsApp</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 5.1. MODAL: CANCEL CREDENTIALS & REVOKE ACCESS           */}
+      {/* ========================================================= */}
+      {showRevokeModal && memberToRevoke && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-neutral-200 space-y-4 text-neutral-900">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold">
+                  <Lock className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-neutral-900">Cancel & Revoke Credentials</h3>
+                  <p className="text-[11px] text-neutral-500">Security enforcement for Prajnaa WhatsApp CRM</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRevokeModal(false);
+                  setMemberToRevoke(null);
+                }}
+                className="p-1 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Targeted Member Summary */}
+            <div className="p-3.5 bg-rose-50 border border-rose-200/80 rounded-2xl space-y-2 text-xs text-rose-900">
+              <div className="flex items-center justify-between font-bold">
+                <span className="text-sm text-neutral-900">{memberToRevoke.name}</span>
+                <span className="text-[10px] px-2.5 py-0.5 bg-rose-200 text-rose-900 font-extrabold rounded-full">
+                  {memberToRevoke.role}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                <div>
+                  <span className="text-neutral-500 block text-[10px]">Email (Login ID):</span>
+                  <span className="font-medium text-neutral-800 truncate block">{memberToRevoke.email}</span>
+                </div>
+                <div>
+                  <span className="text-neutral-500 block text-[10px]">Phone Number:</span>
+                  <span className="font-mono text-neutral-800 block">{memberToRevoke.phone}</span>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-rose-200/60 flex items-start gap-1.5 text-[11px] text-rose-800">
+                <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
+                <span>
+                  Cancelling credentials will immediately invalidate active sessions and block all future logins.
+                </span>
+              </div>
+            </div>
+
+            {/* Revocation Reason Selection */}
+            <div className="space-y-1.5 text-xs">
+              <label className="font-bold text-neutral-700">Reason for Cancellation</label>
+              <select
+                value={revokeReason}
+                onChange={(e) => setRevokeReason(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-neutral-300 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600 bg-white"
+              >
+                <option value="Employee Left Organization">Employee Left Organization / Offboarded</option>
+                <option value="Security Violation / Disciplinary Action">Security Violation / Disciplinary Action</option>
+                <option value="Compromised Account / Lost Device">Compromised Account / Lost Device</option>
+                <option value="Temporary Leave of Absence">Temporary Leave of Absence</option>
+                <option value="Role Reassignment">Role Reassignment</option>
+              </select>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={() => handleConfirmRevoke("revoke")}
+                className="w-full py-2.5 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+              >
+                <Lock className="h-3.5 w-3.5" />
+                <span>Cancel Credentials & Block Login</span>
+              </button>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleConfirmRevoke("delete")}
+                  className="flex-1 py-2 px-3 border border-neutral-300 hover:bg-neutral-100 text-neutral-700 rounded-xl text-[11px] font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="h-3 w-3 text-neutral-500" />
+                  <span>Permanently Remove Employee</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRevokeModal(false);
+                    setMemberToRevoke(null);
+                  }}
+                  className="px-4 py-2 border border-neutral-200 hover:bg-neutral-50 text-neutral-600 rounded-xl text-[11px] font-semibold transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
