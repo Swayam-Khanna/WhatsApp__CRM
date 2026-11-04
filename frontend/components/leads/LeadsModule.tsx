@@ -100,6 +100,10 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
   const [metrics, setMetrics] = useState<PipelineMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Pipeline switcher & Drag-and-drop state
+  const [pipelineMode, setPipelineMode] = useState<"wholesale" | "retail">("wholesale");
+  const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+
   // Modals
   const [isNewLeadModalOpen, setIsNewLeadModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -108,6 +112,14 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
   // Accounting settings state
   const [accountingConfig, setAccountingConfig] = useState<any>(null);
   const [queuedJobs, setQueuedJobs] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (businessFilter === "b2c_retail") {
+      setPipelineMode("retail");
+    } else if (businessFilter === "b2b_wholesale") {
+      setPipelineMode("wholesale");
+    }
+  }, [businessFilter]);
 
   useEffect(() => {
     loadData();
@@ -126,7 +138,28 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
         leadsService.fetchAccountingConfig(),
       ]);
 
-      setLeads(leadsRes.leads || []);
+      const fetched = leadsRes.leads || [];
+      if (typeof window !== "undefined") {
+        try {
+          const cachedRaw = localStorage.getItem("crm_cached_leads");
+          if (cachedRaw) {
+            const cached: LeadRecord[] = JSON.parse(cachedRaw);
+            const fetchedIds = new Set(fetched.map((l: any) => l.id));
+            const pendingCache = cached.filter((c: any) => !fetchedIds.has(c.id));
+            const merged = [...pendingCache, ...fetched];
+            setLeads(merged);
+            localStorage.setItem("crm_cached_leads", JSON.stringify(merged));
+          } else {
+            setLeads(fetched);
+            localStorage.setItem("crm_cached_leads", JSON.stringify(fetched));
+          }
+        } catch {
+          setLeads(fetched);
+        }
+      } else {
+        setLeads(fetched);
+      }
+
       setMetrics(metricsRes);
       if (accountingRes) {
         setAccountingConfig(accountingRes.config);
@@ -136,6 +169,40 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
       toast.error("Failed to load leads data");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Drag and drop stage move handler
+  const handleMoveStage = async (leadId: string, targetStageKey: string) => {
+    const targetLead = leads.find((l) => l.id === leadId);
+    if (!targetLead || targetLead.stageKey === targetStageKey) return;
+    const stages = targetLead.businessModel === "b2c_retail" ? RETAIL_STAGES : WHOLESALE_STAGES;
+    const nextStageName = stages.find((s) => s.stageKey === targetStageKey)?.name || targetStageKey;
+
+    // Optimistically update
+    const updated = leads.map((l) => (l.id === leadId ? { ...l, stageKey: targetStageKey } : l));
+    setLeads(updated);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("crm_cached_leads", JSON.stringify(updated));
+      } catch {}
+    }
+
+    try {
+      const res = await leadsService.transitionStage(leadId, targetStageKey, {
+        actorName: currentUser.name,
+        notes: `Stage shifted to "${nextStageName}" via drag-and-drop`,
+      });
+      if (res.success) {
+        toast.success(`${targetLead.reference} moved to "${nextStageName}"`);
+        loadData();
+      } else {
+        toast.error(res.error || "Failed to update stage");
+        loadData();
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Stage update failed");
+      loadData();
     }
   };
 
@@ -187,13 +254,31 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
     [filteredLeads]
   );
 
-  // Follow-ups list
+  // Follow-ups list (incorporates explicit lead.tasks and upcoming connects)
   const allFollowUps = useMemo(() => {
     const list: Array<{ lead: LeadRecord; task: any }> = [];
     filteredLeads.forEach((l) => {
-      l.tasks.forEach((t) => {
-        list.push({ lead: l, task: t });
-      });
+      if (Array.isArray(l.tasks) && l.tasks.length > 0) {
+        l.tasks.forEach((t) => {
+          list.push({ lead: l, task: t });
+        });
+      }
+      // If lead has an upcoming connect date with no explicit task matching that due date, include it!
+      if (l.nextFollowUpAt && (!l.tasks || !l.tasks.some((t) => t.dueAt === l.nextFollowUpAt))) {
+        list.push({
+          lead: l,
+          task: {
+            id: `tsk_connect_${l.id}`,
+            leadId: l.id,
+            title: l.nextAction || `Upcoming Connect with ${l.contactName}`,
+            description: l.notes || `Scheduled upcoming customer connect`,
+            dueAt: l.nextFollowUpAt,
+            status: "pending",
+            priority: l.priority || "normal",
+            createdAt: l.createdAt,
+          },
+        });
+      }
     });
     list.sort((a, b) => new Date(a.task.dueAt).getTime() - new Date(b.task.dueAt).getTime());
     return list;
@@ -203,13 +288,17 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
   const displayedFollowUps = useMemo(() => {
     const now = Date.now();
     return allFollowUps.filter(({ lead, task }) => {
+      const isCompleted = task.status === "completed";
+      const isCancelled = task.status === "cancelled";
+      const isOverdue = !isCompleted && !isCancelled && new Date(task.dueAt).getTime() < now;
+
       // 1. Status Filter
       if (followupFilter === "pending") {
-        if (task.status !== "pending") return false;
+        if (isCompleted || isCancelled) return false;
       } else if (followupFilter === "completed") {
-        if (task.status !== "completed") return false;
+        if (!isCompleted) return false;
       } else if (followupFilter === "overdue") {
-        if (task.status !== "pending" || new Date(task.dueAt).getTime() >= now) return false;
+        if (!isOverdue) return false;
       }
 
       // 2. Search Filter
@@ -566,31 +655,209 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
               </div>
             </div>
           )}
+
+          {/* Section C: Live Feed of Recent Inquiries & Leads (Always visible immediately upon creation) */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-neutral-200/80 dark:border-slate-800 p-5 space-y-3 shadow-2xs">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h4 className="font-extrabold text-sm text-neutral-900 dark:text-white flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-emerald-600" /> Recent Inquiries & Active Pipeline Leads
+                </h4>
+                <p className="text-[11px] text-neutral-500">Live view of newly captured customer inquiries, commercial terms, and upcoming connects</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsNewLeadModalOpen(true)}
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+              >
+                <Plus className="h-3.5 w-3.5" /> + New Enquiry / Lead
+              </button>
+            </div>
+
+            {filteredLeads.length === 0 ? (
+              <div className="text-center py-8 text-neutral-400 text-xs border border-dashed border-neutral-200 dark:border-slate-800 rounded-xl">
+                No active inquiries found. Click <strong>+ New Enquiry / Lead</strong> above to create a lead.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-neutral-50/80 dark:bg-slate-800/60 border-b border-neutral-200 dark:border-slate-700 text-neutral-500 font-bold uppercase text-[10px]">
+                    <tr>
+                      <th className="p-2.5">Reference</th>
+                      <th className="p-2.5">Type</th>
+                      <th className="p-2.5">Customer / Contact</th>
+                      <th className="p-2.5">Current Stage</th>
+                      <th className="p-2.5">Est. Value</th>
+                      <th className="p-2.5">Upcoming Connect</th>
+                      <th className="p-2.5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 dark:divide-slate-800">
+                    {filteredLeads.slice(0, 10).map((lead) => {
+                      const stages = lead.businessModel === "b2c_retail" ? RETAIL_STAGES : WHOLESALE_STAGES;
+                      const stageObj = stages.find((s) => s.stageKey === lead.stageKey);
+                      return (
+                        <tr
+                          key={lead.id}
+                          onClick={() => setSelectedLeadId(lead.id)}
+                          className="hover:bg-neutral-50/80 dark:hover:bg-slate-800/40 cursor-pointer transition"
+                        >
+                          <td className="p-2.5 font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                            {lead.reference}
+                          </td>
+                          <td className="p-2.5">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-slate-800 text-neutral-700 dark:text-slate-300">
+                              {lead.businessModel === "b2b_wholesale" ? "B2B Wholesale" : "B2C Retail"}
+                            </span>
+                          </td>
+                          <td className="p-2.5">
+                            <strong className="block text-neutral-900 dark:text-white">{lead.contactName}</strong>
+                            <span className="text-[11px] text-neutral-400 font-mono">
+                              {lead.businessName ? `${lead.businessName} · ` : ""}
+                              {lead.contactPhone}
+                            </span>
+                          </td>
+                          <td className="p-2.5">
+                            <span className="text-[11px] font-semibold text-neutral-700 dark:text-slate-300 bg-neutral-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                              {stageObj?.name || lead.stageKey}
+                            </span>
+                          </td>
+                          <td className="p-2.5 font-mono font-bold text-neutral-900 dark:text-white">
+                            ₹{((lead.estimatedValuePaise || 0) / 100).toLocaleString("en-IN")}
+                          </td>
+                          <td className="p-2.5">
+                            {lead.nextFollowUpAt ? (
+                              <span className="text-[11px] font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {new Date(lead.nextFollowUpAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                              </span>
+                            ) : (
+                              <span className="text-neutral-400 text-[11px]">—</span>
+                            )}
+                          </td>
+                          <td className="p-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const greeting = `Namaste ${lead.contactName}! Reference: ${lead.reference}.`;
+                                  if (onOpenWhatsApp) onOpenWhatsApp(lead.contactPhone, greeting);
+                                  else window.open(`https://wa.me/${lead.contactPhone.replace(/[^0-9]/g, "")}`, "_blank");
+                                }}
+                                className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 cursor-pointer transition"
+                                title="Chat on WhatsApp"
+                              >
+                                <MessageSquare className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => handleAdvanceStage(lead, e)}
+                                className="px-2 py-1 rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-slate-800 text-neutral-700 dark:text-slate-300 font-bold text-[10px] cursor-pointer flex items-center gap-1"
+                              >
+                                <span>Advance</span>
+                                <ArrowRight className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* SUB-TAB 2: KANBAN PIPELINE VIEW (Page 2 & 3 of PDF)                       */}
+      {/* SUB-TAB 2: KANBAN PIPELINE VIEW (Drag & Drop + Pipeline Switcher)          */}
       {/* ========================================================================= */}
       {activeSubTab === "pipeline" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-neutral-500">
-              Showing pipeline stages for: <strong>{businessFilter === "b2b_wholesale" ? "B2B Wholesale" : businessFilter === "b2c_retail" ? "B2C Retail" : "All Leads"}</strong>
-            </span>
-            <span className="text-[11px] text-neutral-400">Click a card to inspect lead details & commercial terms</span>
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+            {/* Pipeline Mode Switcher */}
+            <div className="flex items-center gap-1 bg-neutral-100 dark:bg-slate-800 p-1 rounded-2xl border border-neutral-200 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => setPipelineMode("wholesale")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  pipelineMode === "wholesale"
+                    ? "bg-white dark:bg-slate-900 text-emerald-800 dark:text-emerald-300 shadow-xs"
+                    : "text-neutral-600 dark:text-slate-400 hover:text-neutral-900"
+                }`}
+              >
+                <Building2 className="h-3.5 w-3.5 text-emerald-600" />
+                <span>B2B Wholesale Pipeline</span>
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                  {wholesaleLeads.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPipelineMode("retail")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  pipelineMode === "retail"
+                    ? "bg-white dark:bg-slate-900 text-sky-800 dark:text-sky-300 shadow-xs"
+                    : "text-neutral-600 dark:text-slate-400 hover:text-neutral-900"
+                }`}
+              >
+                <ShoppingBag className="h-3.5 w-3.5 text-sky-600" />
+                <span>B2C Retail Enquiries</span>
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300">
+                  {retailLeads.length}
+                </span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 text-[11px] text-neutral-500">
+              <span className="flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Drag cards between columns to change stage
+              </span>
+            </div>
           </div>
 
-          {/* Kanban Columns */}
+          {/* Kanban Columns with Drag-and-Drop */}
           <div className="flex gap-3 overflow-x-auto pb-4">
-            {(businessFilter === "b2c_retail" ? RETAIL_STAGES : WHOLESALE_STAGES).map((stg) => {
-              const stageLeads = filteredLeads.filter((l) => l.stageKey === stg.stageKey);
+            {(pipelineMode === "retail" ? RETAIL_STAGES : WHOLESALE_STAGES).map((stg) => {
+              const stageLeads = filteredLeads.filter((l) => {
+                if (pipelineMode === "retail") {
+                  return (l.businessModel === "b2c_retail" || businessFilter === "b2c_retail") && l.stageKey === stg.stageKey;
+                }
+                return (l.businessModel === "b2b_wholesale" || businessFilter === "b2b_wholesale") && l.stageKey === stg.stageKey;
+              });
               const columnValue = stageLeads.reduce((acc, l) => acc + (l.estimatedValuePaise || 0), 0);
+              const isOver = dragOverStage === stg.stageKey;
 
               return (
                 <div
                   key={stg.stageKey}
-                  className="w-[280px] shrink-0 bg-neutral-50 dark:bg-slate-900 rounded-2xl border border-neutral-200/80 dark:border-slate-800 p-3 flex flex-col max-h-[70vh]"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                  }}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    setDragOverStage(stg.stageKey);
+                  }}
+                  onDragLeave={(e) => {
+                    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                    if (dragOverStage === stg.stageKey) setDragOverStage(null);
+                  }}
+                  onDrop={async (e) => {
+                    e.preventDefault();
+                    setDragOverStage(null);
+                    const leadId = e.dataTransfer.getData("text/plain");
+                    if (leadId) {
+                      await handleMoveStage(leadId, stg.stageKey);
+                    }
+                  }}
+                  className={`w-[290px] shrink-0 bg-neutral-50 dark:bg-slate-900 rounded-2xl border p-3 flex flex-col max-h-[72vh] transition-all duration-150 ${
+                    isOver
+                      ? "border-emerald-500 ring-2 ring-emerald-500/50 bg-emerald-50/30 dark:bg-emerald-950/20 scale-[1.01]"
+                      : "border-neutral-200/80 dark:border-slate-800"
+                  }`}
                 >
                   {/* Column Header */}
                   <div className="flex items-center justify-between pb-2.5 border-b border-neutral-200/80 dark:border-slate-800">
@@ -609,14 +876,19 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
                   <div className="space-y-2.5 overflow-y-auto pt-3 flex-1 pr-1">
                     {stageLeads.length === 0 ? (
                       <div className="p-6 text-center text-neutral-400 text-[11px] border-2 border-dashed border-neutral-200 dark:border-slate-800 rounded-xl">
-                        No leads in stage
+                        Drop leads here
                       </div>
                     ) : (
                       stageLeads.map((lead) => (
                         <div
                           key={lead.id}
+                          draggable={true}
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData("text/plain", lead.id);
+                            e.dataTransfer.effectAllowed = "move";
+                          }}
                           onClick={() => setSelectedLeadId(lead.id)}
-                          className="p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-neutral-200/80 dark:border-slate-700 hover:border-emerald-500 hover:shadow-xs transition cursor-pointer space-y-2 shadow-2xs"
+                          className="p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-neutral-200/80 dark:border-slate-700 hover:border-emerald-500 hover:shadow-xs transition cursor-grab active:cursor-grabbing space-y-2 shadow-2xs select-none"
                         >
                           <div className="flex items-center justify-between text-[11px]">
                             <span className="font-mono font-bold text-neutral-900 dark:text-white">
@@ -650,6 +922,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
                             )}
                           </div>
 
+                          {/* Commercial / Value */}
                           <div className="flex items-center justify-between pt-1 border-t border-neutral-100 dark:border-slate-700/60 text-[11px]">
                             <span className="font-mono font-extrabold text-neutral-900 dark:text-white">
                               ₹{((lead.estimatedValuePaise || 0) / 100).toLocaleString("en-IN")}
@@ -659,6 +932,14 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
                             </span>
                           </div>
 
+                          {/* Upcoming Connect Reminder Badge */}
+                          {lead.nextFollowUpAt && (
+                            <div className="flex items-center gap-1.5 text-[10px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-lg border border-amber-200 dark:border-amber-900/40 font-medium">
+                              <Clock className="h-3 w-3 shrink-0" />
+                              <span>Connect: {new Date(lead.nextFollowUpAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
+                            </div>
+                          )}
+
                           {lead.nextAction && (
                             <div className="text-[10px] text-neutral-600 dark:text-slate-300 truncate bg-neutral-50 dark:bg-slate-900 p-1.5 rounded-lg border border-neutral-100 dark:border-slate-800">
                               👉 {lead.nextAction}
@@ -666,11 +947,10 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
                           )}
 
                           {/* Quick Card Actions */}
-                          <div className="flex items-center justify-between pt-1 border-t border-neutral-100 dark:border-slate-700/60 gap-1.5">
+                          <div className="flex items-center justify-between pt-1 border-t border-neutral-100 dark:border-slate-700/60 gap-1.5" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
+                              onClick={() => {
                                 const greeting = `Namaste ${lead.contactName} ji! Reference: ${lead.reference} (${lead.businessModel === "b2b_wholesale" ? "Wholesale Enquiry" : "Product Enquiry"}). Prajnaa Market team here!`;
                                 if (onOpenWhatsApp) {
                                   onOpenWhatsApp(lead.contactPhone, greeting);
@@ -828,14 +1108,14 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
                 {
                   id: "pending",
                   label: "Pending",
-                  count: allFollowUps.filter((f) => f.task.status === "pending").length,
+                  count: allFollowUps.filter((f) => f.task.status !== "completed" && f.task.status !== "cancelled").length,
                   badgeClass: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200",
                 },
                 {
                   id: "overdue",
                   label: "Overdue",
                   count: allFollowUps.filter(
-                    (f) => f.task.status === "pending" && new Date(f.task.dueAt).getTime() < Date.now()
+                    (f) => f.task.status !== "completed" && f.task.status !== "cancelled" && new Date(f.task.dueAt).getTime() < Date.now()
                   ).length,
                   badgeClass: "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-200",
                 },
@@ -1340,7 +1620,25 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
         <NewLeadModal
           isOpen={isNewLeadModalOpen}
           onClose={() => setIsNewLeadModalOpen(false)}
-          onLeadCreated={() => loadData()}
+          onLeadCreated={(newLead?: any) => {
+            if (newLead) {
+              setLeads((prev) => {
+                const updated = [newLead, ...prev.filter((l) => l.id !== newLead.id)];
+                if (typeof window !== "undefined") {
+                  try {
+                    localStorage.setItem("crm_cached_leads", JSON.stringify(updated));
+                  } catch {}
+                }
+                return updated;
+              });
+              if (newLead.businessModel === "b2c_retail") {
+                setPipelineMode("retail");
+              } else {
+                setPipelineMode("wholesale");
+              }
+            }
+            loadData();
+          }}
           products={products}
           teamMembers={teamMembers}
         />

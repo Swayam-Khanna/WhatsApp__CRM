@@ -47,3 +47,49 @@ export async function POST(
     );
   }
 }
+
+/**
+ * PATCH /api/leads/:id/quotes
+ * Modifies an existing quotation.
+ */
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await req.json();
+
+    if (!body || !body.quoteId) {
+      return Response.json(
+        { success: false, error: "Quote ID is required for editing" },
+        { status: 400 }
+      );
+    }
+
+    const quote = await LeadsService.updateQuote(id, body.quoteId, {
+      items: body.items,
+      paymentTerms: body.paymentTerms,
+      deliveryTerms: body.deliveryTerms,
+      validDays: body.validDays,
+      discountPaise: body.discountPaise,
+      notes: body.notes,
+      updatedBy: body.updatedBy || "Sales Agent",
+    });
+
+    return Response.json(
+      {
+        success: true,
+        quote,
+        message: `Quotation #${quote.quoteNumber} (v${quote.version}) updated successfully`,
+      },
+      { status: 200 }
+    );
+  } catch (err: any) {
+    return Response.json(
+      { success: false, error: err.message || "Failed to update quotation" },
+      { status: 400 }
+    );
+  }
+}
+

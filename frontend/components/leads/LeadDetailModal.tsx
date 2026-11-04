@@ -21,10 +21,12 @@ import {
   ChevronRight,
   CreditCard,
   Phone,
+  Edit3,
 } from "lucide-react";
 import {
   leadsService,
   LeadRecord,
+  Quote,
   WHOLESALE_STAGES,
   RETAIL_STAGES,
 } from "@/lib/services/leadsService";
@@ -60,6 +62,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
 
   // Sub-modal states
   const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
+  const [quoteToEdit, setQuoteToEdit] = useState<Quote | null>(null);
   const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
 
   // Quick action input states
@@ -97,6 +100,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
 
   const handleStageChange = async (targetKey: string) => {
     if (!lead) return;
+    const targetStageName = stages.find((s) => s.stageKey === targetKey)?.name || targetKey;
     try {
       const res = await leadsService.transitionStage(lead.id, targetKey, {
         actorId: currentUser.id,
@@ -105,13 +109,45 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
       });
       if (res.success && res.lead) {
         setLead(res.lead);
-        toast.success(`Stage transitioned to ${targetKey}`);
+        toast.success(`Pipeline Stage updated to "${targetStageName}"`);
         onUpdate();
       } else {
         toast.error(res.error || "Stage transition failed");
       }
     } catch (e: any) {
       toast.error(e.message || "Failed to change stage");
+    }
+  };
+
+  const handleQuickUpcomingConnect = async (days: number) => {
+    if (!lead) return;
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    d.setHours(10, 0, 0, 0);
+    const dueIso = d.toISOString();
+    const title = `Upcoming connect with ${lead.contactName} (${
+      days === 7 ? "in 1 week" : days === 1 ? "tomorrow" : `in ${days} days`
+    })`;
+
+    try {
+      const res = await leadsService.scheduleTask(lead.id, {
+        title,
+        dueAt: dueIso,
+        taskType: "whatsapp",
+      });
+      if (res.success) {
+        toast.success(
+          `Upcoming connect reminder scheduled for ${d.toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })}`
+        );
+        await loadLead(lead.id);
+        onUpdate();
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to set reminder");
     }
   };
 
@@ -539,7 +575,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                       lead.quotes.map((q) => (
                         <div
                           key={q.id}
-                          className="p-3 bg-white dark:bg-slate-800 rounded-2xl border border-neutral-200/80 dark:border-slate-700 space-y-1.5"
+                          className="p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-neutral-200/80 dark:border-slate-700 space-y-2"
                         >
                           <div className="flex items-center justify-between">
                             <span className="font-mono font-bold text-xs text-emerald-700 dark:text-emerald-400">
@@ -550,9 +586,21 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                             </strong>
                           </div>
                           <p className="text-[11px] text-neutral-500">Terms: {q.paymentTerms}</p>
-                          <div className="flex items-center justify-between text-[10px] text-neutral-400 pt-1 border-t border-neutral-100 dark:border-slate-700">
+                          <div className="flex items-center justify-between text-[10px] text-neutral-400 pt-1.5 border-t border-neutral-100 dark:border-slate-700">
                             <span>Valid until {new Date(q.validUntil).toLocaleDateString()}</span>
-                            <span className="capitalize font-semibold text-emerald-600">{q.status}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="capitalize font-semibold text-emerald-600">{q.status}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setQuoteToEdit(q);
+                                  setIsQuoteModalOpen(true);
+                                }}
+                                className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300 hover:bg-emerald-100 font-bold flex items-center gap-1 cursor-pointer transition"
+                              >
+                                <Edit3 className="h-3 w-3" /> Edit / Modify Quote
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))
@@ -561,23 +609,48 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                 )}
               </div>
 
-              {/* Add Note Form */}
-              <form onSubmit={handleAddNote} className="pt-2 border-t border-neutral-100 dark:border-slate-800 flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Add note or customer feedback..."
-                  value={newNoteText}
-                  onChange={(e) => setNewNoteText(e.target.value)}
-                  className="flex-1 p-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
-                />
-                <button
-                  type="submit"
-                  disabled={isAddingNote || !newNoteText.trim()}
-                  className="px-3 py-2 rounded-xl bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-bold text-xs transition cursor-pointer disabled:opacity-40"
-                >
-                  Post
-                </button>
-              </form>
+              {/* Add Note / Add Task Form based on activeTab */}
+              {activeTab === "tasks" ? (
+                <form onSubmit={handleScheduleTask} className="pt-2 border-t border-neutral-100 dark:border-slate-800 flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    placeholder="Follow-up title (e.g., Call for payment terms)..."
+                    value={newTaskTitle}
+                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                    className="flex-1 p-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
+                  />
+                  <input
+                    type="datetime-local"
+                    value={newTaskDue}
+                    onChange={(e) => setNewTaskDue(e.target.value)}
+                    className="p-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-neutral-600 dark:text-slate-300"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isSchedulingTask || !newTaskTitle.trim() || !newTaskDue}
+                    className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer disabled:opacity-40 shrink-0"
+                  >
+                    Schedule
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleAddNote} className="pt-2 border-t border-neutral-100 dark:border-slate-800 flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Add note or customer feedback..."
+                    value={newNoteText}
+                    onChange={(e) => setNewNoteText(e.target.value)}
+                    className="flex-1 p-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isAddingNote || !newNoteText.trim()}
+                    className="px-3 py-2 rounded-xl bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-bold text-xs transition cursor-pointer disabled:opacity-40"
+                  >
+                    Post
+                  </button>
+                </form>
+              )}
             </div>
 
             {/* Column 3: COMMERCIAL DETAILS */}
@@ -619,18 +692,75 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                 </div>
               </div>
 
-              {/* Next Action & Schedule */}
-              <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-neutral-200/80 dark:border-slate-700 space-y-2 text-xs">
-                <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">Next Action</span>
+              {/* Next Action & Upcoming Connect Reminder */}
+              <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-neutral-200/80 dark:border-slate-700 space-y-2.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">
+                    Upcoming Connect Reminder
+                  </span>
+                  {lead.nextFollowUpAt && (
+                    <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded-full border border-amber-200">
+                      Active
+                    </span>
+                  )}
+                </div>
+
                 <p className="font-medium text-neutral-900 dark:text-white leading-relaxed">
-                  {lead.nextAction || "None specified"}
+                  {lead.nextAction || "No upcoming task scheduled yet."}
                 </p>
+
                 {lead.nextFollowUpAt && (
-                  <div className="pt-1.5 border-t border-neutral-100 dark:border-slate-700 flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-mono text-[11px] flex-wrap">
-                    <Clock className="h-3.5 w-3.5 shrink-0" />
-                    <span>{new Date(lead.nextFollowUpAt).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                  <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/40 flex items-center gap-1.5 text-amber-800 dark:text-amber-300 font-mono text-[11px] flex-wrap">
+                    <Clock className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                    <span>
+                      Connect Due:{" "}
+                      {new Date(lead.nextFollowUpAt).toLocaleString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
                   </div>
                 )}
+
+                {/* Quick Reminder Shortcut Buttons */}
+                <div className="pt-2 border-t border-neutral-100 dark:border-slate-700 space-y-1.5">
+                  <span className="text-[10px] font-bold text-neutral-400 block">
+                    Set Connect Reminder Shortcut:
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleQuickUpcomingConnect(1)}
+                      className="px-2 py-1 rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-slate-700 text-[10px] font-semibold cursor-pointer"
+                    >
+                      Tomorrow
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickUpcomingConnect(3)}
+                      className="px-2 py-1 rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-slate-700 text-[10px] font-semibold cursor-pointer"
+                    >
+                      In 3 Days
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickUpcomingConnect(7)}
+                      className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300 font-bold text-[10px] cursor-pointer"
+                    >
+                      In 1 Week
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickUpcomingConnect(14)}
+                      className="px-2 py-1 rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-slate-700 text-[10px] font-semibold cursor-pointer"
+                    >
+                      In 2 Weeks
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Order Linking Status */}
@@ -776,10 +906,17 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
         {lead && isQuoteModalOpen && (
           <CreateQuoteModal
             isOpen={isQuoteModalOpen}
-            onClose={() => setIsQuoteModalOpen(false)}
+            onClose={() => {
+              setIsQuoteModalOpen(false);
+              setQuoteToEdit(null);
+            }}
             lead={lead}
+            existingQuote={quoteToEdit}
             products={products}
-            onQuoteCreated={() => loadLead(lead.id)}
+            onQuoteCreated={() => {
+              setQuoteToEdit(null);
+              loadLead(lead.id);
+            }}
           />
         )}
 

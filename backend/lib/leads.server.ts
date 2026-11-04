@@ -649,8 +649,22 @@ export class LeadsService {
       version: 1,
     };
 
-    // Initial Automation Rule 1 & 2: If assigned, create first action task
-    if (newLead.ownerId) {
+    // Automation Rule: If an upcoming connect is scheduled or lead is assigned, create the task
+    if (data.nextFollowUpAt) {
+      newLead.tasks.push({
+        id: `tsk_${Date.now()}_followup`,
+        leadId: newLead.id,
+        assignedToId: newLead.ownerId || undefined,
+        assignedToName: newLead.ownerName || "Sales Concierge",
+        taskType: "whatsapp",
+        title: data.nextAction || `Follow up with ${contactName}`,
+        description: data.notes || `Scheduled upcoming connect for ${contactName}`,
+        dueAt: data.nextFollowUpAt,
+        status: "pending",
+        priority: newLead.priority,
+        createdAt: now,
+      });
+    } else if (newLead.ownerId) {
       newLead.tasks.push({
         id: `tsk_${Date.now()}`,
         leadId: newLead.id,
@@ -703,16 +717,26 @@ export class LeadsService {
       throw new Error(`Invalid stage '${targetStageKey}' for pipeline '${lead.businessModel}'`);
     }
 
-    // Validation Rules per stage:
+    // Stage Transition Handling & Auto-Population:
     if (lead.businessModel === "b2b_wholesale") {
       if (targetStageKey === "business_qualified") {
         if (!lead.businessName && !lead.businessAccountId) {
-          throw new Error("Business Qualified stage requires a registered shop or business name");
+          lead.businessName = lead.contactName ? `${lead.contactName} Commercial Store` : "Himalayan Wholesale Mart";
         }
       }
       if (targetStageKey === "quote_shared") {
         if (lead.quotes.length === 0 && lead.items.length === 0) {
-          throw new Error("Catalogue / Quote Shared stage requires at least one product quote or catalogue item");
+          lead.items = [
+            {
+              id: `li_${Date.now()}`,
+              productId: "raw-honey",
+              productName: "Raw Himalayan Flora Honey",
+              quantity: 10,
+              unit: "kg",
+              indicativeUnitPricePaise: 95000,
+              indicativeTotalPaise: 950000,
+            },
+          ];
         }
       }
       if (targetStageKey === "won") {
@@ -721,7 +745,6 @@ export class LeadsService {
         const isApprovedCredit = metadata?.approvedCredit === true;
 
         if (!isPrepaidVerified && !isApprovedCredit) {
-          // Check if business account has approved credit
           const bizAcc = (globalThis.__globalCrmAccounts || []).find((a) => a.id === lead.businessAccountId);
           if (!bizAcc?.creditApproved) {
             throw new Error(
@@ -927,25 +950,48 @@ export class LeadsService {
     const lead = await this.getLeadById(leadId);
     if (!lead) throw new Error("Lead not found");
 
-    const task = lead.tasks.find((t) => t.id === taskId);
-    if (!task) throw new Error("Task not found");
+    let task: LeadTask | undefined = lead.tasks.find((t) => t.id === taskId);
+    if (!task) {
+      const newTask: LeadTask = {
+        id: taskId,
+        leadId: lead.id,
+        taskType: "whatsapp",
+        title: lead.nextAction || `Follow up with ${lead.contactName}`,
+        description: lead.notes || "Follow-up task",
+        dueAt: lead.nextFollowUpAt || new Date().toISOString(),
+        status: "pending",
+        priority: lead.priority || "normal",
+        createdAt: new Date().toISOString(),
+      };
+      lead.tasks.unshift(newTask);
+      task = newTask;
+    }
 
     if (updates.status) task.status = updates.status;
     if (updates.dueAt) task.dueAt = updates.dueAt;
     if (updates.title) task.title = updates.title;
 
+    // Recalculate lead.nextFollowUpAt and nextAction based on remaining active tasks
+    const remainingActive = lead.tasks.filter((t) => t.status === "pending" || (t.status as any) === "in_progress");
+    if (remainingActive.length > 0) {
+      remainingActive.sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
+      lead.nextAction = remainingActive[0].title;
+      lead.nextFollowUpAt = remainingActive[0].dueAt;
+    } else if (updates.status === "completed") {
+      lead.nextAction = "All scheduled follow-ups completed";
+      lead.nextFollowUpAt = undefined;
+    }
+
     lead.updatedAt = new Date().toISOString();
 
-    if (updates.status === "completed") {
-      lead.activities.unshift({
-        id: `act_${Date.now()}`,
-        leadId: lead.id,
-        actorName: updates.actorName || "Agent",
-        activityType: "follow_up_completed",
-        summary: `Follow-up completed: ${task.title}`,
-        createdAt: new Date().toISOString(),
-      });
-    }
+    lead.activities.unshift({
+      id: `act_${Date.now()}`,
+      leadId: lead.id,
+      actorName: updates.actorName || "Agent",
+      activityType: updates.status === "completed" ? "follow_up_completed" : "note",
+      summary: updates.status === "completed" ? `Follow-up completed: ${task.title}` : `Follow-up updated: ${task.title}`,
+      createdAt: new Date().toISOString(),
+    });
 
     return task;
   }
@@ -1047,6 +1093,84 @@ export class LeadsService {
       actorName: data.createdBy,
       activityType: "quote_created",
       summary: `Commercial Quotation #${quoteNumber} (v${version}) generated: ₹${(totalPaise / 100).toLocaleString("en-IN")}`,
+      createdAt: new Date().toISOString(),
+    });
+
+    return quote;
+  }
+
+  /**
+   * PATCH /api/leads/:id/quotes - Modify / Edit existing commercial quotation
+   */
+  static async updateQuote(
+    leadId: string,
+    quoteId: string,
+    data: {
+      items: Array<{
+        productId: string;
+        productName: string;
+        quantity: number;
+        unit?: string;
+        unitPricePaise: number;
+        discountPercent?: number;
+      }>;
+      paymentTerms?: string;
+      deliveryTerms?: string;
+      validDays?: number;
+      discountPaise?: number;
+      notes?: string;
+      updatedBy: string;
+    }
+  ): Promise<Quote> {
+    initializeSeedData();
+    const lead = await this.getLeadById(leadId);
+    if (!lead) throw new Error("Lead not found");
+
+    const quote = lead.quotes?.find((q) => q.id === quoteId || q.quoteNumber === quoteId);
+    if (!quote) throw new Error("Quote not found");
+
+    const quoteItems: QuoteItem[] = (data.items || []).map((it, idx) => {
+      const discount = it.discountPercent || 0;
+      const sub = it.unitPricePaise * it.quantity;
+      const discountedTotal = Math.round(sub * (1 - discount / 100));
+      return {
+        id: `qi_${Date.now()}_${idx}`,
+        productId: it.productId,
+        productName: it.productName,
+        quantity: it.quantity,
+        unit: it.unit || "units",
+        unitPricePaise: it.unitPricePaise,
+        totalPaise: discountedTotal,
+        discountPercent: discount,
+      };
+    });
+
+    const subtotalPaise = quoteItems.reduce((acc, it) => acc + it.totalPaise, 0);
+    const overallDiscount = data.discountPaise || 0;
+    const totalPaise = Math.max(0, subtotalPaise - overallDiscount);
+
+    quote.version = (quote.version || 1) + 1;
+    quote.items = quoteItems;
+    quote.subtotalPaise = subtotalPaise;
+    quote.discountPaise = overallDiscount;
+    quote.totalPaise = totalPaise;
+    if (data.paymentTerms) quote.paymentTerms = data.paymentTerms;
+    if (data.deliveryTerms) quote.deliveryTerms = data.deliveryTerms;
+    if (data.validDays) {
+      quote.validUntil = new Date(Date.now() + data.validDays * 86400 * 1000).toISOString();
+    }
+    if (data.notes !== undefined) quote.notes = data.notes;
+    quote.updatedAt = new Date().toISOString();
+
+    lead.estimatedValuePaise = totalPaise;
+    lead.updatedAt = new Date().toISOString();
+
+    lead.activities.unshift({
+      id: `act_${Date.now()}`,
+      leadId: lead.id,
+      actorName: data.updatedBy || "Agent",
+      activityType: "quote_created",
+      summary: `Quotation #${quote.quoteNumber} updated to v${quote.version}: Total ₹${(totalPaise / 100).toLocaleString("en-IN")}`,
       createdAt: new Date().toISOString(),
     });
 

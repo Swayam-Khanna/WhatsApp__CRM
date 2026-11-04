@@ -245,6 +245,27 @@ class LeadsClientService {
     }
   }
 
+  async updateQuote(
+    leadId: string,
+    quoteId: string,
+    quoteData: any
+  ): Promise<{ success: boolean; quote?: Quote; error?: string }> {
+    try {
+      const res = await fetch(`/api/leads/${leadId}/quotes`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quoteId, ...quoteData }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, error: data.error || "Failed to update quote" };
+      }
+      return { success: true, quote: data.quote };
+    } catch (e: any) {
+      return { success: false, error: e.message || "Network error" };
+    }
+  }
+
   async convertToOrder(
     leadId: string,
     payload: any

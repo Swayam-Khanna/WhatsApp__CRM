@@ -4,6 +4,7 @@ import {
   useState, useRef, useEffect, useMemo } from "react";
 import LeadsModule from "@/components/leads/LeadsModule";
 import NewLeadModal from "@/components/leads/NewLeadModal";
+import { SearchableProductSelect } from "@/components/common/SearchableProductSelect";
 import {
   Upload,
   LayoutDashboard,
@@ -1162,6 +1163,7 @@ export default function PrajnaaMasterCrmApp() {
     { productId: "prajnaa-almond-500g", qty: 1 }
   ]);
   const [newOrderPaymentMethodChoice, setNewOrderPaymentMethodChoice] = useState<string>("UPI");
+  const [newOrderDiscount, setNewOrderDiscount] = useState<number>(0);
 
   // WhatsApp Inbox Interactive states
   const [showEditCustomerModal, setShowEditCustomerModal] = useState<boolean>(false);
@@ -2763,8 +2765,10 @@ export default function PrajnaaMasterCrmApp() {
     });
 
     const subtotal = lineItems.reduce((acc, it) => acc + it.total, 0);
-    const shipping = subtotal > 1500 ? 0 : 50;
-    const total = subtotal + shipping;
+    const discount = Math.max(0, Number(newOrderDiscount) || 0);
+    const afterDiscount = Math.max(0, subtotal - discount);
+    const shipping = afterDiscount > 1500 ? 0 : 50;
+    const total = afterDiscount + shipping;
     const totalQty = lineItems.reduce((acc, it) => acc + it.qty, 0);
 
     const paymentMethodLabels: Record<string, string> = {
@@ -2796,7 +2800,7 @@ export default function PrajnaaMasterCrmApp() {
       time: formattedTime,
       items: lineItems,
       subtotal,
-      discount: 0,
+      discount: discount,
       shipping,
       paymentMethod: paymentMethodLabel,
       trackingNumber: `ET${Math.floor(100000000 + Math.random() * 900000000)}IN`,
@@ -2911,6 +2915,7 @@ export default function PrajnaaMasterCrmApp() {
       setNewOrderCustomerEmail("");
       setNewOrderAddress("");
       setNewOrderNotes("");
+      setNewOrderDiscount(0);
       setShowAddOrderModal(false);
 
       toast.success(`Order ${fullOrderNum} created successfully! WhatsApp message generated.`);
@@ -4893,49 +4898,81 @@ export default function PrajnaaMasterCrmApp() {
                 if (foundOrder) {
                   setSelectedOrderForView(foundOrder);
                 } else if (lead) {
+                  // Prioritize finalized quotes if available, otherwise lead items
+                  const quote = Array.isArray(lead.quotes) && lead.quotes.length > 0 ? lead.quotes[0] : null;
+                  const rawItems = quote && Array.isArray(quote.items) && quote.items.length > 0
+                    ? quote.items
+                    : (Array.isArray(lead.items) && lead.items.length > 0 ? lead.items : []);
+
+                  const mappedItems = rawItems.length > 0
+                    ? rawItems.map((it: any) => {
+                        const qty = Number(it.quantity || it.requestedQuantity || it.qty || 1);
+                        const price = Number(
+                          it.unitPricePaise ? it.unitPricePaise / 100 :
+                          it.indicativeUnitPricePaise ? it.indicativeUnitPricePaise / 100 :
+                          it.price || 0
+                        );
+                        const total = Number(
+                          it.totalPaise ? it.totalPaise / 100 :
+                          it.indicativeTotalPaise ? it.indicativeTotalPaise / 100 :
+                          it.total || 0
+                        );
+                        const effectivePrice = price > 0 ? price : (qty > 0 && total > 0 ? total / qty : 950);
+                        const effectiveTotal = total > 0 ? total : effectivePrice * qty;
+                        return {
+                          name: it.productName || it.name || "Himalayan Forest Produce",
+                          weight: it.weight || it.unit || "500g",
+                          qty,
+                          price: Math.round(effectivePrice * 100) / 100,
+                          total: Math.round(effectiveTotal * 100) / 100,
+                          image: "🍯",
+                        };
+                      })
+                    : [
+                        {
+                          name: "Himalayan Forest Produce",
+                          weight: "500g",
+                          qty: 1,
+                          price: lead.estimatedValuePaise ? lead.estimatedValuePaise / 100 : 950,
+                          total: lead.estimatedValuePaise ? lead.estimatedValuePaise / 100 : 950,
+                          image: "🍯",
+                        },
+                      ];
+
+                  const itemsSubtotal = mappedItems.reduce((acc: number, item: any) => acc + (Number(item.total) || 0), 0);
+                  const orderSubtotal = quote?.subtotalPaise
+                    ? quote.subtotalPaise / 100
+                    : itemsSubtotal > 0
+                    ? itemsSubtotal
+                    : (lead.estimatedValuePaise ? lead.estimatedValuePaise / 100 : 950);
+
+                  const orderDiscount = quote?.discountPaise ? quote.discountPaise / 100 : 0;
+                  const orderAmount = quote?.totalPaise
+                    ? quote.totalPaise / 100
+                    : lead.estimatedValuePaise
+                    ? lead.estimatedValuePaise / 100
+                    : Math.max(0, orderSubtotal - orderDiscount);
+
                   const leadOrder: Order = {
                     id: orderNumberOrId,
                     orderNumber: orderNumberOrId.startsWith("#") ? orderNumberOrId : `#${orderNumberOrId}`,
-                    customerName: lead.contactName || lead.businessName || "Customer",
+                    customerName: lead.contactName || lead.businessName || "Customer Patron",
                     customerPhone: lead.contactPhone || "",
                     customerEmail: lead.contactEmail || "",
                     shippingAddress: lead.businessName
-                      ? `${lead.businessName}, ${lead.deliveryPostalCode || ""}`
-                      : "Direct Dispatch Address, Uttarakhand",
-                    itemsCount: Array.isArray(lead.items) && lead.items.length > 0 ? lead.items.length : 1,
-                    amount: lead.quotes?.[0]?.totalPaise
-                      ? lead.quotes[0].totalPaise / 100
-                      : lead.estimatedValuePaise
-                      ? lead.estimatedValuePaise / 100
-                      : 999,
-                    paymentStatus: lead.businessModel === "b2b_wholesale" ? "Pending" : "Paid",
-                    orderStatus: "Processing",
+                      ? `${lead.businessName}, ${lead.deliveryPostalCode ? `Pin: ${lead.deliveryPostalCode}, Himachal Pradesh` : "Solan, Himachal Pradesh – 173212"}`
+                      : "Outer Solan Road, Solan, Himachal Pradesh – 173212",
+                    itemsCount: mappedItems.length,
+                    amount: orderAmount,
+                    subtotal: orderSubtotal,
+                    discount: orderDiscount,
+                    shipping: 0,
+                    paymentStatus: lead.stageKey === "won" ? "Paid" : "Pending",
+                    orderStatus: lead.stageKey === "won" ? "Delivered" : "Processing",
                     date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
                     time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
-                    items:
-                      Array.isArray(lead.items) && lead.items.length > 0
-                        ? lead.items.map((it: any) => ({
-                            name: it.productName || "Himalayan Produce",
-                            weight: it.weight || "500g",
-                            qty: it.quantity || 1,
-                            price: (it.unitPricePaise ? it.unitPricePaise / 100 : it.price) || 950,
-                            total: (it.totalPaise ? it.totalPaise / 100 : it.total) || 950,
-                            image: "🍯",
-                          }))
-                        : [
-                            {
-                              name: "Himalayan Forest Produce",
-                              weight: "500g",
-                              qty: 1,
-                              price: lead.quotes?.[0]?.totalPaise ? lead.quotes[0].totalPaise / 100 : 950,
-                              total: lead.quotes?.[0]?.totalPaise ? lead.quotes[0].totalPaise / 100 : 950,
-                              image: "🍯",
-                            },
-                          ],
-                    subtotal: lead.quotes?.[0]?.totalPaise ? lead.quotes[0].totalPaise / 100 : 950,
-                    discount: 0,
-                    shipping: 50,
-                    paymentMethod: lead.businessModel === "b2b_wholesale" ? "B2B Credit Terms" : "WhatsApp Pay",
+                    items: mappedItems,
+                    paymentMethod: lead.businessModel === "b2b_wholesale" ? "B2B Credit Terms" : "WhatsApp Order & Direct Payment",
                     trackingNumber: `ET${Math.floor(100000000 + Math.random() * 900000000)}IN`,
                   };
                   setSelectedOrderForView(leadOrder);
@@ -9437,7 +9474,7 @@ export default function PrajnaaMasterCrmApp() {
       {/* ========================================================= */}
       {showAddOrderModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-neutral-200 space-y-4 text-neutral-900">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-2xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-neutral-200 dark:border-slate-800 space-y-4 text-neutral-900 dark:text-white">
             <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="h-9 w-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
@@ -9556,7 +9593,7 @@ export default function PrajnaaMasterCrmApp() {
                   </button>
                 </div>
 
-                <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
+                <div className="space-y-2.5">
                   {newOrderItemsList.map((item: any, idx: number) => {
                     const selectedProd = productsList.find((p) => p.id === item.productId) || productsList[0];
                     const lineTotal = (selectedProd?.price || 0) * (item.qty || 1);
@@ -9582,17 +9619,19 @@ export default function PrajnaaMasterCrmApp() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
                           <div className="sm:col-span-8">
-                            <select
-                              value={item.productId}
-                              onChange={(e) => handleUpdateOrderItemLine(idx, e.target.value, item.qty)}
-                              className="w-full p-2 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                            >
-                              {productsList.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.name} — ₹{p.price.toLocaleString("en-IN")} ({p.weight || "500g"})
-                                </option>
-                              ))}
-                            </select>
+                            <SearchableProductSelect
+                              products={productsList.map((p) => ({
+                                id: p.id,
+                                name: p.name,
+                                price: p.price,
+                                weight: p.weight,
+                                category: p.category,
+                              }))}
+                              selectedId={item.productId}
+                              onSelect={(prod: any) => handleUpdateOrderItemLine(idx, prod.id, item.qty)}
+                              placeholder="Search Himalayan produce..."
+                              className="w-full"
+                            />
                           </div>
 
                           <div className="sm:col-span-4 flex items-center justify-end gap-2">
@@ -9682,16 +9721,33 @@ export default function PrajnaaMasterCrmApp() {
                 </div>
               </div>
 
-              {/* Order Notes */}
-              <div className="space-y-1">
-                <label className="font-semibold text-neutral-700">Customer / Internal Notes (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Morning delivery preferred, raw forest honey batch"
-                  value={newOrderNotes}
-                  onChange={(e) => setNewOrderNotes(e.target.value)}
-                  className="w-full p-2 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                />
+              {/* Order Notes & Discounted Price */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="space-y-1">
+                  <label className="font-semibold text-neutral-700">Customer / Internal Notes (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Morning delivery preferred, raw forest honey batch"
+                    value={newOrderNotes}
+                    onChange={(e) => setNewOrderNotes(e.target.value)}
+                    className="w-full p-2 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-emerald-800 flex items-center justify-between">
+                    <span>Discounted Price / Order Discount (₹)</span>
+                    <span className="text-[10px] text-neutral-400 font-normal">Deducted from total</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={newOrderDiscount || ""}
+                    onChange={(e) => setNewOrderDiscount(Math.max(0, Number(e.target.value) || 0))}
+                    className="w-full p-2 rounded-xl border border-emerald-300 font-mono font-bold text-xs bg-emerald-50/40 text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
               </div>
 
               {/* Dynamic Pricing Summary Card */}
@@ -9700,8 +9756,10 @@ export default function PrajnaaMasterCrmApp() {
                   const prod = productsList.find((p) => p.id === item.productId) || productsList[0];
                   return acc + (prod?.price || 0) * (item.qty || 1);
                 }, 0);
-                const shipping = subtotal > 1500 ? 0 : 50;
-                const total = subtotal + shipping;
+                const discount = Math.max(0, Number(newOrderDiscount) || 0);
+                const afterDiscount = Math.max(0, subtotal - discount);
+                const shipping = afterDiscount > 1500 ? 0 : 50;
+                const total = afterDiscount + shipping;
 
                 return (
                   <div className="bg-emerald-50/70 p-3.5 rounded-2xl border border-emerald-200/80 space-y-1.5 text-xs">
@@ -9709,6 +9767,12 @@ export default function PrajnaaMasterCrmApp() {
                       <span>Produce Subtotal ({newOrderItemsList.reduce((a: number, b: any) => a + (b.qty || 1), 0)} items)</span>
                       <span className="font-mono font-bold text-neutral-800">₹{subtotal.toLocaleString("en-IN")}</span>
                     </div>
+                    {discount > 0 && (
+                      <div className="flex justify-between text-emerald-700 font-semibold">
+                        <span>Special Order Discount</span>
+                        <span className="font-mono font-bold">-₹{discount.toLocaleString("en-IN")}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-neutral-600">
                       <span>India Post Speed Post Delivery</span>
                       <span className="font-mono font-bold text-neutral-800">
@@ -10236,7 +10300,7 @@ export default function PrajnaaMasterCrmApp() {
       {/* ========================================================= */}
       {showInvoiceModal && selectedOrderForView && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-neutral-100 dark:bg-slate-900 rounded-3xl w-full max-w-4xl max-h-[94vh] flex flex-col shadow-2xl border border-neutral-300 dark:border-slate-800 overflow-hidden my-auto">
+          <div className="bg-neutral-100 dark:bg-slate-900 rounded-3xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl border border-neutral-300 dark:border-slate-800 overflow-hidden my-auto">
             {/* Top Modal Controls Bar (Hidden during Print) */}
             <div className="px-5 py-3.5 bg-white dark:bg-slate-800 border-b border-neutral-200 dark:border-slate-700 flex items-center justify-between gap-3 shrink-0 print:hidden">
               <div className="flex items-center gap-2.5">
@@ -10277,11 +10341,11 @@ export default function PrajnaaMasterCrmApp() {
             </div>
 
             {/* Scrollable Document Preview Area */}
-            <div className="flex-1 overflow-y-auto p-3 sm:p-6 bg-neutral-200/60 dark:bg-slate-950 flex justify-center">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-neutral-200/60 dark:bg-slate-950 flex justify-center items-start">
               {/* THE OFFICIAL TAX INVOICE A4 SHEET */}
               <div
                 id="prajnaa-tax-invoice"
-                className="bg-white text-neutral-900 p-6 sm:p-10 w-full max-w-[800px] shadow-lg rounded-2xl print:rounded-none print:shadow-none print:border-none print:p-0 print:m-0 space-y-6 text-xs font-sans border border-neutral-300"
+                className="bg-white text-neutral-900 p-6 sm:p-10 w-full max-w-[850px] h-fit min-h-fit shadow-xl rounded-2xl print:rounded-none print:shadow-none print:border-none print:p-0 print:m-0 space-y-6 text-xs font-sans border border-neutral-300 my-4"
               >
                 {/* 1. Header: Brand Letterhead & Tax Invoice Heading */}
                 <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-4 border-b-2 border-emerald-900/80">
@@ -10301,11 +10365,14 @@ export default function PrajnaaMasterCrmApp() {
                     </div>
 
                     <div className="text-[10px] text-neutral-600 space-y-0.5 pt-1 font-mono">
-                      <p>14 Rajpur Road, Dehradun, Uttarakhand - 248001, India</p>
-                      <p className="font-semibold text-neutral-800">
-                        GSTIN: <span className="text-emerald-900">05AABCP1234F1Z8</span> • State: Uttarakhand (05) • PAN: AABCP1234F
+                      <p className="font-semibold text-neutral-900">
+                        Address: Outer Solan Road, Solan, Himachal Pradesh – 173212, India
                       </p>
-                      <p>FSSAI Lic No: 12622005000189 • CIN: U01111UR2024PTC016789</p>
+                      <p className="font-semibold text-neutral-800">Pin code: 173212</p>
+                      <p className="font-semibold text-neutral-800">
+                        GSTIN: <span className="text-emerald-900 font-bold">02AABCP1234F1Z8</span> • State: Himachal Pradesh (02) • PAN: AABCP1234F
+                      </p>
+                      <p>FSSAI Lic No: 12622005000189 • CIN: U01111HP2024PTC016789</p>
                       <p>Desk: +91 80912 65690 • concierge@prajnaa.in • https://market.prajnaa.in</p>
                     </div>
                   </div>
@@ -10333,7 +10400,7 @@ export default function PrajnaaMasterCrmApp() {
                         </div>
                         <div className="flex justify-between gap-3">
                           <span className="text-neutral-500">Place of Supply:</span>
-                          <strong className="text-neutral-900">Uttarakhand (05)</strong>
+                          <strong className="text-neutral-900">Himachal Pradesh (02)</strong>
                         </div>
                       </div>
                     </div>
@@ -10362,9 +10429,15 @@ export default function PrajnaaMasterCrmApp() {
                       <p className="text-neutral-600 truncate">Email: {selectedOrderForView.customerEmail}</p>
                     )}
                     <p className="text-neutral-700 leading-snug pt-0.5">
-                      Address: {selectedOrderForView.shippingAddress || "Direct Dispatch Address, Dehradun, Uttarakhand - 248001"}
+                      Address: {selectedOrderForView.shippingAddress || "Outer Solan Road, Solan, Himachal Pradesh – 173212"}
                     </p>
-                    <p className="text-[10px] text-neutral-500">State / Code: Uttarakhand (05)</p>
+                    <p className="text-[10px] text-neutral-500">
+                      State / Code: {selectedOrderForView.shippingAddress?.toLowerCase().includes("uttarakhand")
+                        ? "Uttarakhand (05)"
+                        : selectedOrderForView.shippingAddress?.toLowerCase().includes("delhi")
+                        ? "Delhi (07)"
+                        : "Himachal Pradesh (02)"}
+                    </p>
                   </div>
 
                   {/* Logistics Dispatch & India Post */}
@@ -10390,7 +10463,7 @@ export default function PrajnaaMasterCrmApp() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-neutral-500">Dispatch Hub:</span>
-                        <span className="text-neutral-800">Dehradun Head Post Office (GPO)</span>
+                        <span className="text-neutral-800">Solan Head Post Office (HPO), Himachal Pradesh - 173212</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-neutral-500">Fulfillment Status:</span>
@@ -10421,27 +10494,32 @@ export default function PrajnaaMasterCrmApp() {
                     </thead>
                     <tbody className="divide-y divide-neutral-200 text-neutral-800">
                       {selectedOrderForView.items && selectedOrderForView.items.length > 0 ? (
-                        selectedOrderForView.items.map((it, idx) => (
-                          <tr key={idx} className="hover:bg-neutral-50">
-                            <td className="py-2.5 px-3 text-center font-mono text-[11px] text-neutral-500">{idx + 1}</td>
-                            <td className="py-2.5 px-3">
-                              <span className="font-bold text-neutral-900 block">{it.name}</span>
-                              <span className="text-[10px] text-neutral-500 font-mono">
-                                Pack / Weight: {it.weight || "Standard Pack"} • Certified Himalayan Single-Origin
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3 text-center font-mono text-[11px] text-neutral-600">
-                              {getProductHsn(it.name)}
-                            </td>
-                            <td className="py-2.5 px-3 text-center font-mono font-bold">{it.qty || 1}</td>
-                            <td className="py-2.5 px-3 text-right font-mono">
-                              ₹{Number(it.price || 0).toLocaleString("en-IN")}.00
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-mono font-bold text-neutral-900">
-                              ₹{Number(it.total || (it.price * (it.qty || 1)) || 0).toLocaleString("en-IN")}.00
-                            </td>
-                          </tr>
-                        ))
+                        selectedOrderForView.items.map((it, idx) => {
+                          const itemQty = Number(it.qty || (it as any).quantity || 1);
+                          const itemPrice = Number(it.price || 0);
+                          const itemTotal = Number(it.total != null && it.total > 0 ? it.total : itemPrice * itemQty);
+                          return (
+                            <tr key={idx} className="hover:bg-neutral-50">
+                              <td className="py-2.5 px-3 text-center font-mono text-[11px] text-neutral-500">{idx + 1}</td>
+                              <td className="py-2.5 px-3">
+                                <span className="font-bold text-neutral-900 block">{it.name}</span>
+                                <span className="text-[10px] text-neutral-500 font-mono">
+                                  Pack / Weight: {it.weight || "Standard Pack"} • Certified Himalayan Single-Origin
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-center font-mono text-[11px] text-neutral-600">
+                                {getProductHsn(it.name)}
+                              </td>
+                              <td className="py-2.5 px-3 text-center font-mono font-bold">{itemQty}</td>
+                              <td className="py-2.5 px-3 text-right font-mono">
+                                ₹{itemPrice.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono font-bold text-neutral-900">
+                                ₹{itemTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          );
+                        })
                       ) : (
                         <tr>
                           <td className="py-2.5 px-3 text-center font-mono text-[11px] text-neutral-500">1</td>
@@ -10454,10 +10532,10 @@ export default function PrajnaaMasterCrmApp() {
                           <td className="py-2.5 px-3 text-center font-mono text-[11px] text-neutral-600">0910 99 90</td>
                           <td className="py-2.5 px-3 text-center font-mono font-bold">{selectedOrderForView.itemsCount || 1}</td>
                           <td className="py-2.5 px-3 text-right font-mono">
-                            ₹{Number(selectedOrderForView.amount || 0).toLocaleString("en-IN")}.00
+                            ₹{Number(selectedOrderForView.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                           <td className="py-2.5 px-3 text-right font-mono font-bold text-neutral-900">
-                            ₹{Number(selectedOrderForView.amount || 0).toLocaleString("en-IN")}.00
+                            ₹{Number(selectedOrderForView.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                         </tr>
                       )}
@@ -10509,7 +10587,7 @@ export default function PrajnaaMasterCrmApp() {
                       <div className="flex justify-between text-neutral-600">
                         <span>Produce Subtotal:</span>
                         <span className="font-mono font-semibold text-neutral-900">
-                          ₹{Number(selectedOrderForView.subtotal || selectedOrderForView.amount || 0).toLocaleString("en-IN")}.00
+                          ₹{Number(selectedOrderForView.subtotal || selectedOrderForView.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </div>
 
@@ -10517,29 +10595,35 @@ export default function PrajnaaMasterCrmApp() {
                         <span>Speed Post Delivery:</span>
                         <span className="font-mono font-semibold text-neutral-900">
                           {Number(selectedOrderForView.shipping || 0) > 0
-                            ? `₹${Number(selectedOrderForView.shipping).toLocaleString("en-IN")}.00`
+                            ? `₹${Number(selectedOrderForView.shipping).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                             : "FREE (Included)"}
                         </span>
                       </div>
 
-                      {Number(selectedOrderForView.discount || 0) > 0 && (
-                        <div className="flex justify-between text-emerald-700 font-semibold">
-                          <span>Discount Applied:</span>
-                          <span className="font-mono">-₹{Number(selectedOrderForView.discount).toLocaleString("en-IN")}.00</span>
-                        </div>
-                      )}
+                      {(() => {
+                        const subtotalVal = Number(selectedOrderForView.subtotal || selectedOrderForView.amount || 0);
+                        const discountVal = Number(selectedOrderForView.discount || 0);
+                        const discountPct = subtotalVal > 0 && discountVal > 0 ? ((discountVal / subtotalVal) * 100).toFixed(1) : "0";
+                        if (discountVal <= 0) return null;
+                        return (
+                          <div className="flex justify-between text-emerald-700 font-semibold">
+                            <span>Discount Applied ({discountPct}%):</span>
+                            <span className="font-mono font-bold">-₹{discountVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                        );
+                      })()}
 
                       <div className="flex justify-between text-[11px] text-neutral-500 pt-1 border-t border-neutral-200">
                         <span>Applicable GST (5% Included):</span>
                         <span className="font-mono">
-                          ₹{(Number(selectedOrderForView.amount || 0) * 0.05 / 1.05).toFixed(2)}
+                          ₹{(Number(selectedOrderForView.amount || 0) * 0.05 / 1.05).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </div>
 
                       <div className="flex justify-between items-center text-sm font-extrabold text-neutral-900 pt-2 border-t-2 border-neutral-300">
                         <span>Total Amount:</span>
                         <span className="text-base font-mono text-emerald-800 font-extrabold">
-                          ₹{Number(selectedOrderForView.amount || 0).toLocaleString("en-IN")}.00
+                          ₹{Number(selectedOrderForView.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </div>
                     </div>
