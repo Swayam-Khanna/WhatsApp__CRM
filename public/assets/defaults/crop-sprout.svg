@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F4EFE6"/>
+      <stop offset="100%" stop-color="#E7DEC8"/>
+    </linearGradient>
+    <linearGradient id="stem" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#2D5A27"/>
+      <stop offset="100%" stop-color="#588157"/>
+    </linearGradient>
+    <linearGradient id="leafL" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3A5A40"/>
+      <stop offset="100%" stop-color="#80B918"/>
+    </linearGradient>
+    <linearGradient id="leafR" x1="100%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#2D5A27"/>
+      <stop offset="100%" stop-color="#55A630"/>
+    </linearGradient>
+    <linearGradient id="soil" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#8D3C1B"/>
+      <stop offset="100%" stop-color="#5A2411"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="400" fill="url(#bg)"/>
+  
+  <!-- Subtle decorative ring -->
+  <circle cx="200" cy="200" r="140" fill="none" stroke="#D5C7B0" stroke-width="2" stroke-dasharray="6,6" opacity="0.6"/>
+
+  <!-- Soil mound -->
+  <path d="M 100 310 C 130 270, 270 270, 300 310 C 260 325, 140 325, 100 310 Z" fill="url(#soil)" opacity="0.85"/>
+  <ellipse cx="200" cy="308" rx="80" ry="12" fill="#5A2411" opacity="0.5"/>
+
+  <!-- Main Stem -->
+  <path d="M 200 300 C 198 240, 201 190, 200 145" fill="none" stroke="url(#stem)" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- Left Leaf -->
+  <path d="M 198 215 C 150 205, 110 160, 115 125 C 155 125, 190 170, 198 215 Z" fill="url(#leafL)"/>
+  <path d="M 198 215 C 160 180, 135 150, 122 132" fill="none" stroke="#A7C957" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- Right Leaf -->
+  <path d="M 200 180 C 245 170, 285 130, 280 95 C 240 100, 210 145, 200 180 Z" fill="url(#leafR)"/>
+  <path d="M 200 180 C 235 150, 260 125, 272 104" fill="none" stroke="#90BE6D" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- Tiny Emerging Sprout Tip -->
+  <path d="M 200 145 C 196 130, 194 110, 200 100 C 206 110, 204 130, 200 145 Z" fill="#80B918"/>
+</svg>

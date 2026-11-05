@@ -1,0 +1,479 @@
+@import "tailwindcss" source(none);
+@source "../app";
+@source ".";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Prajnaa Farm — Design System
+ * Premium minimalism. Apple/Stripe/Linear-inspired.
+ * Heading: Bricolage Grotesque · Subhead: Plus Jakarta Sans · Body: Inter
+ * Fonts loaded via <link> in __root.tsx.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-display: "Bricolage Grotesque", "General Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-subhead: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --shadow-card: 0 1px 2px 0 oklch(0 0 0 / 0.04), 0 1px 3px 0 oklch(0 0 0 / 0.04);
+  --shadow-lift: 0 12px 32px -12px oklch(0 0 0 / 0.12), 0 4px 8px -4px oklch(0 0 0 / 0.06);
+}
+
+:root {
+  --radius: 0.75rem;
+
+  /* Brand palette — PRD spec */
+  --background: oklch(1 0 0); /* #FFFFFF */
+  --foreground: oklch(0.205 0.024 264); /* #111827 */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.205 0.024 264);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.205 0.024 264);
+
+  --primary: oklch(0.34 0.06 156); /* #0F3D2E forest */
+  --primary-foreground: oklch(0.98 0.01 80);
+
+  --secondary: oklch(0.965 0.012 80); /* #F7F3EE cream */
+  --secondary-foreground: oklch(0.34 0.06 156);
+
+  --muted: oklch(0.965 0.012 80);
+  --muted-foreground: oklch(0.49 0.02 264);
+
+  --accent: oklch(0.78 0.14 75); /* #E8A317 saffron */
+  --accent-foreground: oklch(0.205 0.024 264);
+
+  --destructive: oklch(0.6 0.22 27); /* #DC2626 */
+  --destructive-foreground: oklch(0.98 0 0);
+
+  --success: oklch(0.65 0.17 145); /* #16A34A */
+  --success-foreground: oklch(0.98 0 0);
+
+  --warning: oklch(0.78 0.16 75); /* #F59E0B */
+  --warning-foreground: oklch(0.205 0.024 264);
+
+  --border: oklch(0.92 0.005 80);
+  --input: oklch(0.92 0.005 80);
+  --ring: oklch(0.34 0.06 156);
+
+  --sidebar: oklch(0.99 0.005 80);
+  --sidebar-foreground: oklch(0.205 0.024 264);
+  --sidebar-primary: oklch(0.34 0.06 156);
+  --sidebar-primary-foreground: oklch(0.98 0.01 80);
+  --sidebar-accent: oklch(0.965 0.012 80);
+  --sidebar-accent-foreground: oklch(0.34 0.06 156);
+  --sidebar-border: oklch(0.92 0.005 80);
+  --sidebar-ring: oklch(0.34 0.06 156);
+}
+
+.dark {
+  --background: oklch(0.16 0.015 156);
+  --foreground: oklch(0.98 0.005 80);
+  --card: oklch(0.22 0.02 156);
+  --card-foreground: oklch(0.98 0.005 80);
+  --popover: oklch(0.22 0.02 156);
+  --popover-foreground: oklch(0.98 0.005 80);
+  --primary: oklch(0.85 0.05 145);
+  --primary-foreground: oklch(0.22 0.02 156);
+  --secondary: oklch(0.28 0.02 156);
+  --secondary-foreground: oklch(0.98 0.005 80);
+  --muted: oklch(0.28 0.02 156);
+  --muted-foreground: oklch(0.72 0.01 80);
+  --accent: oklch(0.78 0.14 75);
+  --accent-foreground: oklch(0.22 0.02 156);
+  --destructive: oklch(0.7 0.19 27);
+  --destructive-foreground: oklch(0.98 0 0);
+  --success: oklch(0.72 0.15 145);
+  --success-foreground: oklch(0.98 0 0);
+  --warning: oklch(0.82 0.16 75);
+  --warning-foreground: oklch(0.22 0.02 156);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.85 0.05 145);
+  --sidebar: oklch(0.22 0.02 156);
+  --sidebar-foreground: oklch(0.98 0.005 80);
+  --sidebar-primary: oklch(0.85 0.05 145);
+  --sidebar-primary-foreground: oklch(0.22 0.02 156);
+  --sidebar-accent: oklch(0.28 0.02 156);
+  --sidebar-accent-foreground: oklch(0.98 0.005 80);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.85 0.05 145);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    overscroll-behavior-y: none;
+    background-color: var(--color-background);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    min-height: 100vh;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    color: var(--color-foreground);
+  }
+
+  ::selection {
+    background-color: oklch(0.34 0.06 156 / 0.15);
+  }
+
+  /* Global accessible focus ring for any keyboard-focused element. */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+/* Reduced motion: kill ambient + entrance animations, keep semantic transitions snappy. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.001ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@utility font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+@utility font-subhead {
+  font-family: var(--font-subhead);
+  letter-spacing: -0.01em;
+}
+
+@utility container-prj {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: 1rem;
+  max-width: 1400px;
+}
+
+@media (min-width: 640px) {
+  .container-prj {
+    padding-inline: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container-prj {
+    padding-inline: 2rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .container-prj {
+    padding-inline: 2.5rem;
+  }
+}
+
+@utility input-prj {
+  height: 2.75rem;
+  width: 100%;
+  border-radius: 9999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  padding-inline: 1.1rem;
+  font-size: 0.875rem;
+  font-family: var(--font-subhead);
+  outline: none;
+  transition: border-color 150ms ease;
+}
+.input-prj:focus {
+  border-color: var(--color-primary);
+}
+
+@utility lift {
+  transition:
+    transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lift);
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@utility animate-fade-up {
+  animation: fade-up 350ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -12px, 0);
+  }
+}
+
+@keyframes blob-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(20px, -18px, 0) scale(1.06);
+  }
+  66% {
+    transform: translate3d(-18px, 12px, 0) scale(0.96);
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@utility animate-float-slow {
+  animation: float-slow 7s ease-in-out infinite;
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+@utility animate-blob {
+  animation: blob-drift 18s ease-in-out infinite;
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+@utility animate-marquee {
+  animation: marquee 38s linear infinite;
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+@utility animate-marquee-fast {
+  animation: marquee 14s linear infinite;
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* On coarse pointers / small screens, slow the blob & drop heavy blur work — keeps it 60fps. */
+@media (max-width: 768px), (pointer: coarse) {
+  .animate-blob {
+    animation-duration: 28s;
+  }
+  .animate-marquee {
+    animation-duration: 55s;
+  }
+}
+
+@utility grain {
+  position: relative;
+}
+@utility grain-after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/></svg>");
+}
+
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+/* Hide Next.js Development Indicator Badge ('N' icon / route inspector) */
+nextjs-portal,
+#__next-build-watcher,
+[data-nextjs-dev-indicators],
+[data-nextjs-toast],
+div[data-nextjs-dialog-overlay] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* ========================================================= */
+/* OFFICIAL TAX INVOICE PRINT ENGINE                         */
+/* ========================================================= */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #111827 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 11pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    overflow: visible !important;
+  }
+
+  /* Hide interactive CRM UI elements during print */
+  header,
+  nav,
+  aside,
+  footer,
+  button,
+  input,
+  textarea,
+  select,
+  [data-no-print],
+  .no-print,
+  .print\:hidden {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Modal backdrop and containers reset for print */
+  .fixed,
+  .fixed.inset-0,
+  .fixed.inset-0 > div,
+  .fixed.inset-0 > div > div {
+    position: static !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    max-height: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  /* Render ONLY the official tax invoice container */
+  #prajnaa-tax-invoice {
+    display: block !important;
+    visibility: visible !important;
+    position: relative !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 4mm 6mm !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  #prajnaa-tax-invoice * {
+    visibility: visible !important;
+    box-shadow: none !important;
+  }
+
+  #prajnaa-tax-invoice tr,
+  #prajnaa-tax-invoice .print-keep {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}
