@@ -71,6 +71,7 @@ import {
   Moon,
   Compass,
   Trash2,
+  UserX,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -1172,6 +1173,7 @@ export default function PrajnaaMasterCrmApp() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const isAuthRef = useRef<boolean>(false);
   const isInitialSyncRef = useRef<boolean>(true);
+  const deletedCustomerIdsRef = useRef<Set<string>>(new Set());
 
   // Suppress all notifications on the login page
   useEffect(() => {
@@ -1310,6 +1312,8 @@ export default function PrajnaaMasterCrmApp() {
   const [showMoreChatMenu, setShowMoreChatMenu] = useState<boolean>(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState<boolean>(false);
+  const [showDeleteContactModal, setShowDeleteContactModal] = useState<boolean>(false);
+  const [isDeletingContact, setIsDeletingContact] = useState<boolean>(false);
 
 
   // State: Dashboard Graph Filter
@@ -1758,6 +1762,9 @@ export default function PrajnaaMasterCrmApp() {
               // Step A: Update messages for existing customers
               updatedCusts.forEach((cust) => {
                 const custPhoneClean = (cust.phone || "").replace(/\D/g, "").slice(-10);
+                if (deletedCustomerIdsRef.current.has(cust.id) || (custPhoneClean && deletedCustomerIdsRef.current.has(custPhoneClean))) {
+                  return;
+                }
                 const isCustAdmin = cust.id === "cust_admin" || cust.id === "admin";
 
                 const relevantDbMsgs = dbMsgs.filter((m: any) => {
@@ -1861,7 +1868,14 @@ export default function PrajnaaMasterCrmApp() {
                 const isIncoming = m.direction === "inbound" || m.sender === "customer";
                 const rawCounterparty = isIncoming ? m.from : m.to;
                 const cleanPhone = (rawCounterparty || "").replace(/\D/g, "").slice(-10);
-                if (!cleanPhone || cleanPhone === adminPhoneClean) return;
+                if (
+                  !cleanPhone ||
+                  cleanPhone === adminPhoneClean ||
+                  deletedCustomerIdsRef.current.has(cleanPhone) ||
+                  (m.customerId && deletedCustomerIdsRef.current.has(m.customerId))
+                ) {
+                  return;
+                }
 
                 const alreadyHandled = updatedCusts.some(
                   (c) => (c.phone || "").replace(/\D/g, "").slice(-10) === cleanPhone || c.id === m.customerId
@@ -3056,6 +3070,51 @@ export default function PrajnaaMasterCrmApp() {
     });
     setShowMoreChatMenu(false);
     toast.success(`Cleared chat history for ${currentCustomer.name}`);
+  };
+
+  // Permanently delete contact & all conversation messages
+  const handleDeleteContact = async () => {
+    if (!currentCustomer) return;
+    setIsDeletingContact(true);
+    const targetCust = currentCustomer;
+    const cleanPhone = (targetCust.phone || "").replace(/\D/g, "").slice(-10);
+
+    // Track immediately so background sync loop skips it
+    deletedCustomerIdsRef.current.add(targetCust.id);
+    if (cleanPhone) {
+      deletedCustomerIdsRef.current.add(cleanPhone);
+    }
+
+    try {
+      const res = await fetch(
+        `/api/crm/messages?phone=${encodeURIComponent(cleanPhone)}&customerId=${encodeURIComponent(targetCust.id)}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json();
+      console.log("[Delete Contact] Result:", data);
+    } catch (err) {
+      console.error("[Delete Contact] Error:", err);
+    }
+
+    // Remove from UI state
+    setCustomers((prev) => {
+      const remaining = prev.filter((c) => c.id !== targetCust.id);
+      if (remaining.length > 0) {
+        setSelectedCustomerId(remaining[0].id);
+      }
+      return remaining;
+    });
+
+    setMessagesMap((prev: any) => {
+      const updated = { ...prev };
+      delete updated[targetCust.id];
+      return updated;
+    });
+
+    setIsDeletingContact(false);
+    setShowDeleteContactModal(false);
+    setShowMoreChatMenu(false);
+    toast.success(`Deleted contact "${targetCust.name}" and all WhatsApp messages permanently.`);
   };
 
   const handleSaveCustomerNotes = () => {
@@ -5753,10 +5812,21 @@ export default function PrajnaaMasterCrmApp() {
                           <button
                             type="button"
                             onClick={handleClearChatHistory}
-                            className="w-full text-left px-3 py-2 rounded-xl hover:bg-rose-50 text-rose-700 font-medium flex items-center gap-2 cursor-pointer transition"
+                            className="w-full text-left px-3 py-2 rounded-xl hover:bg-rose-50 text-rose-700 font-medium flex items-center gap-2 cursor-pointer transition text-xs"
                           >
                             <Trash2 className="h-3.5 w-3.5 text-rose-600" />
-                            <span>Clear Conversation Messages</span>
+                            <span>Clear Chat Messages</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowMoreChatMenu(false);
+                              setShowDeleteContactModal(true);
+                            }}
+                            className="w-full text-left px-3 py-2 rounded-xl hover:bg-rose-100 text-rose-800 font-semibold flex items-center gap-2 cursor-pointer transition text-xs"
+                          >
+                            <UserX className="h-3.5 w-3.5 text-rose-700" />
+                            <span>Delete Contact & Chat History</span>
                           </button>
                         </div>
                       )}
@@ -6425,6 +6495,18 @@ export default function PrajnaaMasterCrmApp() {
                             <span className="text-neutral-500">Total Spent</span>
                             <span className="font-bold text-neutral-900">₹{currentCustomer.totalSpent.toLocaleString("en-IN")}</span>
                           </div>
+                        </div>
+
+                        {/* Quick Contact Actions */}
+                        <div className="w-full mt-3 pt-3 border-t border-neutral-200/70 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowDeleteContactModal(true)}
+                            className="w-full py-2 px-3 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100/90 text-rose-700 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                          >
+                            <UserX className="h-3.5 w-3.5 text-rose-600" />
+                            <span>Delete Contact</span>
+                          </button>
                         </div>
                       </div>
 
@@ -9713,6 +9795,86 @@ export default function PrajnaaMasterCrmApp() {
                   Cancel
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 5.3. DELETE CONTACT & CHAT HISTORY MODAL                  */}
+      {/* ========================================================= */}
+      {showDeleteContactModal && currentCustomer && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-md w-full shadow-2xl border border-neutral-200 dark:border-slate-800 space-y-4 text-neutral-900 dark:text-white">
+            <div className="flex items-center justify-between border-b border-neutral-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 flex items-center justify-center font-bold">
+                  <UserX className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">Delete Customer Contact</h3>
+                  <p className="text-[11px] text-neutral-500">Permanent removal of contact and messages</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDeleteContactModal(false)}
+                className="p-1 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Targeted Customer Summary */}
+            <div className="p-3.5 bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/40 rounded-2xl space-y-2 text-xs text-rose-900 dark:text-rose-200">
+              <div className="flex items-center justify-between font-bold">
+                <span className="text-sm text-neutral-900 dark:text-white">{currentCustomer.name}</span>
+                <span className="text-[10px] px-2.5 py-0.5 bg-rose-200 dark:bg-rose-900 text-rose-900 dark:text-rose-100 font-extrabold rounded-full">
+                  {currentCustomer.phone}
+                </span>
+              </div>
+              <p className="text-[11px] text-neutral-600 dark:text-slate-300">
+                Are you sure you want to delete this customer? This will permanently delete:
+              </p>
+              <ul className="list-disc pl-4 text-[11px] space-y-0.5 text-neutral-700 dark:text-slate-300">
+                <li>Customer profile and contact details</li>
+                <li>All WhatsApp incoming and outgoing messages</li>
+                <li>Chat history stored in the MongoDB Atlas cloud database</li>
+              </ul>
+              <div className="pt-2 border-t border-rose-200/60 dark:border-rose-900/60 flex items-start gap-1.5 text-[11px] text-rose-700 dark:text-rose-300">
+                <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
+                <span>This action cannot be undone.</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={isDeletingContact}
+                onClick={() => setShowDeleteContactModal(false)}
+                className="px-4 py-2 border border-neutral-300 dark:border-slate-700 hover:bg-neutral-100 dark:hover:bg-slate-800 text-neutral-700 dark:text-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingContact}
+                onClick={handleDeleteContact}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                {isDeletingContact ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Delete Permanently</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

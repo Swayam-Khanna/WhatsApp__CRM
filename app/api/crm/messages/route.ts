@@ -266,3 +266,69 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err.message || "Failed to send WhatsApp message" }, { status: 500 });
   }
 }
+
+
+/**
+ * DELETE /api/crm/messages
+ * Permanently deletes a customer contact and all of their messages from MongoDB Atlas and in-memory feed.
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const phone = searchParams.get("phone");
+    const customerId = searchParams.get("customerId");
+
+    if (!phone && !customerId) {
+      return NextResponse.json({ error: "phone or customerId required" }, { status: 400 });
+    }
+
+    const cleanPhone = (phone || "").replace(/\D/g, "").slice(-10);
+
+    // 1. Delete from in-memory feed
+    if (globalThis.__globalWhatsAppFeed) {
+      globalThis.__globalWhatsAppFeed = globalThis.__globalWhatsAppFeed.filter((m: any) => {
+        const mFrom = (m.from || "").replace(/\D/g, "").slice(-10);
+        const mTo = (m.to || "").replace(/\D/g, "").slice(-10);
+        const matchPhone = cleanPhone && (mFrom === cleanPhone || mTo === cleanPhone);
+        const matchId = customerId && m.customerId === customerId;
+        return !matchPhone && !matchId;
+      });
+    }
+
+    // 2. Clear active conversation session
+    if (cleanPhone && globalThis.__crmChatSessions) {
+      globalThis.__crmChatSessions.delete(cleanPhone);
+    }
+
+    // 3. Delete permanently from MongoDB Atlas
+    let deletedCount = 0;
+    try {
+      const db = await getDatabase();
+      if (db) {
+        const orClauses: any[] = [];
+        if (cleanPhone) {
+          orClauses.push({ from: { $regex: cleanPhone } });
+          orClauses.push({ to: { $regex: cleanPhone } });
+        }
+        if (customerId) {
+          orClauses.push({ customerId });
+        }
+
+        if (orClauses.length > 0) {
+          const res = await db.collection("crm_messages").deleteMany({ $or: orClauses });
+          deletedCount = res.deletedCount;
+        }
+      }
+    } catch (dbErr) {
+      console.warn("[MongoDB] Delete error:", dbErr);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Contact and all messages deleted permanently",
+      deletedCount,
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "Failed to delete contact messages" }, { status: 500 });
+  }
+}
