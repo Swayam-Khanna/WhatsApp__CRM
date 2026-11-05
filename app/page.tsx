@@ -2029,16 +2029,8 @@ export default function PrajnaaMasterCrmApp() {
   };
 
   // Derived: Current Customer & Messages
-  const currentCustomer = customers.find((c) => c.id === selectedCustomerId) || customers[0];
-  const currentMessages = messagesMap[selectedCustomerId] || [
-    {
-      id: "def_1",
-      sender: "customer",
-      text: "Namaste Prajnaa Market ji!",
-      time: "Just now",
-      status: "read",
-    },
-  ];
+  const currentCustomer = customers.find((c) => c.id === selectedCustomerId) || customers[0] || DEFAULT_STORE_DESK;
+  const currentMessages = (selectedCustomerId && messagesMap[selectedCustomerId]) || (currentCustomer?.id && messagesMap[currentCustomer.id]) || [];
 
   // Auto-scroll chat
   useEffect(() => {
@@ -5375,7 +5367,7 @@ export default function PrajnaaMasterCrmApp() {
                     </button>
 
                     <div className="relative">
-                      {currentCustomer.avatar ? (
+                      {currentCustomer?.avatar ? (
                         <img src={currentCustomer.avatar} alt={currentCustomer.name} className="h-9 w-9 md:h-10 md:w-10 rounded-full object-cover border border-neutral-200 shadow-2xs" />
                       ) : (
                         <div className="h-9 w-9 md:h-10 md:w-10 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center">
