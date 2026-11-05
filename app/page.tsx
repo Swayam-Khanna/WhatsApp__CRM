@@ -1822,6 +1822,19 @@ export default function PrajnaaMasterCrmApp() {
                       cust.lastMessageTime = latestNew.time;
                       if (latestNew.sender === "customer" && cust.id !== selectedCustomerId) {
                         cust.unreadCount = (cust.unreadCount || 0) + 1;
+                        // Toast alert so staff instantly sees new WhatsApp message
+                        if (isAuthRef.current && !isInitialSyncRef.current) {
+                          toast.info(`💬 New WhatsApp message from ${cust.name}: "${(latestNew.text || '').slice(0, 45)}..."`, {
+                            action: {
+                              label: "Reply",
+                              onClick: () => {
+                                setSelectedCustomerId(cust.id);
+                                setActiveNav("inbox");
+                              },
+                            },
+                            duration: 7000,
+                          });
+                        }
                       }
                       // Propagate customer name update if detected
                       const namedMsg = relevantDbMsgs.find(
@@ -5513,7 +5526,13 @@ export default function PrajnaaMasterCrmApp() {
                     return (
                       <div
                         key={cust.id}
-                        onClick={() => { setSelectedCustomerId(cust.id); setMobileChatView("chat"); }}
+                        onClick={() => {
+                        setSelectedCustomerId(cust.id);
+                        setMobileChatView("chat");
+                        if (cust.unreadCount) {
+                          setCustomers((prev) => prev.map((c) => (c.id === cust.id ? { ...c, unreadCount: 0 } : c)));
+                        }
+                      }}
                         className={`p-3 flex items-start gap-2.5 cursor-pointer transition select-none ${
                           isSelected ? "bg-[#EBF7F2] border-l-4 border-emerald-600" : "hover:bg-neutral-50"
                         }`}
