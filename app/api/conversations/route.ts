@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDatabase } from "../../../lib/mongodb.ts";
+import { db } from "../../../backend/db.ts";
+import { crmMessages } from "../../../backend/schema/crm.ts";
+import { desc } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -8,25 +10,21 @@ export async function GET(req: NextRequest) {
   let feed = globalThis.__globalWhatsAppFeed || [];
 
   try {
-    const db = await getDatabase();
-    if (db) {
-      const dbMsgs = await db
-        .collection("crm_messages")
-        .find({})
-        .sort({ createdAt: -1, timestamp: -1 })
-        .limit(500)
-        .toArray();
+    const dbMsgs = await db
+      .select()
+      .from(crmMessages)
+      .orderBy(desc(crmMessages.createdAt))
+      .limit(500);
 
-      const merged = [...feed, ...dbMsgs];
-      const seen = new Set();
-      feed = merged.filter((m) => {
-        if (!m.id || seen.has(m.id)) return false;
-        seen.add(m.id);
-        return true;
-      });
-    }
-  } catch (e) {
-    console.warn("[Conversations GET] Note:", e);
+    const merged = [...feed, ...dbMsgs];
+    const seen = new Set();
+    feed = merged.filter((m: any) => {
+      if (!m.id || seen.has(m.id)) return false;
+      seen.add(m.id);
+      return true;
+    });
+  } catch (e: any) {
+    console.warn("[Conversations GET] PostgreSQL note:", e?.message || e);
   }
 
   // Group by customer phone

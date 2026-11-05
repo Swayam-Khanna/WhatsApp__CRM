@@ -1,8 +1,7 @@
 import crypto from "crypto";
 import { db } from "../db.ts";
 import { orderCrmSync } from "../schema/orders.ts";
-import { eq } from "drizzle-orm";
-import { getDatabase } from "../../lib/mongodb.ts";
+import { eq, or } from "drizzle-orm";
 
 export interface CrmShippingAddress {
   fullName: string;
@@ -183,7 +182,7 @@ export function buildCrmOrderPayload(order: any, fallbackItems: any[] = []): Crm
 
 /**
  * Persists an entry in the CRM sync outbox.
- * Multi-layer persistence: Postgres order_crm_sync -> MongoDB crm_sync_outbox -> Memory cache.
+ * Multi-layer persistence: Postgres order_crm_sync -> Memory cache.
  */
 async function recordOutboxEntry(entry: {
   id: string;
@@ -232,27 +231,6 @@ async function recordOutboxEntry(entry: {
       });
   } catch (pgErr) {
     // Postgres table might not exist in dev/staging; log gracefully
-  }
-
-  // 3. MongoDB Atlas outbox collection
-  try {
-    const mongo = await getDatabase();
-    const { createdAt, _id, ...outboxFieldsToSet } = entry as any;
-    await mongo.collection("crm_sync_outbox").updateOne(
-      { orderNumber: entry.orderNumber },
-      {
-        $set: {
-          ...outboxFieldsToSet,
-          updatedAt: new Date(),
-        },
-        $setOnInsert: {
-          createdAt: createdAt ? new Date(createdAt) : new Date(),
-        },
-      },
-      { upsert: true }
-    );
-  } catch (mErr) {
-    // MongoDB might not be configured in offline unit test runs
   }
 }
 
@@ -421,17 +399,16 @@ export async function processPendingCrmSyncRetries(): Promise<{
     }
   }
 
-  // Also query MongoDB outbox if available
+  // Also query PostgreSQL outbox if available
   try {
-    const mongo = await getDatabase();
-    const dbEntries = await mongo
-      .collection("crm_sync_outbox")
-      .find({ status: { $in: ["pending", "retry_pending"] }, attempts: { $lt: 5 } })
-      .toArray();
+    const dbEntries = await db
+      .select()
+      .from(orderCrmSync)
+      .where(or(eq(orderCrmSync.status, "pending"), eq(orderCrmSync.status, "retry_pending")));
 
     for (const de of dbEntries) {
       if (!entries.find((e) => e.orderNumber === de.orderNumber)) {
-        entries.push(de);
+        entries.push(de as any);
       }
     }
   } catch {}

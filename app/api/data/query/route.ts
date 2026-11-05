@@ -40,6 +40,8 @@ const TABLE_MAP: Record<string, any> = {
   coupons: schema.coupons,
   coupon_redemptions: schema.couponRedemptions,
   app_settings: schema.appSettings,
+  crm_orders: schema.crmOrders,
+  crm_messages: schema.crmMessages,
   media_folders: schema.mediaFolders,
   media_assets: schema.mediaAssets,
   file_uploads: schema.fileUploads,

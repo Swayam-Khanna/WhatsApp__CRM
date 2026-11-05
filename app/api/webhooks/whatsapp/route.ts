@@ -6,7 +6,9 @@ import {
   sendWhatsAppTextMessage,
   processConversationalBotReply,
 } from "../../../../backend/lib/whatsapp.server.ts";
-import { getDatabase } from "../../../../lib/mongodb.ts";
+import { db } from "../../../../backend/db.ts";
+import { crmMessages } from "../../../../backend/schema/crm.ts";
+import { eq, or, ilike } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +60,7 @@ export async function GET(req: NextRequest) {
 /**
  * POST /api/webhooks/whatsapp
  * Receives inbound customer messages and delivery receipts from Meta WhatsApp Cloud API.
- * Automatically persists to MongoDB Atlas & in-memory feed, and dispatches conversational replies.
+ * Persists to PostgreSQL & in-memory feed, and dispatches conversational replies.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -78,7 +80,7 @@ export async function POST(req: NextRequest) {
     // 2. Parse inbound messages and delivery receipts
     const { messages, statuses } = parseInboundWebhookPayload(payload);
 
-    // 3. Process and persist synchronously so Serverless function commits to MongoDB Atlas before terminating
+    // 3. Process and persist synchronously
     await handleWebhookProcessing(messages, statuses);
 
     if (isInternalTest || req.headers.get("accept")?.includes("application/json")) {
@@ -102,13 +104,6 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
     globalThis.__globalWhatsAppFeed = [];
   }
 
-  let db: any = null;
-  try {
-    db = await getDatabase();
-  } catch (err) {
-    console.warn("[WhatsApp Webhook] MongoDB connection warning, using memory buffer:", err);
-  }
-
   // 1. Process Inbound Customer Messages & Trigger Automated Reply
   for (const msg of messages) {
     if (!msg.id) continue;
@@ -120,17 +115,19 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
       continue;
     }
 
-    // Idempotency: Check database if connected
-    if (db) {
-      try {
-        const existingInDb = await db.collection("crm_messages").findOne({ id: msg.id });
-        if (existingInDb) {
-          console.log(`[WhatsApp Webhook] Idempotency: Message ${msg.id} already in database. Skipping.`);
-          continue;
-        }
-      } catch (e) {
-        console.warn("[WhatsApp Webhook] Idempotency DB check skipped:", e);
+    // Idempotency: Check PostgreSQL if connected
+    try {
+      const existingInDb = await db
+        .select()
+        .from(crmMessages)
+        .where(eq(crmMessages.id, msg.id))
+        .limit(1);
+      if (existingInDb && existingInDb.length > 0) {
+        console.log(`[WhatsApp Webhook] Idempotency: Message ${msg.id} already in PostgreSQL. Skipping.`);
+        continue;
       }
+    } catch (e: any) {
+      console.warn("[WhatsApp Webhook] Idempotency DB check note:", e?.message || e);
     }
 
     console.log(`[WhatsApp Webhook] Inbound from ${msg.fromPhone}: ${msg.text}`);
@@ -164,8 +161,6 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
       });
     }
 
-    const formattedPhone = fromClean.length === 10 ? `+91 ${fromClean.slice(0, 5)} ${fromClean.slice(5)}` : `+${fromClean}`;
-
     const inboundRecord = {
       id: msg.id,
       direction: "inbound",
@@ -186,50 +181,39 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
     // Unshift to memory feed immediately
     globalThis.__globalWhatsAppFeed.unshift(inboundRecord);
 
-    // Persist inbound record to MongoDB Atlas
-    if (db) {
-      try {
-        await db.collection("crm_messages").insertOne(inboundRecord);
+    // Persist inbound record to PostgreSQL
+    try {
+      await db
+        .insert(crmMessages)
+        .values({
+          id: inboundRecord.id,
+          direction: "inbound",
+          sender: "customer",
+          from: inboundRecord.from,
+          to: inboundRecord.to,
+          customerName: resolvedCustomerName,
+          text: inboundRecord.text,
+          type: inboundRecord.type,
+          mediaId: inboundRecord.mediaId,
+          mimeType: inboundRecord.mimeType,
+          businessPhoneNumberId: inboundRecord.businessPhoneNumberId,
+          status: "delivered",
+          timestamp: new Date(inboundRecord.timestamp),
+          createdAt: inboundRecord.createdAt,
+        })
+        .onConflictDoNothing();
 
-        // Update past customer name records if updated
-        if (botResult?.updatedCustomerName && fromClean) {
-          await db.collection("crm_messages").updateMany(
-            {
-              $or: [
-                { from: { $regex: fromClean } },
-                { to: { $regex: fromClean } },
-              ],
-            },
-            { $set: { customerName: botResult.updatedCustomerName } }
+      // Update past customer name records if updated
+      if (botResult?.updatedCustomerName && fromClean) {
+        await db
+          .update(crmMessages)
+          .set({ customerName: botResult.updatedCustomerName })
+          .where(
+            or(ilike(crmMessages.from, `%${fromClean}%`), ilike(crmMessages.to, `%${fromClean}%`))
           );
-        }
-
-        // Upsert conversation record in crm_conversations
-        if (fromClean) {
-          await db.collection("crm_conversations").updateOne(
-            { phone: fromClean },
-            {
-              $set: {
-                id: `conv_${fromClean}`,
-                customerPhone: formattedPhone,
-                customerName: resolvedCustomerName,
-                lastMessageText: msg.text,
-                lastMessageTime: inboundRecord.timestamp,
-                updatedAt: new Date(),
-              },
-              $setOnInsert: {
-                createdAt: new Date(),
-                status: "active",
-                unreadCount: 0,
-              },
-              $inc: { unreadCount: 1 },
-            },
-            { upsert: true }
-          );
-        }
-      } catch (e) {
-        console.warn("[MongoDB] Failed to persist inbound msg to Atlas:", e);
       }
+    } catch (e: any) {
+      console.warn("[PostgreSQL] Failed to persist inbound msg:", e?.message || e);
     }
 
     // Automated customer bot reply if message is NOT from the store admin
@@ -263,11 +247,25 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
         autoReplyRecord.status = sendResult.success ? "sent" : "failed";
         autoReplyRecord.mode = sendResult.mode;
 
-        if (db) {
-          await db.collection("crm_messages").insertOne(autoReplyRecord);
-        }
-      } catch (sendErr) {
-        console.warn("[WhatsApp Service] Auto-reply send error:", sendErr);
+        await db
+          .insert(crmMessages)
+          .values({
+            id: autoReplyRecord.id,
+            direction: "outbound",
+            sender: "business",
+            from: autoReplyRecord.from,
+            to: autoReplyRecord.to,
+            customerName: resolvedCustomerName,
+            text: autoReplyText,
+            timestamp: new Date(autoReplyRecord.timestamp),
+            status: autoReplyRecord.status,
+            isAutomated: true,
+            mode: autoReplyRecord.mode,
+            createdAt: autoReplyRecord.createdAt,
+          })
+          .onConflictDoNothing();
+      } catch (sendErr: any) {
+        console.warn("[PostgreSQL] Auto-reply persist/send warning:", sendErr?.message || sendErr);
       }
     }
   }
@@ -288,28 +286,14 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
       }
     }
 
-    // Update MongoDB Atlas
-    if (db) {
-      try {
-        const existingDoc = await db.collection("crm_messages").findOne({ id: st.messageId });
-        const currentRank = existingDoc ? (statusRank[existingDoc.status] || 0) : 0;
-        const newRank = statusRank[st.status] || 0;
-
-        if (!existingDoc || newRank >= currentRank) {
-          await db.collection("crm_messages").updateOne(
-            { id: st.messageId },
-            {
-              $set: {
-                status: st.status,
-                updatedAt: new Date(),
-                ...(st.error ? { error: st.error } : {}),
-              },
-            }
-          );
-        }
-      } catch (dbErr) {
-        console.warn("[MongoDB] Status update error:", dbErr);
-      }
+    // Update PostgreSQL
+    try {
+      await db
+        .update(crmMessages)
+        .set({ status: st.status })
+        .where(eq(crmMessages.id, st.messageId));
+    } catch (dbErr: any) {
+      console.warn("[PostgreSQL] Status update warning:", dbErr?.message || dbErr);
     }
   }
 }

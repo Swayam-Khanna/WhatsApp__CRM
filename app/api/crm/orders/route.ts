@@ -1,10 +1,14 @@
 import { db } from "../../../../backend/db.ts";
-import { orders, orderItems } from "../../../../backend/schema/orders.ts";
-import { desc } from "drizzle-orm";
+import { crmOrders, crmMessages } from "../../../../backend/schema/crm.ts";
+import { desc, eq, or } from "drizzle-orm";
+import {
+  sendWhatsAppTextMessage,
+  buildItemizedCrmOrderConfirmationMessage,
+} from "../../../../backend/lib/whatsapp.server.ts";
 
 export const dynamic = "force-dynamic";
 
-// In-memory CRM orders cache (survives across requests in dev/production instance)
+// In-memory CRM orders cache (survives across requests in dev/test instance)
 declare global {
   // eslint-disable-next-line no-var
   var __globalCrmOrders: any[] | undefined;
@@ -14,31 +18,23 @@ if (!globalThis.__globalCrmOrders) {
   globalThis.__globalCrmOrders = [];
 }
 
-import { getDatabase } from "../../../../lib/mongodb.ts";
-import {
-  sendWhatsAppTextMessage,
-  buildItemizedCrmOrderConfirmationMessage,
-} from "../../../../backend/lib/whatsapp.server.ts";
-
 /**
  * GET /api/crm/orders
- * Returns authoritative CRM orders from MongoDB Atlas with in-memory fallback.
+ * Returns authoritative CRM orders from PostgreSQL with in-memory fallback.
  */
 export async function GET() {
   try {
-    const mongoDb = await getDatabase();
-    const mongoOrders = await mongoDb
-      .collection("crm_orders")
-      .find({})
-      .sort({ createdAt: -1 })
-      .limit(100)
-      .toArray();
+    const pgOrders = await db
+      .select()
+      .from(crmOrders)
+      .orderBy(desc(crmOrders.createdAt))
+      .limit(100);
 
-    if (mongoOrders && mongoOrders.length > 0) {
-      return Response.json({ success: true, source: "mongodb", orders: mongoOrders });
+    if (pgOrders && pgOrders.length > 0) {
+      return Response.json({ success: true, source: "postgresql", orders: pgOrders });
     }
-  } catch (err) {
-    console.warn("[MongoDB] Orders query note:", err);
+  } catch (err: any) {
+    console.warn("[PostgreSQL] CRM orders query note:", err?.message || err);
   }
 
   // Fallback to in-memory store
@@ -51,51 +47,52 @@ export async function GET() {
 
 /**
  * POST /api/crm/orders
- * Validates, idempotently persists order, and initiates official WhatsApp confirmation.
+ * Validates, idempotently persists order to PostgreSQL, and initiates official WhatsApp confirmation.
  */
 export async function POST(req: Request) {
   try {
     // 1. Authenticate if WHATSAPP_CRM_API_KEY is configured
     const expectedApiKey = process.env.WHATSAPP_CRM_API_KEY;
     if (expectedApiKey) {
-      const authHeader = req.headers.get("x-crm-api-key") || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-      if (!authHeader || authHeader !== expectedApiKey) {
-        return Response.json(
-          { error: "Unauthorized: Invalid or missing CRM API key", code: "UNAUTHORIZED" },
-          { status: 401 }
-        );
+      const authHeader =
+        req.headers.get("x-crm-api-key") ||
+        req.headers.get("x-api-key") ||
+        req.headers.get("authorization")?.replace("Bearer ", "");
+      if (authHeader !== expectedApiKey) {
+        return Response.json({ success: false, error: "Unauthorized" }, { status: 401 });
       }
     }
 
-    const newOrder = await req.json();
-
-    // 2. Validate request schema
-    if (!newOrder || typeof newOrder !== "object") {
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object") {
       return Response.json(
-        { error: "Invalid order data: Payload must be a non-empty JSON object", code: "INVALID_ORDER_DATA" },
+        { error: "Invalid order data: Missing request body", code: "EMPTY_BODY" },
         { status: 400 }
       );
     }
 
-    const orderNum = (newOrder.orderNumber || newOrder.id || "").toString().trim();
+    const newOrder = body;
+
+    // 2. Validate essential fields
+    const orderNum = (newOrder.orderNumber || newOrder.id || "").trim();
     if (!orderNum) {
       return Response.json(
-        { error: "Invalid order data: Missing required 'orderNumber' or 'id'", code: "MISSING_ORDER_ID" },
+        { error: "Invalid order data: 'orderNumber' or 'id' is required", code: "MISSING_ORDER_NUMBER" },
         { status: 400 }
       );
     }
 
-    const customerPhone = (newOrder.customerPhone || "").toString().trim();
-    if (!customerPhone || customerPhone.replace(/\D/g, "").length < 10) {
+    const customerPhone = (newOrder.customerPhone || "").trim();
+    if (!customerPhone) {
       return Response.json(
-        { error: "Invalid order data: Valid customer phone number is required", code: "INVALID_PHONE" },
+        { error: "Invalid order data: 'customerPhone' is required", code: "MISSING_PHONE" },
         { status: 400 }
       );
     }
 
     if (!Array.isArray(newOrder.items) || newOrder.items.length === 0) {
       return Response.json(
-        { error: "Invalid order data: Order must contain at least one item", code: "EMPTY_ITEMS" },
+        { error: "Invalid order data: 'items' array cannot be empty", code: "EMPTY_ITEMS" },
         { status: 400 }
       );
     }
@@ -110,21 +107,24 @@ export async function POST(req: Request) {
 
     if (!globalThis.__globalCrmOrders) globalThis.__globalCrmOrders = [];
 
-    // 3. Idempotent lookup: Check if order already exists in memory or MongoDB
+    // 3. Idempotent lookup: Check if order already exists in memory or PostgreSQL
     const existingIndex = globalThis.__globalCrmOrders.findIndex(
       (o) => o.orderNumber === orderNum || o.id === orderNum
     );
     const existingOrder = existingIndex >= 0 ? globalThis.__globalCrmOrders[existingIndex] : null;
 
     let dbExistingOrder: any = null;
-    let mongoDb: any = null;
     try {
-      mongoDb = await getDatabase();
-      dbExistingOrder = await mongoDb.collection("crm_orders").findOne({
-        $or: [{ orderNumber: orderNum }, { id: orderNum }],
-      });
-    } catch (mErr) {
-      console.warn("[MongoDB] Connection note:", mErr);
+      const found = await db
+        .select()
+        .from(crmOrders)
+        .where(or(eq(crmOrders.orderNumber, orderNum), eq(crmOrders.id, orderNum)))
+        .limit(1);
+      if (found && found.length > 0) {
+        dbExistingOrder = found[0];
+      }
+    } catch (dbErr: any) {
+      console.warn("[PostgreSQL] CRM order lookup note:", dbErr?.message || dbErr);
     }
 
     const previousConfirmation = existingOrder?.whatsappConfirmation || dbExistingOrder?.whatsappConfirmation;
@@ -217,12 +217,28 @@ export async function POST(req: Request) {
         if (!globalThis.__globalWhatsAppFeed) globalThis.__globalWhatsAppFeed = [];
         globalThis.__globalWhatsAppFeed.unshift(msgRecord);
 
-        if (mongoDb) {
-          try {
-            await mongoDb.collection("crm_messages").insertOne(msgRecord);
-          } catch (msgErr) {
-            console.warn("[MongoDB] Failed to log confirmation message:", msgErr);
-          }
+        try {
+          await db
+            .insert(crmMessages)
+            .values({
+              id: msgRecord.id,
+              direction: "outbound",
+              sender: "business",
+              from: msgRecord.from,
+              to: msgRecord.to,
+              customerName: msgRecord.customerName || null,
+              text: msgRecord.text,
+              type: "order_confirmation",
+              status: "sent",
+              orderNumber: orderNum,
+              mode: sendResult.mode,
+              whatsappUrl: sendResult.whatsappUrl || null,
+              timestamp: new Date(msgRecord.timestamp),
+              createdAt: msgRecord.createdAt,
+            })
+            .onConflictDoNothing();
+        } catch (msgErr: any) {
+          console.warn("[PostgreSQL] Failed to log confirmation message:", msgErr?.message || msgErr);
         }
       } catch (waErr: any) {
         console.warn("[WhatsApp Confirmation] Dispatch warning:", waErr.message);
@@ -235,32 +251,58 @@ export async function POST(req: Request) {
       }
     }
 
-    // 6. Persist permanently to memory and MongoDB Atlas
+    // 6. Persist to memory and PostgreSQL
     if (existingIndex >= 0) {
       globalThis.__globalCrmOrders[existingIndex] = persistedOrder;
     } else {
       globalThis.__globalCrmOrders.unshift(persistedOrder);
     }
 
-    if (mongoDb) {
-      try {
-        const { createdAt, _id, ...orderFieldsToSet } = persistedOrder;
-        await mongoDb.collection("crm_orders").updateOne(
-          { $or: [{ orderNumber: orderNum }, { id: orderNum }] },
-          {
-            $set: {
-              ...orderFieldsToSet,
-              updatedAt: new Date(),
-            },
-            $setOnInsert: {
-              createdAt: createdAt ? new Date(createdAt) : new Date(),
-            },
+    let persistedInPg = false;
+    try {
+      await db
+        .insert(crmOrders)
+        .values({
+          id: orderNum,
+          orderNumber: orderNum,
+          customerName: persistedOrder.customerName || null,
+          customerPhone: persistedOrder.customerPhone,
+          customerEmail: persistedOrder.customerEmail || null,
+          totalPaise: persistedOrder.totalPaise,
+          subtotalPaise: persistedOrder.subtotalPaise || 0,
+          shippingPaise: persistedOrder.shippingPaise || 0,
+          discountPaise: persistedOrder.discountPaise || 0,
+          status: persistedOrder.status || "Processing",
+          paymentStatus: persistedOrder.paymentStatus || "pending",
+          paymentMethod: persistedOrder.paymentMethod || "whatsapp",
+          shippingAddressSnapshot: persistedOrder.shippingAddressSnapshot || null,
+          items: persistedOrder.items || [],
+          whatsappConfirmation: persistedOrder.whatsappConfirmation || null,
+          createdAt: new Date(persistedOrder.createdAt),
+          updatedAt: new Date(persistedOrder.updatedAt),
+        })
+        .onConflictDoUpdate({
+          target: crmOrders.orderNumber,
+          set: {
+            customerName: persistedOrder.customerName || null,
+            customerPhone: persistedOrder.customerPhone,
+            customerEmail: persistedOrder.customerEmail || null,
+            totalPaise: persistedOrder.totalPaise,
+            subtotalPaise: persistedOrder.subtotalPaise || 0,
+            shippingPaise: persistedOrder.shippingPaise || 0,
+            discountPaise: persistedOrder.discountPaise || 0,
+            status: persistedOrder.status || "Processing",
+            paymentStatus: persistedOrder.paymentStatus || "pending",
+            paymentMethod: persistedOrder.paymentMethod || "whatsapp",
+            shippingAddressSnapshot: persistedOrder.shippingAddressSnapshot || null,
+            items: persistedOrder.items || [],
+            whatsappConfirmation: persistedOrder.whatsappConfirmation || null,
+            updatedAt: new Date(),
           },
-          { upsert: true }
-        );
-      } catch (mongoErr) {
-        console.warn("[MongoDB] Failed to persist order to Atlas:", mongoErr);
-      }
+        });
+      persistedInPg = true;
+    } catch (pgErr: any) {
+      console.warn("[PostgreSQL] Failed to persist order:", pgErr?.message || pgErr);
     }
 
     return Response.json({
@@ -270,7 +312,7 @@ export async function POST(req: Request) {
         : "Order successfully persisted and WhatsApp confirmation initiated",
       order: persistedOrder,
       whatsappNotification,
-      storage: mongoDb ? "mongodb" : "memory_sync",
+      storage: persistedInPg ? "postgresql" : "memory_sync",
     });
   } catch (err: any) {
     return Response.json({ error: err.message || "Failed to process order" }, { status: 500 });

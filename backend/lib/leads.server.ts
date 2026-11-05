@@ -1,4 +1,3 @@
-import { getDatabase } from "../../lib/mongodb.ts";
 import type {
   BusinessModel,
   LeadPriority,
@@ -392,11 +391,6 @@ export class LeadsService {
 
     globalThis.__globalCrmLeads?.unshift(newLead);
 
-    // Asynchronously try to persist to MongoDB Atlas in background without blocking response
-    getDatabase()
-      .then((db) => db.collection("crm_leads").insertOne(newLead))
-      .catch(() => {});
-
     return { lead: newLead, isExistingContact };
   }
 
@@ -505,11 +499,6 @@ export class LeadsService {
       metadata: { previousStage, newStage: targetStageKey, lostReason: metadata?.lostReason },
       createdAt: new Date().toISOString(),
     });
-
-    // Save to Atlas in background if available
-    getDatabase()
-      .then((db) => db.collection("crm_leads").updateOne({ id: lead.id }, { $set: lead }))
-      .catch(() => {});
 
     return lead;
   }

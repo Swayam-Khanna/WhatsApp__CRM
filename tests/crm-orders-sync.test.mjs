@@ -1,6 +1,5 @@
-import { test, describe, beforeEach, after } from "node:test";
+import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import clientPromise from "../lib/mongodb.ts";
 import {
   normalizeIndianPhone,
   buildCrmOrderPayload,
@@ -21,13 +20,6 @@ describe("PRAJNAA STOREFRONT CHECKOUT TO WHATSAPP CRM INTEGRATION", () => {
     if (globalThis.__crmSyncOutbox) {
       globalThis.__crmSyncOutbox.clear();
     }
-  });
-
-  after(async () => {
-    try {
-      const client = await clientPromise;
-      await client.close();
-    } catch {}
   });
 
   // 1. Phone Normalization (E.164)

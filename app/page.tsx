@@ -467,7 +467,7 @@ const ROLE_PERMISSIONS: Record<
   },
 };
 
-// Production Customers State (loaded dynamically from WhatsApp webhook feed & MongoDB Atlas)
+// Production Customers State (loaded dynamically from WhatsApp webhook feed & PostgreSQL)
 const INITIAL_CUSTOMERS: Customer[] = [];
 
 // Production Messages Map (loaded dynamically per customer conversation)
@@ -1391,7 +1391,7 @@ export default function PrajnaaMasterCrmApp() {
         }
       };
 
-      // 3. Sync Live WhatsApp CRM Messages from MongoDB Atlas & Webhooks
+      // 3. Sync Live WhatsApp CRM Messages from PostgreSQL & Webhooks
       const syncCrmMessages = async () => {
         try {
           const res = await fetch("/api/crm/messages");
@@ -2921,7 +2921,7 @@ export default function PrajnaaMasterCrmApp() {
         localStorage.setItem("prajnaa_crm_orders", JSON.stringify(list));
       } catch {}
 
-      // 5. Asynchronously persist to API / MongoDB Atlas
+      // 5. Asynchronously persist to API / PostgreSQL database
       fetch("/api/crm/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -9497,7 +9497,7 @@ export default function PrajnaaMasterCrmApp() {
               <ul className="list-disc pl-4 text-[11px] space-y-0.5 text-neutral-700 dark:text-slate-300">
                 <li>Customer profile and contact details</li>
                 <li>All WhatsApp incoming and outgoing messages</li>
-                <li>Chat history stored in the MongoDB Atlas cloud database</li>
+                <li>Chat history stored in the PostgreSQL cloud database</li>
               </ul>
               <div className="pt-2 border-t border-rose-200/60 dark:border-rose-900/60 flex items-start gap-1.5 text-[11px] text-rose-700 dark:text-rose-300">
                 <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />

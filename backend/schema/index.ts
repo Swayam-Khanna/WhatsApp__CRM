@@ -363,3 +363,6 @@ export * from "./neon-auth-webhooks.ts";
 
 // Leads & Sales Management Schema (B2B Wholesale & B2C Retail)
 export * from "./leads.ts";
+
+// WhatsApp CRM Tables (PostgreSQL-native CRM messages and orders)
+export * from "./crm.ts";
