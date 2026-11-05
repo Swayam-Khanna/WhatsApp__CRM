@@ -1,33 +1,60 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getDatabase } from "../../../lib/mongodb.ts";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const crmOrders = globalThis.__globalCrmOrders || [];
-  const feed = globalThis.__globalWhatsAppFeed || [];
+  let feed = globalThis.__globalWhatsAppFeed || [];
+
+  try {
+    const db = await getDatabase();
+    if (db) {
+      const dbMsgs = await db
+        .collection("crm_messages")
+        .find({})
+        .sort({ createdAt: -1, timestamp: -1 })
+        .limit(500)
+        .toArray();
+
+      const merged = [...feed, ...dbMsgs];
+      const seen = new Set();
+      feed = merged.filter((m) => {
+        if (!m.id || seen.has(m.id)) return false;
+        seen.add(m.id);
+        return true;
+      });
+    }
+  } catch (e) {
+    console.warn("[Conversations GET] Note:", e);
+  }
 
   // Group by customer phone
   const convMap = new Map<string, any>();
 
   // Process live feed
   feed.forEach((msg) => {
-    const rawPhone = msg.from || msg.to || "9999999999";
+    const isInbound = msg.direction === "inbound" || msg.sender === "customer";
+    const rawPhone = (isInbound ? msg.from : msg.to) || "9999999999";
     const cleanPhone = rawPhone.replace(/\D/g, "");
     const phoneKey = cleanPhone.slice(-10);
+    if (!phoneKey || phoneKey === "8091265690") return;
 
     if (!convMap.has(phoneKey)) {
       convMap.set(phoneKey, {
         id: `conv-${phoneKey}`,
         contactId: `c-${phoneKey}`,
-        name: msg.customerName || `Customer (${phoneKey})`,
+        name: msg.customerName || `Customer (+91 ${phoneKey})`,
         phone: rawPhone.startsWith("+91") ? rawPhone : `+91 ${phoneKey}`,
         avatar: "",
         lastMessage: msg.text,
-        lastMessageTime: "Just now",
-        unreadCount: msg.direction === "inbound" ? 1 : 0,
+        lastMessageTime: msg.timestamp
+          ? new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+          : "Just now",
+        unreadCount: isInbound ? 1 : 0,
         assignedTo: "Nishant (Store Admin)",
-        leadStage: "Order Placed",
-        tags: ["WhatsApp Checkout", "Himalayan Harvest"],
+        leadStage: "Active Inquiry",
+        tags: ["WhatsApp Live Customer", "Himalayan Harvest"],
         isPinned: true,
         isOnline: true,
         source: "WhatsApp",
@@ -38,14 +65,24 @@ export async function GET(req: NextRequest) {
     }
 
     const conv = convMap.get(phoneKey);
-    conv.messages.push({
-      id: msg.id || `msg_${Date.now()}`,
-      sender: msg.direction === "inbound" ? "customer" : "agent",
-      senderName: msg.direction === "inbound" ? conv.name : "Nishant",
-      text: msg.text,
-      timestamp: msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Just now",
-      status: msg.status || "delivered",
-    });
+    const timeStr = msg.timestamp
+      ? new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      : "Just now";
+
+    conv.lastMessage = msg.text;
+    conv.lastMessageTime = timeStr;
+
+    const alreadyHas = conv.messages.some((m: any) => m.id === msg.id);
+    if (!alreadyHas) {
+      conv.messages.push({
+        id: msg.id || `msg_${Date.now()}`,
+        sender: isInbound ? "customer" : "agent",
+        senderName: isInbound ? conv.name : "Nishant",
+        text: msg.text,
+        timestamp: timeStr,
+        status: msg.status || "delivered",
+      });
+    }
   });
 
   // Process CRM orders
@@ -53,6 +90,7 @@ export async function GET(req: NextRequest) {
     const rawPhone = ord.customerPhone || "9999999999";
     const cleanPhone = rawPhone.replace(/\D/g, "");
     const phoneKey = cleanPhone.slice(-10);
+    if (!phoneKey || phoneKey === "8091265690") return;
 
     const orderTotal = ord.totalPaise ? ord.totalPaise / 100 : ord.amount || 0;
     const itemsSummary = Array.isArray(ord.items) && ord.items.length > 0
@@ -99,7 +137,7 @@ export async function GET(req: NextRequest) {
             senderName: "Nishant",
             text: `Namaste ${ord.customerName || "ji"}! 🙏 Aapka order #${ord.orderNumber || ord.id} record ho gaya hai. Hum pure Himalayan harvest direct farms se pack kar rahe hain. 2-3 din me Speed Post dispatch ho jayega.`,
             timestamp: "Just now",
-            status: "read",
+            status: "delivered",
           },
         ],
       });

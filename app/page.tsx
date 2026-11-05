@@ -1234,6 +1234,25 @@ export default function PrajnaaMasterCrmApp() {
 
   // State: Messages
   const [messagesMap, setMessagesMap] = useState<Record<string, Message[]>>(INITIAL_MESSAGES_MAP);
+
+  const customersRef = useRef<Customer[]>(INITIAL_CUSTOMERS);
+  const messagesMapRef = useRef<Record<string, Message[]>>(INITIAL_MESSAGES_MAP);
+
+  useEffect(() => {
+    customersRef.current = customers;
+  }, [customers]);
+
+  useEffect(() => {
+    messagesMapRef.current = messagesMap;
+  }, [messagesMap]);
+
+  useEffect(() => {
+    if (selectedCustomerId) {
+      setCustomers((prev) =>
+        prev.map((c) => (c.id === selectedCustomerId && (c.unreadCount || 0) > 0 ? { ...c, unreadCount: 0 } : c))
+      );
+    }
+  }, [selectedCustomerId]);
   const [inputMessage, setInputMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const notifiedOrdersRef = useRef<Set<string>>(new Set(["PM2024001234", "PM2024001233", "PM2024001230", "PM2024001225", "PM2024001188"]));
@@ -1750,227 +1769,222 @@ export default function PrajnaaMasterCrmApp() {
         try {
           const res = await fetch("/api/crm/messages");
           const json = await res.json();
-          if (json && json.success && Array.isArray(json.messages) && json.messages.length > 0) {
-            const dbMsgs = json.messages;
-            const adminPhoneClean = "8091265690";
+          if (!json || !json.success || !Array.isArray(json.messages) || json.messages.length === 0) return;
 
-            setCustomers((currentCusts) => {
-              let custsChanged = false;
-              const updatedCusts = [...currentCusts];
-              const matchedMsgIds = new Set<string>();
+          const dbMsgs: any[] = json.messages;
+          const adminPhoneClean = "8091265690";
 
-              // Step A: Update messages for existing customers
-              updatedCusts.forEach((cust) => {
-                const custPhoneClean = (cust.phone || "").replace(/\D/g, "").slice(-10);
-                if (deletedCustomerIdsRef.current.has(cust.id) || (custPhoneClean && deletedCustomerIdsRef.current.has(custPhoneClean))) {
-                  return;
+          // Group all messages by conversation key (10-digit customer counterparty phone)
+          const msgsByCustomerPhone: Record<string, any[]> = {};
+
+          dbMsgs.forEach((m: any) => {
+            const isInbound = m.direction === "inbound" || m.sender === "customer";
+            const counterpartyRaw = isInbound ? m.from : m.to;
+            const cleanPhone = (counterpartyRaw || "").replace(/\D/g, "").slice(-10);
+
+            // Skip messages between admin and admin
+            if (!cleanPhone || cleanPhone === adminPhoneClean) return;
+
+            if (
+              deletedCustomerIdsRef.current.has(cleanPhone) ||
+              (m.customerId && deletedCustomerIdsRef.current.has(m.customerId))
+            ) {
+              return;
+            }
+
+            if (!msgsByCustomerPhone[cleanPhone]) {
+              msgsByCustomerPhone[cleanPhone] = [];
+            }
+            msgsByCustomerPhone[cleanPhone].push(m);
+          });
+
+          // 1. Determine customer changes and new unknown customers
+          let custsModified = false;
+          const nextCustomers = [...customersRef.current];
+
+          // A: Update existing customers matching each phone
+          nextCustomers.forEach((cust, idx) => {
+            const custPhoneClean = (cust.phone || "").replace(/\D/g, "").slice(-10);
+            if (!custPhoneClean || deletedCustomerIdsRef.current.has(cust.id) || deletedCustomerIdsRef.current.has(custPhoneClean)) return;
+
+            const custMsgs = msgsByCustomerPhone[custPhoneClean];
+            if (custMsgs && custMsgs.length > 0) {
+              custMsgs.sort(
+                (a, b) => new Date(a.timestamp || a.createdAt || 0).getTime() - new Date(b.timestamp || b.createdAt || 0).getTime()
+              );
+              const latest = custMsgs[custMsgs.length - 1];
+              const latestTime = latest.timestamp || latest.createdAt
+                ? new Date(latest.timestamp || latest.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                : "Just now";
+
+              if (cust.lastMessageText !== latest.text) {
+                custsModified = true;
+                const isIncomingNew = (latest.direction === "inbound" || latest.sender === "customer") && cust.id !== selectedCustomerId;
+                nextCustomers[idx] = {
+                  ...cust,
+                  lastMessageText: latest.text,
+                  lastMessageTime: latestTime,
+                  unreadCount: isIncomingNew ? (cust.unreadCount || 0) + 1 : (cust.id === selectedCustomerId ? 0 : cust.unreadCount),
+                };
+
+                // Propagate customer name update if detected
+                const namedMsg = custMsgs.find(
+                  (m) => m.customerName && m.customerName !== "Customer" && m.customerName !== "Patron" && !m.customerName.startsWith("Patron (") && !m.customerName.startsWith("+91")
+                );
+                if (namedMsg && cust.id !== "cust_admin" && cust.name !== namedMsg.customerName) {
+                  nextCustomers[idx].name = namedMsg.customerName;
                 }
-                const isCustAdmin = cust.id === "cust_admin" || cust.id === "admin";
 
-                const relevantDbMsgs = dbMsgs.filter((m: any) => {
-                  if (m.customerId === cust.id) {
-                    if (m.id) matchedMsgIds.add(m.id);
-                    return true;
-                  }
+                // Toast notification for incoming WhatsApp message
+                if (isAuthRef.current && !isInitialSyncRef.current && isIncomingNew) {
+                  toast.info(`💬 New WhatsApp message from ${nextCustomers[idx].name}: "${(latest.text || '').slice(0, 45)}..."`, {
+                    action: {
+                      label: "Reply",
+                      onClick: () => {
+                        setSelectedCustomerId(cust.id);
+                        setActiveNav("inbox");
+                      },
+                    },
+                    duration: 7000,
+                  });
+                }
+              }
+            }
+          });
 
-                  const toClean = (m.to || "").replace(/\D/g, "").slice(-10);
-                  const fromClean = (m.from || "").replace(/\D/g, "").slice(-10);
+          // B: Auto-create unknown / new customers for any phone that does not exist in nextCustomers
+          Object.entries(msgsByCustomerPhone).forEach(([phoneKey, msgs]) => {
+            const exists = nextCustomers.some(
+              (c) => (c.phone || "").replace(/\D/g, "").slice(-10) === phoneKey || c.id === `cust_wa_${phoneKey}`
+            );
+            if (!exists) {
+              msgs.sort(
+                (a, b) => new Date(a.timestamp || a.createdAt || 0).getTime() - new Date(b.timestamp || b.createdAt || 0).getTime()
+              );
+              const latest = msgs[msgs.length - 1];
+              const formattedPhone = phoneKey.length === 10 ? `+91 ${phoneKey.slice(0, 5)} ${phoneKey.slice(5)}` : `+${phoneKey}`;
+              const namedMsg = msgs.find(
+                (m) => m.customerName && m.customerName !== "Customer" && m.customerName !== "Patron" && !m.customerName.startsWith("Patron (") && !m.customerName.startsWith("+91")
+              );
+              const contactName = namedMsg?.customerName || latest.customerName || `Patron (${formattedPhone})`;
 
-                  if (isCustAdmin) {
-                    const isAdminDeskMsg = fromClean === adminPhoneClean && toClean === adminPhoneClean;
-                    if (isAdminDeskMsg && m.id) matchedMsgIds.add(m.id);
-                    return isAdminDeskMsg;
-                  }
+              const latestTime = latest.timestamp || latest.createdAt
+                ? new Date(latest.timestamp || latest.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                : "Just now";
 
-                  // Counterparty in the conversation:
-                  const counterpartyClean = (m.direction === "inbound" || m.sender === "customer") ? fromClean : toClean;
-                  const isMatch = Boolean(custPhoneClean && counterpartyClean === custPhoneClean);
-                  if (isMatch && m.id) matchedMsgIds.add(m.id);
-                  return isMatch;
+              const newCustId = latest.customerId || `cust_wa_${phoneKey}`;
+              const newCust: Customer = {
+                id: newCustId,
+                name: contactName,
+                phone: formattedPhone,
+                email: "",
+                location: "WhatsApp Direct",
+                totalOrders: 0,
+                totalSpent: 0,
+                customerSince: "Today",
+                isVip: false,
+                avatar: "",
+                address: {
+                  line1: "Direct WhatsApp Inquiry",
+                  city: "Solan",
+                  state: "Himachal Pradesh",
+                  pincode: "173212",
+                  country: "India",
+                },
+                unreadCount: (latest.direction === "inbound" || latest.sender === "customer") ? 1 : 0,
+                lastMessageText: latest.text,
+                lastMessageTime: latestTime,
+                latestOrder: {
+                  id: `inq_${phoneKey}`,
+                  orderNumber: "INQUIRY-ONLY",
+                  itemsCount: 0,
+                  amount: 0,
+                  paymentStatus: "Pending",
+                  orderStatus: "Processing",
+                  date: "Today",
+                  time: latestTime,
+                  items: [],
+                  subtotal: 0,
+                  discount: 0,
+                  shipping: 0,
+                  paymentMethod: "WhatsApp Chat",
+                },
+              };
+
+              nextCustomers.unshift(newCust);
+              custsModified = true;
+
+              if (isAuthRef.current && !isInitialSyncRef.current) {
+                toast.info(`💬 New customer inquiry from ${contactName}!`, {
+                  action: {
+                    label: "View Chat",
+                    onClick: () => {
+                      setSelectedCustomerId(newCustId);
+                      setActiveNav("inbox");
+                    },
+                  },
+                  duration: 7000,
                 });
+              }
+            }
+          });
 
-                if (relevantDbMsgs.length > 0) {
-                  relevantDbMsgs.sort(
-                    (a: any, b: any) => new Date(a.timestamp || a.createdAt || 0).getTime() - new Date(b.timestamp || b.createdAt || 0).getTime()
-                  );
+          if (custsModified) {
+            setCustomers([...nextCustomers]);
+          }
 
-                  setMessagesMap((prevMap) => {
-                    const currentList = prevMap[cust.id] || [];
-                    const newToAdd: Message[] = [];
+          // 2. Update messagesMap for ALL customer conversations
+          setMessagesMap((prevMap) => {
+            const nextMap = { ...prevMap };
+            let mapModified = false;
 
-                    relevantDbMsgs.forEach((dbM: any) => {
-                      const alreadyExists = currentList.some(
-                        (ex) =>
-                          (ex.id && dbM.id && ex.id === dbM.id) ||
-                          (ex.text?.trim() === dbM.text?.trim() &&
-                            ((ex.sender === "business" && (dbM.sender === "business" || dbM.direction === "outbound")) ||
-                              (ex.sender === "customer" && (dbM.sender === "customer" || dbM.direction === "inbound"))))
-                      );
+            Object.entries(msgsByCustomerPhone).forEach(([phoneKey, msgs]) => {
+              // Find matching customer in nextCustomers to get their exact id
+              const matchingCust = nextCustomers.find(
+                (c) => (c.phone || "").replace(/\D/g, "").slice(-10) === phoneKey || c.id === `cust_wa_${phoneKey}`
+              );
+              const targetId = matchingCust ? matchingCust.id : `cust_wa_${phoneKey}`;
 
-                      if (!alreadyExists) {
-                        const timeStr = dbM.timestamp || dbM.createdAt
-                          ? new Date(dbM.timestamp || dbM.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                          : "Just now";
-                        newToAdd.push({
-                          id: dbM.id || `msg_db_${Date.now()}_${Math.random()}`,
-                          sender: dbM.direction === "inbound" || dbM.sender === "customer" ? "customer" : "business",
-                          text: dbM.text,
-                          time: timeStr,
-                          status: (dbM.status as any) || "delivered",
-                          isAutomated: Boolean(dbM.isAutomated),
-                        });
-                      }
-                    });
+              const currentList = nextMap[targetId] || [];
+              const toAdd: Message[] = [];
 
-                    if (newToAdd.length > 0) {
-                      custsChanged = true;
-                      const latestNew = newToAdd[newToAdd.length - 1];
-                      cust.lastMessageText = latestNew.text;
-                      cust.lastMessageTime = latestNew.time;
-                      if (latestNew.sender === "customer" && cust.id !== selectedCustomerId) {
-                        cust.unreadCount = (cust.unreadCount || 0) + 1;
-                        // Toast alert so staff instantly sees new WhatsApp message
-                        if (isAuthRef.current && !isInitialSyncRef.current) {
-                          toast.info(`💬 New WhatsApp message from ${cust.name}: "${(latestNew.text || '').slice(0, 45)}..."`, {
-                            action: {
-                              label: "Reply",
-                              onClick: () => {
-                                setSelectedCustomerId(cust.id);
-                                setActiveNav("inbox");
-                              },
-                            },
-                            duration: 7000,
-                          });
-                        }
-                      }
-                      // Propagate customer name update if detected
-                      const namedMsg = relevantDbMsgs.find(
-                        (m: any) => m.customerName && m.customerName !== "Customer" && m.customerName !== "Patron" && !m.customerName.startsWith("Patron (") && !m.customerName.startsWith("+91")
-                      );
-                      if (namedMsg && cust.id !== "cust_admin" && cust.name !== namedMsg.customerName) {
-                        cust.name = namedMsg.customerName;
-                      }
-                      return {
-                        ...prevMap,
-                        [cust.id]: [...currentList, ...newToAdd],
-                      };
-                    }
-                    return prevMap;
+              msgs.sort(
+                (a, b) => new Date(a.timestamp || a.createdAt || 0).getTime() - new Date(b.timestamp || b.createdAt || 0).getTime()
+              );
+
+              msgs.forEach((dbM) => {
+                const timeStr = dbM.timestamp || dbM.createdAt
+                  ? new Date(dbM.timestamp || dbM.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                  : "Just now";
+
+                const alreadyExists = currentList.some(
+                  (ex) =>
+                    (ex.id && dbM.id && ex.id === dbM.id) ||
+                    (ex.text?.trim() === dbM.text?.trim() &&
+                      ((ex.sender === "business" && (dbM.sender === "business" || dbM.direction === "outbound")) ||
+                        (ex.sender === "customer" && (dbM.sender === "customer" || dbM.direction === "inbound"))))
+                );
+
+                if (!alreadyExists) {
+                  toAdd.push({
+                    id: dbM.id || `msg_db_${Date.now()}_${Math.random()}`,
+                    sender: (dbM.direction === "inbound" || dbM.sender === "customer") ? "customer" : "business",
+                    text: dbM.text,
+                    time: timeStr,
+                    status: (dbM.status as any) || "delivered",
+                    isAutomated: Boolean(dbM.isAutomated),
                   });
                 }
               });
 
-              // Step B: Auto-create conversation & customer for any unknown senders (e.g. Admin or new customer WhatsApp messages)
-              const unmatchedMsgs = dbMsgs.filter((m: any) => !m.id || !matchedMsgIds.has(m.id));
-
-              const groupedUnmatched: Record<string, any[]> = {};
-              unmatchedMsgs.forEach((m: any) => {
-                const isIncoming = m.direction === "inbound" || m.sender === "customer";
-                const rawCounterparty = isIncoming ? m.from : m.to;
-                const cleanPhone = (rawCounterparty || "").replace(/\D/g, "").slice(-10);
-                if (
-                  !cleanPhone ||
-                  cleanPhone === adminPhoneClean ||
-                  deletedCustomerIdsRef.current.has(cleanPhone) ||
-                  (m.customerId && deletedCustomerIdsRef.current.has(m.customerId))
-                ) {
-                  return;
-                }
-
-                const alreadyHandled = updatedCusts.some(
-                  (c) => (c.phone || "").replace(/\D/g, "").slice(-10) === cleanPhone || c.id === m.customerId
-                );
-                if (alreadyHandled) return;
-
-                if (!groupedUnmatched[cleanPhone]) {
-                  groupedUnmatched[cleanPhone] = [];
-                }
-                groupedUnmatched[cleanPhone].push(m);
-              });
-
-              Object.entries(groupedUnmatched).forEach(([cleanPhone, msgs]) => {
-                msgs.sort(
-                  (a: any, b: any) => new Date(a.timestamp || a.createdAt || 0).getTime() - new Date(b.timestamp || b.createdAt || 0).getTime()
-                );
-
-                const latestMsg = msgs[msgs.length - 1];
-                const isAdminContact = cleanPhone.endsWith(adminPhoneClean);
-                const formattedPhone = cleanPhone.length === 10
-                  ? `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`
-                  : `+${cleanPhone}`;
-
-                const contactName = latestMsg.customerName && latestMsg.customerName !== "Customer"
-                  ? latestMsg.customerName
-                  : isAdminContact
-                  ? "Admin (WhatsApp)"
-                  : `Patron (${formattedPhone})`;
-
-                const newCustId = latestMsg.customerId || `cust_wa_${cleanPhone}`;
-                const latestTime = latestMsg.timestamp || latestMsg.createdAt
-                  ? new Date(latestMsg.timestamp || latestMsg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                  : "Just now";
-
-                const convertedMsgs: Message[] = msgs.map((dbM: any) => ({
-                  id: dbM.id || `msg_db_${Date.now()}_${Math.random()}`,
-                  sender: dbM.direction === "inbound" || dbM.sender === "customer" ? "customer" : "business",
-                  text: dbM.text,
-                  time: dbM.timestamp || dbM.createdAt
-                    ? new Date(dbM.timestamp || dbM.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                    : "Just now",
-                  status: (dbM.status as any) || "delivered",
-                  isAutomated: Boolean(dbM.isAutomated),
-                }));
-
-                const newCustomer: Customer = {
-                  id: newCustId,
-                  name: contactName,
-                  phone: formattedPhone,
-                  email: "",
-                  location: isAdminContact ? "Headquarters Desk" : "WhatsApp Direct",
-                  totalOrders: 0,
-                  totalSpent: 0,
-                  customerSince: "Today",
-                  isVip: isAdminContact,
-                  avatar: "",
-                  address: {
-                    line1: "Direct WhatsApp Inquiry",
-                    city: "Solan",
-                    state: "Himachal Pradesh",
-                    pincode: "173212",
-                    country: "India",
-                  },
-                  unreadCount: latestMsg.direction === "inbound" || latestMsg.sender === "customer" ? 1 : 0,
-                  lastMessageText: latestMsg.text,
-                  lastMessageTime: latestTime,
-                  latestOrder: {
-                    id: `inq_${cleanPhone}`,
-                    orderNumber: "INQUIRY-ONLY",
-                    itemsCount: 0,
-                    amount: 0,
-                    paymentStatus: "Pending",
-                    orderStatus: "Processing",
-                    date: "Today",
-                    time: latestTime,
-                    items: [],
-                    subtotal: 0,
-                    discount: 0,
-                    shipping: 0,
-                    paymentMethod: "WhatsApp Chat",
-                  },
-                };
-
-                updatedCusts.unshift(newCustomer);
-                custsChanged = true;
-
-                setMessagesMap((prevMap) => ({
-                  ...prevMap,
-                  [newCustId]: convertedMsgs,
-                }));
-              });
-
-              return custsChanged ? [...updatedCusts] : currentCusts;
+              if (toAdd.length > 0) {
+                mapModified = true;
+                nextMap[targetId] = [...currentList, ...toAdd];
+              }
             });
-          }
+
+            return mapModified ? nextMap : prevMap;
+          });
         } catch (e) {
           console.warn("[CRM Sync] Message sync error:", e);
         }

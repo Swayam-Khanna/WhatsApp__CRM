@@ -32,8 +32,7 @@ export async function GET(req: NextRequest) {
       return await db
         .collection("crm_messages")
         .find(query)
-        .sort({ timestamp: -1 })
-        .limit(100)
+        .sort({ createdAt: -1, timestamp: -1 }).limit(500)
         .toArray();
     };
 
@@ -247,10 +246,34 @@ export async function POST(req: NextRequest) {
 
     globalThis.__globalWhatsAppFeed.unshift(messageRecord);
 
-    // Save permanently to MongoDB Atlas
+    // Save permanently to MongoDB Atlas & update conversation state
     if (db) {
       try {
         await db.collection("crm_messages").insertOne(messageRecord);
+
+        const to10 = cleanTo.slice(-10);
+        if (to10) {
+          const formattedPhone = to10.length === 10 ? `+91 ${to10.slice(0, 5)} ${to10.slice(5)}` : `+${to10}`;
+          await db.collection("crm_conversations").updateOne(
+            { phone: to10 },
+            {
+              $set: {
+                id: `conv_${to10}`,
+                customerPhone: formattedPhone,
+                lastMessageText: text,
+                lastMessageTime: messageRecord.timestamp,
+                unreadCount: 0,
+                updatedAt: new Date(),
+              },
+              $setOnInsert: {
+                createdAt: new Date(),
+                status: "active",
+                customerName: customerName || `Patron (${formattedPhone})`,
+              },
+            },
+            { upsert: true }
+          );
+        }
       } catch (dbErr) {
         console.warn("[MongoDB] Note: Failed to persist outbound message to Atlas:", dbErr);
       }
@@ -317,6 +340,9 @@ export async function DELETE(req: NextRequest) {
         if (orClauses.length > 0) {
           const res = await db.collection("crm_messages").deleteMany({ $or: orClauses });
           deletedCount = res.deletedCount;
+          if (cleanPhone) {
+            await db.collection("crm_conversations").deleteMany({ phone: cleanPhone });
+          }
         }
       }
     } catch (dbErr) {

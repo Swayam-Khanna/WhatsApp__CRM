@@ -4,7 +4,6 @@ import {
   parseInboundWebhookPayload,
   getWhatsAppIntegrationStatus,
   sendWhatsAppTextMessage,
-  generateAutomatedCustomerReply,
   processConversationalBotReply,
 } from "../../../../backend/lib/whatsapp.server.ts";
 import { getDatabase } from "../../../../lib/mongodb.ts";
@@ -59,7 +58,7 @@ export async function GET(req: NextRequest) {
 /**
  * POST /api/webhooks/whatsapp
  * Receives inbound customer messages and delivery receipts from Meta WhatsApp Cloud API.
- * Automatically dispatches instant, template-free replies back to the customer.
+ * Automatically persists to MongoDB Atlas & in-memory feed, and dispatches conversational replies.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -79,14 +78,14 @@ export async function POST(req: NextRequest) {
     // 2. Parse inbound messages and delivery receipts
     const { messages, statuses } = parseInboundWebhookPayload(payload);
 
-    // 3. Process asynchronously in background (Ack immediately to prevent Meta timeout/retries)
-    void handleWebhookProcessing(messages, statuses);
+    // 3. Process and persist synchronously so Serverless function commits to MongoDB Atlas before terminating
+    await handleWebhookProcessing(messages, statuses);
 
     if (isInternalTest || req.headers.get("accept")?.includes("application/json")) {
       return NextResponse.json({
         success: true,
         status: "EVENT_RECEIVED",
-        message: "Test webhook payload received and processed successfully",
+        message: "Webhook payload processed and persisted successfully",
         receivedAt: new Date().toISOString(),
       });
     }
@@ -103,13 +102,35 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
     globalThis.__globalWhatsAppFeed = [];
   }
 
-  // 1. Process inbound customer messages & trigger automated reply with 0ms in-memory latency
+  let db: any = null;
+  try {
+    db = await getDatabase();
+  } catch (err) {
+    console.warn("[WhatsApp Webhook] MongoDB connection warning, using memory buffer:", err);
+  }
+
+  // 1. Process Inbound Customer Messages & Trigger Automated Reply
   for (const msg of messages) {
     if (!msg.id) continue;
+
+    // Idempotency: Check in-memory feed first
     const isAlreadyInFeed = (globalThis.__globalWhatsAppFeed || []).some((m: any) => m.id === msg.id);
     if (isAlreadyInFeed) {
-      console.log(`[WhatsApp Webhook] Idempotency: Message ${msg.id} already processed. Skipping duplicate.`);
+      console.log(`[WhatsApp Webhook] Idempotency: Message ${msg.id} already in feed. Skipping.`);
       continue;
+    }
+
+    // Idempotency: Check database if connected
+    if (db) {
+      try {
+        const existingInDb = await db.collection("crm_messages").findOne({ id: msg.id });
+        if (existingInDb) {
+          console.log(`[WhatsApp Webhook] Idempotency: Message ${msg.id} already in database. Skipping.`);
+          continue;
+        }
+      } catch (e) {
+        console.warn("[WhatsApp Webhook] Idempotency DB check skipped:", e);
+      }
     }
 
     console.log(`[WhatsApp Webhook] Inbound from ${msg.fromPhone}: ${msg.text}`);
@@ -118,7 +139,7 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
     const fromClean = (msg.fromPhone || "").replace(/\D/g, "").slice(-10);
     const isAdminSender = fromClean === adminPhone;
 
-    // Check conversational bot reply & detect any customer name
+    // Conversational bot engine: detects name, answers questions on Almonds, Honey, Walnuts, etc.
     const botResult = !isAdminSender
       ? processConversationalBotReply({
           senderPhone: msg.fromPhone,
@@ -132,7 +153,7 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
       msg.customerName ||
       (isAdminSender ? "Store Admin" : "Customer");
 
-    // If an updated name was captured, propagate to past messages in memory
+    // Propagate captured customer name to in-memory feed
     if (botResult?.updatedCustomerName && fromClean) {
       (globalThis.__globalWhatsAppFeed || []).forEach((m: any) => {
         const mFrom = (m.from || "").replace(/\D/g, "").slice(-10);
@@ -143,6 +164,8 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
       });
     }
 
+    const formattedPhone = fromClean.length === 10 ? `+91 ${fromClean.slice(0, 5)} ${fromClean.slice(5)}` : `+${fromClean}`;
+
     const inboundRecord = {
       id: msg.id,
       direction: "inbound",
@@ -151,15 +174,65 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
       to: process.env.ADMIN_WHATSAPP_NUMBER || "918091265690",
       customerName: resolvedCustomerName,
       text: msg.text,
+      type: msg.type || "text",
+      mediaId: msg.mediaId || null,
+      mimeType: msg.mimeType || null,
+      businessPhoneNumberId: msg.businessPhoneNumberId || null,
       timestamp: msg.timestamp || new Date().toISOString(),
       status: "delivered",
       createdAt: new Date(),
     };
 
-    // Unshift to memory feed immediately so CRM UI picks it up without waiting for DB
+    // Unshift to memory feed immediately
     globalThis.__globalWhatsAppFeed.unshift(inboundRecord);
 
-    // Only dispatch automated customer bot reply if message is NOT from the store admin
+    // Persist inbound record to MongoDB Atlas
+    if (db) {
+      try {
+        await db.collection("crm_messages").insertOne(inboundRecord);
+
+        // Update past customer name records if updated
+        if (botResult?.updatedCustomerName && fromClean) {
+          await db.collection("crm_messages").updateMany(
+            {
+              $or: [
+                { from: { $regex: fromClean } },
+                { to: { $regex: fromClean } },
+              ],
+            },
+            { $set: { customerName: botResult.updatedCustomerName } }
+          );
+        }
+
+        // Upsert conversation record in crm_conversations
+        if (fromClean) {
+          await db.collection("crm_conversations").updateOne(
+            { phone: fromClean },
+            {
+              $set: {
+                id: `conv_${fromClean}`,
+                customerPhone: formattedPhone,
+                customerName: resolvedCustomerName,
+                lastMessageText: msg.text,
+                lastMessageTime: inboundRecord.timestamp,
+                updatedAt: new Date(),
+              },
+              $setOnInsert: {
+                createdAt: new Date(),
+                status: "active",
+                unreadCount: 0,
+              },
+              $inc: { unreadCount: 1 },
+            },
+            { upsert: true }
+          );
+        }
+      } catch (e) {
+        console.warn("[MongoDB] Failed to persist inbound msg to Atlas:", e);
+      }
+    }
+
+    // Automated customer bot reply if message is NOT from the store admin
     if (!isAdminSender && botResult) {
       const autoReplyText = botResult.replyText;
 
@@ -180,61 +253,63 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
 
       globalThis.__globalWhatsAppFeed.unshift(autoReplyRecord);
 
-      // Dispatch via Meta WhatsApp Cloud API asynchronously
-      void sendWhatsAppTextMessage({
-        to: msg.fromPhone,
-        text: autoReplyText,
-      }).then(async (sendResult) => {
+      try {
+        const sendResult = await sendWhatsAppTextMessage({
+          to: msg.fromPhone,
+          text: autoReplyText,
+        });
+
         autoReplyRecord.id = sendResult.messageId || autoReplyRecord.id;
         autoReplyRecord.status = sendResult.success ? "sent" : "failed";
         autoReplyRecord.mode = sendResult.mode;
 
-        try {
-          const db = await getDatabase();
-          if (db) {
-            await db.collection("crm_messages").insertOne(autoReplyRecord);
-          }
-        } catch {}
-      });
-    }
-
-    // Persist inbound record to MongoDB Atlas in background without blocking
-    void getDatabase().then(async (db) => {
-      if (db) {
-        try {
-          await db.collection("crm_messages").insertOne(inboundRecord);
-          if (botResult?.updatedCustomerName && fromClean) {
-            await db.collection("crm_messages").updateMany(
-              {
-                $or: [
-                  { from: { $regex: fromClean } },
-                  { to: { $regex: fromClean } },
-                ],
-              },
-              { $set: { customerName: botResult.updatedCustomerName } }
-            );
-          }
-        } catch (e) {
-          console.warn("[MongoDB] Failed to persist inbound msg:", e);
+        if (db) {
+          await db.collection("crm_messages").insertOne(autoReplyRecord);
         }
+      } catch (sendErr) {
+        console.warn("[WhatsApp Service] Auto-reply send error:", sendErr);
       }
-    }).catch(() => {});
+    }
   }
 
-  // 2. Process delivery status updates (sent, delivered, read, failed)
+  // 2. Process Delivery Status Receipts (sent, delivered, read, failed)
+  const statusRank: Record<string, number> = { failed: 0, sent: 1, delivered: 2, read: 3 };
+
   for (const st of statuses) {
-    console.log(`[WhatsApp Webhook] Message ${st.messageId} status: ${st.status}`);
-    const existing = globalThis.__globalWhatsAppFeed.find((m) => m.id === st.messageId);
+    console.log(`[WhatsApp Webhook] Message ${st.messageId} status update: ${st.status}`);
+
+    // Update in-memory feed (without downgrading status)
+    const existing = (globalThis.__globalWhatsAppFeed || []).find((m: any) => m.id === st.messageId);
     if (existing) {
-      existing.status = st.status;
-    }
-    void getDatabase().then(async (db) => {
-      if (db) {
-        await db.collection("crm_messages").updateOne(
-          { id: st.messageId },
-          { $set: { status: st.status, updatedAt: new Date() } }
-        );
+      const currentRank = statusRank[existing.status] || 0;
+      const newRank = statusRank[st.status] || 0;
+      if (newRank >= currentRank) {
+        existing.status = st.status;
       }
-    }).catch(() => {});
+    }
+
+    // Update MongoDB Atlas
+    if (db) {
+      try {
+        const existingDoc = await db.collection("crm_messages").findOne({ id: st.messageId });
+        const currentRank = existingDoc ? (statusRank[existingDoc.status] || 0) : 0;
+        const newRank = statusRank[st.status] || 0;
+
+        if (!existingDoc || newRank >= currentRank) {
+          await db.collection("crm_messages").updateOne(
+            { id: st.messageId },
+            {
+              $set: {
+                status: st.status,
+                updatedAt: new Date(),
+                ...(st.error ? { error: st.error } : {}),
+              },
+            }
+          );
+        }
+      } catch (dbErr) {
+        console.warn("[MongoDB] Status update error:", dbErr);
+      }
+    }
   }
 }

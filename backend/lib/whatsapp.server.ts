@@ -24,7 +24,10 @@ export interface InboundWhatsAppMessage {
   customerName?: string;
   text: string;
   timestamp: string;
-  type: "text" | "interactive" | "image" | "document";
+  type: string;
+  mediaId?: string;
+  mimeType?: string;
+  businessPhoneNumberId?: string;
 }
 
 /**
@@ -736,29 +739,55 @@ export function parseInboundWebhookPayload(payload: any): {
         const contacts = Array.isArray(value.contacts) ? value.contacts : [];
         const contactNameMap: Record<string, string> = {};
         for (const c of contacts) {
-          if (c?.wa_id && c?.profile?.name) {
-            contactNameMap[c.wa_id] = c.profile.name;
+          if (c?.profile?.name) {
+            if (c.wa_id) {
+              contactNameMap[c.wa_id] = c.profile.name;
+              const cleanWa = c.wa_id.replace(/\D/g, '').slice(-10);
+              if (cleanWa) contactNameMap[cleanWa] = c.profile.name;
+            }
           }
         }
+        const businessPhoneNumberId = value.metadata?.phone_number_id || '';
 
         // Process Inbound Messages
         if (Array.isArray(value.messages)) {
           for (const msg of value.messages) {
             let textContent = "";
+            let mediaId: string | undefined = undefined;
+            let mimeType: string | undefined = undefined;
+
             if (msg.type === "text") {
               textContent = msg.text?.body || "";
             } else if (msg.type === "interactive") {
-              textContent = msg.interactive?.button_reply?.title || msg.interactive?.list_reply?.title || "";
+              textContent = msg.interactive?.button_reply?.title || msg.interactive?.list_reply?.title || msg.interactive?.button_reply?.id || "[Interactive Reply]";
             } else if (msg.type === "button") {
-              textContent = msg.button?.text || "";
+              textContent = msg.button?.text || msg.button?.payload || "[Button Reply]";
             } else if (msg.type === "image") {
+              mediaId = msg.image?.id;
+              mimeType = msg.image?.mime_type;
               textContent = msg.image?.caption || "[Image Attachment]";
+            } else if (msg.type === "video") {
+              mediaId = msg.video?.id;
+              mimeType = msg.video?.mime_type;
+              textContent = msg.video?.caption || "[Video Attachment]";
             } else if (msg.type === "document") {
-              textContent = msg.document?.filename || "[Document Attachment]";
+              mediaId = msg.document?.id;
+              mimeType = msg.document?.mime_type;
+              textContent = msg.document?.filename || msg.document?.caption || "[Document Attachment]";
             } else if (msg.type === "audio" || msg.type === "voice") {
+              mediaId = msg.audio?.id || msg.voice?.id;
+              mimeType = msg.audio?.mime_type || msg.voice?.mime_type;
               textContent = "[Voice Note / Audio]";
             } else if (msg.type === "location") {
-              textContent = msg.location?.name || `[Location: ${msg.location?.latitude}, ${msg.location?.longitude}]`;
+              textContent = msg.location?.name || msg.location?.address || (msg.location?.latitude ? `[Location: ${msg.location.latitude}, ${msg.location.longitude}]` : "[Location Shared]");
+            } else if (msg.type === "contacts") {
+              const cName = msg.contacts?.[0]?.name?.formatted_name || msg.contacts?.[0]?.phones?.[0]?.phone || "Contact";
+              textContent = `[Contact Shared: ${cName}]`;
+            } else if (msg.type === "sticker") {
+              mediaId = msg.sticker?.id;
+              textContent = "[Sticker]";
+            } else if (msg.type === "reaction") {
+              textContent = `[Reaction: ${msg.reaction?.emoji || "👍"}]`;
             } else {
               textContent = msg.text?.body || `[${(msg.type || "MESSAGE").toUpperCase()} Attachment]`;
             }
@@ -768,7 +797,12 @@ export function parseInboundWebhookPayload(payload: any): {
               ? (tsNum > 1e11 ? new Date(tsNum).toISOString() : new Date(tsNum * 1000).toISOString())
               : new Date().toISOString();
 
-            const contactName = contactNameMap[msg.from] || contacts[0]?.profile?.name || "";
+            const cleanFrom = (msg.from || "").replace(/\D/g, "").slice(-10);
+            const contactName =
+              contactNameMap[msg.from] ||
+              contactNameMap[cleanFrom] ||
+              contacts[0]?.profile?.name ||
+              "";
 
             messages.push({
               id: msg.id,
@@ -777,6 +811,9 @@ export function parseInboundWebhookPayload(payload: any): {
               text: textContent,
               timestamp,
               type: msg.type || "text",
+              mediaId,
+              mimeType,
+              businessPhoneNumberId,
             });
           }
         }
