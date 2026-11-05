@@ -693,33 +693,8 @@ const INITIAL_PRODUCTS: ProductItem[] = [
   { id: "chia-seeds", name: "Black Chia Seeds", price: 220, stock: "In Stock", image: "/assets/cat-seeds.jpg", category: "Seeds", unitsLeft: 120, origin: "High Altitude Organic Cultivation", sku: "PM-CHI-250", weight: "250 g" },
 ];
 
-// Initial Shipments Data
-const INITIAL_SHIPMENTS = [
-  {
-    orderId: "#PM2024001234",
-    customer: "Priya Sharma",
-    trackingId: "ET123456789IN",
-    status: "In Transit",
-    date: "14 Mar 2024",
-    timeline: [
-      { status: "Item Booked", date: "12 Mar 2024, 04:30 PM", loc: "Dehradun MDG" },
-      { status: "In Transit", date: "13 Mar 2024, 09:20 AM", loc: "Delhi NSH" },
-      { status: "Out for Delivery", date: "14 Mar 2024, 08:15 AM", loc: "Dehradun SO" },
-      { status: "Delivered", date: "Pending", loc: "Rajpur Dehradun" },
-    ],
-  },
-  {
-    orderId: "#PM2024001233",
-    customer: "Rahul Verma",
-    trackingId: "ET987654321IN",
-    status: "Delivered",
-    date: "13 Mar 2024",
-    timeline: [
-      { status: "Item Booked", date: "11 Mar 2024, 02:00 PM", loc: "Haridwar HO" },
-      { status: "Delivered", date: "13 Mar 2024, 11:30 AM", loc: "Kankhal SO" },
-    ],
-  },
-];
+// Initial Shipments Data (Production empty state - consignments populate from actual orders)
+const INITIAL_SHIPMENTS: any[] = [];
 
 // Initial Templates Data (Official Meta Cloud API pre-approved templates)
 const INITIAL_TEMPLATES = [
@@ -767,51 +742,8 @@ const INITIAL_TEMPLATES = [
   },
 ];
 
-// Initial Broadcast Campaigns Data
-const INITIAL_CAMPAIGNS: BroadcastCampaign[] = [
-  {
-    id: "camp_autumn_ghee_2024",
-    name: "Autumn Badri Cow Ghee Fresh Batch",
-    audience: "All Opted-In Customers (345)",
-    segment: "all",
-    message:
-      "Namaste ji! 🙏 Tehri Garhwal ke high-altitude Badri cow farm se A2 Desi Ghee ka naya seasonal batch ready hai. Traditional bilona method se tayar. Order before stock finishes: https://prajnaa-farm-8zam.vercel.app/ 🧈",
-    status: "Completed",
-    sentCount: 345,
-    deliveredCount: 341,
-    readCount: 298,
-    failedCount: 4,
-    createdAt: "10 Oct 2024, 11:30 AM",
-  },
-  {
-    id: "camp_apricot_preorder_2024",
-    name: "2026 Himalayan Apricots Pre-Order Window",
-    audience: "VIP & Dry Fruit Buyers (88)",
-    segment: "vip",
-    message:
-      "Namaste ji! Ladakh Sham Valley ke pure Himalayan Sun-Dried Apricots ka pre-order window open ho gaya hai. Fresh 2026 harvest direct from orchards! 🍑",
-    status: "Completed",
-    sentCount: 88,
-    deliveredCount: 88,
-    readCount: 82,
-    failedCount: 0,
-    createdAt: "14 Oct 2024, 02:15 PM",
-  },
-  {
-    id: "camp_diwali_festive_2024",
-    name: "Diwali Himalayan Gift Hampers 2024",
-    audience: "All Opted-In Customers (345)",
-    segment: "all",
-    message:
-      "Namaste ji! 🌸 Is Diwali apne priyajanon ko gift karein pure Himalayan wellness. Prajnaa Special Dry Fruit & Honey hampers ab live hain with festive packaging! Visit: https://prajnaa.market",
-    status: "Completed",
-    sentCount: 345,
-    deliveredCount: 339,
-    readCount: 312,
-    failedCount: 6,
-    createdAt: "16 Oct 2024, 09:45 AM",
-  },
-];
+// Initial Broadcast Campaigns Data (Production empty state - campaigns populate from authorized Meta Cloud dispatches)
+const INITIAL_CAMPAIGNS: BroadcastCampaign[] = [];
 
 // Quick Presets for Broadcast Campaigns
 const BROADCAST_PRESETS = [
@@ -1035,7 +967,7 @@ export default function PrajnaaMasterCrmApp() {
 
   // State: Shipments & Selected Shipment Tracking
   const [shipments, setShipments] = useState(INITIAL_SHIPMENTS);
-  const [selectedShipment, setSelectedShipment] = useState(INITIAL_SHIPMENTS[0]);
+  const [selectedShipment, setSelectedShipment] = useState<any>(null);
 
   // State: Templates
   const [selectedTemplateCategory, setSelectedTemplateCategory] = useState("Order Updates");
@@ -3783,7 +3715,7 @@ export default function PrajnaaMasterCrmApp() {
         s.trackingId === shipmentItem.trackingId ? { ...s, status: "In Transit" } : s
       )
     );
-    setSelectedShipment((prev) => ({ ...prev, status: "In Transit" }));
+    setSelectedShipment((prev: any) => ({ ...prev, status: "In Transit" }));
 
     // 4. Update order status to Shipped in unifiedOrders / createdOrders
     setCreatedOrders((prev) =>
@@ -8216,12 +8148,21 @@ export default function PrajnaaMasterCrmApp() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-100">
-                      {unifiedShipments.map((s, idx) => (
+                      {unifiedShipments.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="p-8 text-center text-xs text-neutral-500">
+                            <Truck className="h-8 w-8 text-neutral-300 mx-auto mb-2" />
+                            <p className="font-semibold text-neutral-700">No shipment records yet</p>
+                            <p className="text-neutral-400 mt-1">When orders are booked for dispatch via India Post Speed Post, consignments will appear here automatically.</p>
+                          </td>
+                        </tr>
+                      ) : (
+                      unifiedShipments.map((s, idx) => (
                         <tr
                           key={`${s.orderId || "ship"}_${s.trackingId}_${idx}`}
                           onClick={() => setSelectedShipment(s)}
                           className={`hover:bg-neutral-50 cursor-pointer transition ${
-                            selectedShipment.trackingId === s.trackingId ? "bg-emerald-50/60" : ""
+                            selectedShipment?.trackingId === s.trackingId ? "bg-emerald-50/60" : ""
                           }`}
                         >
                           <td className="p-3 font-mono font-bold text-neutral-900">{s.orderId}</td>
@@ -8242,13 +8183,21 @@ export default function PrajnaaMasterCrmApp() {
                           </td>
                           <td className="p-3 text-neutral-500">{s.date}</td>
                         </tr>
-                      ))}
+                      )))}
                     </tbody>
                   </table>
                 </div>
               </div>
 
               <div className="lg:col-span-2 bg-white p-4 sm:p-5 rounded-2xl border border-neutral-200/80 shadow-2xs space-y-4">
+                {!selectedShipment ? (
+                  <div className="py-12 px-4 flex flex-col items-center justify-center text-center">
+                    <Truck className="h-8 w-8 text-neutral-300 mb-2" />
+                    <h4 className="font-bold text-sm text-neutral-800">No Consignment Selected</h4>
+                    <p className="text-xs text-neutral-500 max-w-xs mt-1">Select any consignment from the dispatch roster to view live India Post tracking stages and dispatch WhatsApp alerts.</p>
+                  </div>
+                ) : (
+                <>
                 <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
                   <div>
                     <h3 className="font-bold text-sm text-neutral-900">Tracking Details</h3>
@@ -8260,13 +8209,13 @@ export default function PrajnaaMasterCrmApp() {
                 </div>
 
                 <div className="space-y-4 pt-1">
-                  {selectedShipment.timeline.map((step, idx) => (
+                  {(selectedShipment.timeline || []).map((step: any, idx: number) => (
                     <div key={idx} className="flex gap-3 text-xs">
                       <div className="flex flex-col items-center">
                         <div className="h-6 w-6 rounded-full bg-emerald-600 text-white font-bold text-[10px] flex items-center justify-center">
                           ✓
                         </div>
-                        {idx < selectedShipment.timeline.length - 1 && <div className="w-0.5 h-8 bg-neutral-200 my-1" />}
+                        {idx < (selectedShipment.timeline?.length || 0) - 1 && <div className="w-0.5 h-8 bg-neutral-200 my-1" />}
                       </div>
                       <div>
                         <h5 className="font-bold text-neutral-900 leading-tight">{step.status}</h5>
@@ -8290,7 +8239,7 @@ export default function PrajnaaMasterCrmApp() {
                       onClick={() => {
                         const targetCust = customers.find(
                           (c) =>
-                            c.name.toLowerCase() === selectedShipment.customer.toLowerCase() ||
+                            c.name.toLowerCase() === (selectedShipment.customer || "").toLowerCase() ||
                             c.latestOrder?.orderNumber === selectedShipment.orderId
                         ) || currentCustomer;
                         setSelectedCustomerId(targetCust.id);
@@ -8311,6 +8260,8 @@ export default function PrajnaaMasterCrmApp() {
                     </button>
                   </div>
                 </div>
+                </>
+                )}
               </div>
             </div>
           </div>
