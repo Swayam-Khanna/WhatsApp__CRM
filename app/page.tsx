@@ -467,365 +467,48 @@ const ROLE_PERMISSIONS: Record<
   },
 };
 
-// Initial Mock Customers Data
-const INITIAL_CUSTOMERS: Customer[] = [
-  {
-    id: "cust_admin",
-    name: "Store Admin (Prajnaa Desk)",
-    phone: "+91 80912 65690",
-    email: "admin@prajnaa.in",
-    location: "Outer Solan Road, Solan, Himachal Pradesh",
-    totalOrders: 0,
-    totalSpent: 0,
-    customerSince: "Oct 2026",
-    isVip: true,
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
-    address: {
-      line1: "Outer Solan Road, Solan",
-      city: "Solan",
-      state: "Himachal Pradesh",
-      pincode: "173212",
-      country: "India",
-    },
-    unreadCount: 0,
-    lastMessageTime: "Just now",
-    lastMessageText: "Prajnaa CRM Active Desk",
-    latestOrder: {
-      id: "ord_admin_desk",
-      orderNumber: "ADMIN-DESK",
-      itemsCount: 0,
-      amount: 0,
-      paymentStatus: "Paid",
-      orderStatus: "Processing",
-      date: "Today",
-      time: "Just now",
-      items: [],
-      subtotal: 0,
-      discount: 0,
-      shipping: 0,
-      paymentMethod: "Internal Desk",
-    },
-  },
-  {
-    id: "cust_rajat",
-    name: "Rajat",
-    phone: "+91 70184 90629",
-    email: "rajat@prajnaa.in",
-    location: "Tehri Garhwal, Uttarakhand",
-    totalOrders: 1,
-    totalSpent: 844,
-    customerSince: "Oct 2026",
-    isVip: true,
-    avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
-    address: {
-      line1: "Tehri Garhwal",
-      city: "Tehri",
-      state: "Uttarakhand",
-      pincode: "249001",
-      country: "India",
-    },
-    unreadCount: 0,
-    lastMessageTime: "Just now",
-    lastMessageText: "Namaste Rajat ji! Welcome to Prajnaa Market & Farm! 🌿",
-    latestOrder: {
-      id: "ord_rajat_1",
-      orderNumber: "#PM-9021",
-      itemsCount: 2,
-      amount: 844,
-      paymentStatus: "Pending",
-      orderStatus: "Processing",
-      date: "Today",
-      time: "Just now",
-      items: [
-        {
-          name: "Kashmiri Walnuts",
-          weight: "500g",
-          qty: 1,
-          price: 604,
-          total: 604,
-          image: "🌰",
-        },
-        {
-          name: "Lakadong Turmeric",
-          weight: "250g",
-          qty: 1,
-          price: 240,
-          total: 240,
-          image: "🌿",
-        },
-      ],
-      subtotal: 844,
-      discount: 0,
-      shipping: 0,
-      paymentMethod: "WhatsApp Order & Direct Payment",
-    },
-  },
-  {
-    id: "cust_1",
-    name: "Priya Sharma",
-    phone: "+91 98765 43210",
-    email: "priya.sharma@gmail.com",
-    location: "Dehradun, Uttarakhand",
-    totalOrders: 3,
-    totalSpent: 3420,
-    customerSince: "Mar 2024",
-    isVip: true,
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-    address: {
-      line1: "123, Main Road, Rajpur",
-      city: "Dehradun",
-      state: "Uttarakhand",
-      pincode: "248001",
-      country: "India",
-    },
-    unreadCount: 3,
-    lastMessageTime: "10:24 AM",
-    lastMessageText: "Namaste ji, maine kal order kiya tha...",
-    latestOrder: {
-      id: "ord_1",
-      orderNumber: "#PM2024001234",
-      itemsCount: 2,
-      amount: 1740,
-      paymentStatus: "Pending",
-      orderStatus: "Processing",
-      date: "12 Mar 2024",
-      time: "10:15 AM",
-      items: [
-        {
-          name: "Himalayan Raw Honey",
-          weight: "500g",
-          qty: 2,
-          price: 550,
-          total: 1100,
-          image: "🍯",
-        },
-        {
-          name: "A2 Cow Ghee",
-          weight: "1L",
-          qty: 1,
-          price: 800,
-          total: 800,
-          image: "🧈",
-        },
-      ],
-      subtotal: 1900,
-      discount: 200,
-      shipping: 40,
-      paymentMethod: "WhatsApp Order & Direct Payment",
-    },
-  },
-  {
-    id: "cust_2",
-    name: "Rahul Verma",
-    phone: "+91 87654 32109",
-    email: "rahul.verma@gmail.com",
-    location: "Haridwar, Uttarakhand",
-    totalOrders: 2,
-    totalSpent: 2150,
-    customerSince: "Feb 2024",
-    isVip: false,
-    avatar: "",
-    address: {
-      line1: "Flat 402, Ganga Heights, Kankhal",
-      city: "Haridwar",
-      state: "Uttarakhand",
-      pincode: "249408",
-      country: "India",
-    },
-    unreadCount: 1,
-    lastMessageTime: "10:12 AM",
-    lastMessageText: "Payment kar diya hai, check kar lijiye",
-    latestOrder: {
-      id: "ord_2",
-      orderNumber: "#PM2024001233",
-      itemsCount: 3,
-      amount: 1100,
-      paymentStatus: "Paid",
-      orderStatus: "Packed",
-      date: "12 Mar 2024",
-      time: "09:30 AM",
-      items: [
-        {
-          name: "Himalayan Turmeric Powder",
-          weight: "250g",
-          qty: 2,
-          price: 250,
-          total: 500,
-          image: "🌿",
-        },
-        {
-          name: "Himalayan Herbal Tea",
-          weight: "100g",
-          qty: 3,
-          price: 200,
-          total: 600,
-          image: "🍵",
-        },
-      ],
-      subtotal: 1100,
-      discount: 50,
-      shipping: 50,
-      paymentMethod: "UPI Direct",
-    },
-  },
-  {
-    id: "cust_3",
-    name: "Neha Kapoor",
-    phone: "+91 98887 66554",
-    email: "neha.k@gmail.com",
-    location: "Rishikesh, Uttarakhand",
-    totalOrders: 1,
-    totalSpent: 850,
-    customerSince: "Mar 2024",
-    isVip: false,
-    avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80",
-    address: {
-      line1: "Ashram Road, Tapovan",
-      city: "Rishikesh",
-      state: "Uttarakhand",
-      pincode: "249192",
-      country: "India",
-    },
-    unreadCount: 2,
-    lastMessageTime: "09:45 AM",
-    lastMessageText: "Tracking ID mil sakta hai?",
-    latestOrder: {
-      id: "ord_3",
-      orderNumber: "#PM2024001232",
-      itemsCount: 1,
-      amount: 850,
-      paymentStatus: "Pending",
-      orderStatus: "Processing",
-      date: "12 Mar 2024",
-      time: "08:15 AM",
-      items: [
-        {
-          name: "Himalayan Raw Honey",
-          weight: "500g",
-          qty: 1,
-          price: 550,
-          total: 550,
-          image: "🍯",
-        },
-        {
-          name: "Himalayan Herbal Tea",
-          weight: "100g",
-          qty: 1,
-          price: 250,
-          total: 250,
-          image: "🍵",
-        },
-      ],
-      subtotal: 800,
-      discount: 0,
-      shipping: 50,
-      paymentMethod: "WhatsApp Order & Direct Payment",
-    },
-  },
-  {
-    id: "cust_4",
-    name: "Amit Singh",
-    phone: "+91 98712 33445",
-    email: "amit.singh@delhicorp.in",
-    location: "Delhi",
-    totalOrders: 4,
-    totalSpent: 4320,
-    customerSince: "Jan 2024",
-    isVip: false,
-    avatar: "",
-    address: {
-      line1: "B-42, Greater Kailash 1",
-      city: "New Delhi",
-      state: "Delhi",
-      pincode: "110048",
-      country: "India",
-    },
-    lastMessageTime: "09:20 AM",
-    lastMessageText: "Ye ghee ka price kya hai?",
-    latestOrder: {
-      id: "ord_4",
-      orderNumber: "#PM2024001231",
-      itemsCount: 4,
-      amount: 3450,
-      paymentStatus: "Paid",
-      orderStatus: "Shipped",
-      date: "12 Mar 2024",
-      items: [
-        {
-          name: "A2 Cow Ghee",
-          weight: "1L",
-          qty: 2,
-          price: 800,
-          total: 1600,
-          image: "🧈",
-        },
-        {
-          name: "Himalayan Shilajit Resin",
-          weight: "20g",
-          qty: 1,
-          price: 1850,
-          total: 1850,
-          image: "🏔️",
-        },
-      ],
-      subtotal: 3450,
-      discount: 100,
-      shipping: 100,
-      paymentMethod: "UPI Direct",
-    },
-  },
-];
+// Production Customers State (loaded dynamically from WhatsApp webhook feed & MongoDB Atlas)
+const INITIAL_CUSTOMERS: Customer[] = [];
 
-// Initial Messages mapped by customer ID
-const INITIAL_MESSAGES_MAP: Record<string, Message[]> = {
-  cust_1: [
-    {
-      id: "m_1_order",
-      sender: "business",
-      text: "Namaste Priya Sharma ji! 🙏 Prajnaa Market se connect karne ke liye dhanyawad.\n\nAapne hamare Prajnaa portal se yeh saman order kiya hai:\n\n📦 *Order ID:* #PM2024001234\n🌾 *Saman / Items:* Pahadi Bilona Cow Ghee (1L) × 1, Organic Lakadong Turmeric (500g) × 1\n💰 *Total Amount:* ₹3,420\n📍 *Delivery Address:* Flat 402, Green Glen Layout, Dehradun - 248001\n🚚 *Shipping Mode:* India Post Speed Post (2-3 din me dispatch)\n\nHum aapka order organic farms se pack kar rahe hain. Kisi bhi jaankari ya payment confirmation ke liye aap yahan reply kar sakte hain! 🌿",
-      time: "10:15 AM",
-      status: "delivered",
-    },
-    {
-      id: "m_1_cust",
-      sender: "customer",
-      text: "Namaste ji, mera order kab tak dispatch hoga aur kitne din me aayega?",
-      time: "10:20 AM",
-      status: "read",
-    },
-    {
-      id: "m_1_auto",
-      sender: "business",
-      text: "Namaste Priya Sharma ji! 🙏 Prajnaa organic products ki fresh artisan packing me 2–3 din lagte hain, aur dispatch hone ke baad 3–5 working days me Speed Post se parcel aapke address par deliver ho jata hai.",
-      time: "10:20 AM",
-      status: "read",
-      isAutomated: true,
-    },
-  ],
-  cust_2: [
-    {
-      id: "m_2_order",
-      sender: "business",
-      text: "Namaste Rahul Verma ji! 🙏 Prajnaa Market se connect karne ke liye dhanyawad.\n\nAapne hamare Prajnaa portal se yeh saman order kiya hai:\n\n📦 *Order ID:* #PM2024001233\n🌾 *Saman / Items:* High-Altitude Pure Himalayan Shilajit (20g) × 1\n💰 *Total Amount:* ₹2,150\n📍 *Delivery Address:* 14 Ring Road, Nehru Colony, Dehradun - 248001\n🚚 *Shipping Mode:* India Post Speed Post (2-3 din me dispatch)\n\nHum aapka order organic farms se pack kar rahe hain. Kisi bhi jaankari ya payment confirmation ke liye aap yahan reply kar sakte hain! 🌿",
-      time: "09:50 AM",
-      status: "delivered",
-    },
-    {
-      id: "m_2_cust",
-      sender: "customer",
-      text: "Payment kar diya hai, check kar lijiye. UTR: 409871239841",
-      time: "10:12 AM",
-      status: "read",
-    },
-    {
-      id: "m_2_auto",
-      sender: "business",
-      text: "Namaste Rahul Verma ji! 🙏 Agar aapne payment kar di hai, toh kripya payment ka screenshot ya transaction UTR number isi chat par share kar dijiye. Nishant ji verify karke turant confirm kar denge. (Official UPI: prajnaa@upi)",
-      time: "10:12 AM",
-      status: "read",
-      isAutomated: true,
-    },
-  ],
+// Production Messages Map (loaded dynamically per customer conversation)
+const INITIAL_MESSAGES_MAP: Record<string, Message[]> = {};
+
+const DEFAULT_STORE_DESK: Customer = {
+  id: "desk_prajnaa",
+  name: "Prajnaa Market Desk",
+  phone: "+91 80912 65690",
+  email: "support@prajnaa.in",
+  location: "Outer Solan Road, Solan, Himachal Pradesh",
+  totalOrders: 0,
+  totalSpent: 0,
+  customerSince: "2026",
+  isVip: false,
+  avatar: "",
+  address: {
+    line1: "Outer Solan Road, Solan",
+    city: "Solan",
+    state: "Himachal Pradesh",
+    pincode: "173212",
+    country: "India",
+  },
+  unreadCount: 0,
+  lastMessageTime: "",
+  lastMessageText: "Shared WhatsApp Inbox Active",
+  latestOrder: {
+    id: "ord_empty",
+    orderNumber: "N/A",
+    itemsCount: 0,
+    amount: 0,
+    paymentStatus: "Pending",
+    orderStatus: "Processing",
+    date: "Today",
+    time: "Just now",
+    items: [],
+    subtotal: 0,
+    discount: 0,
+    shipping: 0,
+    paymentMethod: "UPI Direct",
+  },
 };
 
 // Initial Team Members Data (ONLY THESE USERS CAN SIGN IN)
@@ -1227,7 +910,7 @@ export default function PrajnaaMasterCrmApp() {
 
   // State: Customers & Conversations
   const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("cust_rajat");
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [inboxTab, setInboxTab] = useState<"all" | "unread" | "assigned" | "resolved">("all");
   const [inboxSearch, setInboxSearch] = useState("");
 
@@ -1255,7 +938,7 @@ export default function PrajnaaMasterCrmApp() {
   }, [selectedCustomerId]);
   const [inputMessage, setInputMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const notifiedOrdersRef = useRef<Set<string>>(new Set(["PM2024001234", "PM2024001233", "PM2024001230", "PM2024001225", "PM2024001188"]));
+  const notifiedOrdersRef = useRef<Set<string>>(new Set());
 
   const playOrderChime = () => {
     try {
@@ -1281,7 +964,7 @@ export default function PrajnaaMasterCrmApp() {
   const [customerNotes, setCustomerNotes] = useState<string>("Pre-booked raw forest honey. Preferred morning delivery.");
 
   // State: Orders & Selected Order Details
-  const [selectedOrderForView, setSelectedOrderForView] = useState<Order>(INITIAL_CUSTOMERS[0].latestOrder);
+  const [selectedOrderForView, setSelectedOrderForView] = useState<Order>(DEFAULT_STORE_DESK.latestOrder);
   const [orderPreviousNav, setOrderPreviousNav] = useState<string>("orders");
   const [ordersFilter, setOrdersFilter] = useState<string>("all");
   const [ordersSearch, setOrdersSearch] = useState<string>("");
@@ -1945,6 +1628,7 @@ export default function PrajnaaMasterCrmApp() {
           if (custsModified) {
             customersRef.current = nextCustomers;
             setCustomers([...nextCustomers]);
+            setSelectedCustomerId((prev) => (prev && nextCustomers.some((c) => c.id === prev) ? prev : (nextCustomers[0]?.id || "")));
           }
 
           // 2. Update messagesMap for ALL customer conversations
@@ -2813,11 +2497,16 @@ export default function PrajnaaMasterCrmApp() {
 
   // Handle Send UPI QR Code to Chat
   const handleSendPaymentQr = () => {
-    const amount = currentCustomer.latestOrder.amount || 1740;
+    if (!currentCustomer || currentCustomer.id === DEFAULT_STORE_DESK.id) {
+      toast.info("Select a customer conversation first to send UPI QR.");
+      return;
+    }
+    const amount = currentCustomer.latestOrder?.amount || 0;
+    const amountLine = amount > 0 ? `\nTotal Amount: ₹${amount.toLocaleString("en-IN")}` : "";
     const textMsg: Message = {
       id: `msg_${Date.now()}`,
       sender: "business",
-      text: `Bilkul ji, yeh raha aapke order ka payment QR.\nTotal Amount: ₹${amount.toLocaleString("en-IN")}\n\nKripya payment karke screenshot share kar dijiye.`,
+      text: `Bilkul ji, yeh raha Prajnaa Market official payment QR (Official UPI: prajnaa@upi).${amountLine}\n\nKripya payment karke screenshot share kar dijiye! 🌿`,
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       status: "read",
     };
@@ -3130,9 +2819,7 @@ export default function PrajnaaMasterCrmApp() {
     // Remove from UI state
     setCustomers((prev) => {
       const remaining = prev.filter((c) => c.id !== targetCust.id);
-      if (remaining.length > 0) {
-        setSelectedCustomerId(remaining[0].id);
-      }
+      setSelectedCustomerId(remaining.length > 0 ? remaining[0].id : "");
       return remaining;
     });
 
@@ -3635,7 +3322,7 @@ export default function PrajnaaMasterCrmApp() {
   const pendingPaymentCount = useMemo(() => {
     return pendingPaymentOrders.length > 0
       ? pendingPaymentOrders.length
-      : (activeTimeframeData?.metrics?.pendingUpi || 32);
+      : 0;
   }, [pendingPaymentOrders, activeTimeframeData]);
 
   const speedPostQueueOrders = useMemo(() => {
@@ -3648,7 +3335,7 @@ export default function PrajnaaMasterCrmApp() {
   const speedPostQueueCount = useMemo(() => {
     return speedPostQueueOrders.length > 0
       ? speedPostQueueOrders.length
-      : (activeTimeframeData?.metrics?.processing || 18);
+      : 0;
   }, [speedPostQueueOrders, activeTimeframeData]);
 
   const lowStockItems = useMemo(() => {
@@ -5481,7 +5168,7 @@ export default function PrajnaaMasterCrmApp() {
                 </div>
                 <div>
                   <h4 className="text-base font-extrabold text-neutral-900 dark:text-white leading-none">
-                    ₹{(248500 + crmOrders.reduce((acc, o) => acc + (o.totalPaise ? o.totalPaise / 100 : o.amount || 0), 0)).toLocaleString("en-IN")}
+                    ₹{(unifiedOrders.reduce((acc, o) => acc + (Number(o.amount) || 0), 0)).toLocaleString("en-IN")}
                   </h4>
                   <p className="text-[10px] font-medium text-emerald-800 dark:text-emerald-300 mt-1 flex items-center gap-1">
                     <TrendingUp className="h-3 w-3" /> Revenue (+18.4%)
@@ -5496,7 +5183,7 @@ export default function PrajnaaMasterCrmApp() {
                 </div>
                 <div>
                   <h4 className="text-base font-extrabold text-neutral-900 dark:text-white leading-none">
-                    {124 + crmOrders.length}
+                    {unifiedOrders.length}
                   </h4>
                   <p className="text-[10px] font-medium text-neutral-500 mt-1">Total Orders</p>
                 </div>
@@ -5611,7 +5298,18 @@ export default function PrajnaaMasterCrmApp() {
                 </div>
 
                 <div className="flex-1 overflow-y-auto divide-y divide-neutral-100">
-                  {filteredCustomers.map((cust) => {
+                  {filteredCustomers.length === 0 ? (
+                    <div className="p-8 text-center text-neutral-400">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl mx-auto mb-3">
+                        💬
+                      </div>
+                      <p className="text-xs font-bold text-neutral-700">No conversations yet</p>
+                      <p className="text-[11px] text-neutral-400 mt-1 leading-relaxed">
+                        Incoming customer messages to official WhatsApp (+91 80912 65690) will appear here in real time.
+                      </p>
+                    </div>
+                  ) : (
+                    filteredCustomers.map((cust) => {
                     const isSelected = cust.id === selectedCustomerId;
                     return (
                       <div
@@ -5659,7 +5357,7 @@ export default function PrajnaaMasterCrmApp() {
                         </div>
                       </div>
                     );
-                  })}
+                  }))}
                 </div>
               </div>
 
@@ -5712,17 +5410,7 @@ export default function PrajnaaMasterCrmApp() {
                       <span>Gateway Active</span>
                     </div>
 
-                    {/* Simulate Customer Query Button */}
-                    <button
-                      type="button"
-                      onClick={() => setShowSimulateCustomerMenu(true)}
-                      className="px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold border border-amber-300 transition flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap shadow-2xs"
-                      title="Simulate customer inquiry to test instant automated response"
-                    >
-                      <span>💬</span>
-                      <span className="hidden md:inline">Simulate</span>
-                      <span className="md:hidden">Ask</span>
-                    </button>
+
 
                     {/* Send QR Quick Button */}
                     <button
@@ -5971,23 +5659,7 @@ export default function PrajnaaMasterCrmApp() {
 
                 {/* Quick Reply Pills Bar Above Input */}
                 <div className="px-4 py-2 bg-neutral-50/90 border-t border-neutral-200/60 flex items-center gap-2 overflow-x-auto text-[11px] shrink-0 text-neutral-800 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                  <span className="text-neutral-400 font-bold text-[10px] uppercase font-mono">Test Query:</span>
-                  <button
-                    type="button"
-                    onClick={() => handleSimulateCustomerInquiry("Namaste, mera parcel kab tak dispatch hoga?")}
-                    className="px-2.5 py-1 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-semibold text-[11px] shrink-0 cursor-pointer transition flex items-center gap-1 shadow-2xs"
-                    title="Simulate customer asking about parcel dispatch"
-                  >
-                    <span>⚡ "Kab tak dispatch hoga?"</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSimulateCustomerInquiry("Maine UPI payment kar di hai, check kar lijiye")}
-                    className="px-2.5 py-1 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-semibold text-[11px] shrink-0 cursor-pointer transition flex items-center gap-1 shadow-2xs"
-                    title="Simulate customer asking about payment confirmation"
-                  >
-                    <span>⚡ "Payment kar di hai"</span>
-                  </button>
+
                   <button
                     type="button"
                     onClick={handleSendPaymentQr}
