@@ -95,40 +95,21 @@ function generateClientAutoReply(customerName?: string, queryText: string = ""):
   const query = (queryText || "").toLowerCase().trim();
   const isUnknown = !customerName || customerName === "Customer" || customerName === "Patron" || customerName.startsWith("Patron (") || customerName.startsWith("+91");
 
-  // If customer is unknown, check if this message provides their name or is a greeting
-  if (isUnknown) {
-    const clean = queryText.trim();
-    // Intro pattern
-    const introMatch = clean.match(/(?:mera\s+naam|my\s+name\s+is|this\s+is|i\s+am|iam|main|mai|naam|name\s*:?)\s+([A-Za-z\u0900-\u097F\s]{2,30})/i);
-    let extracted: string | null = null;
-    if (introMatch && introMatch[1]) {
-      extracted = introMatch[1].replace(/(?:hai|hu|hoon|ji|here|this side)\b.*$/i, "").trim();
-    } else {
-      const words = clean.split(/\s+/).filter(Boolean);
-      const disallowed = ["hi", "hello", "hey", "hlo", "namaste", "pranam", "almond", "badam", "honey", "order", "price", "bhav"];
-      if (words.length >= 1 && words.length <= 3 && clean.length >= 2 && clean.length <= 30 && !words.some(w => disallowed.includes(w.toLowerCase()))) {
-        extracted = clean;
-      }
+  const clean = queryText.trim();
+  const introMatch = clean.match(/(?:mera\s+naam|my\s+name\s+is|this\s+is|i\s+am|iam|main|mai|naam|name\s*:?)\s+([A-Za-z\u0900-\u097F\s]{2,30})/i);
+  let extracted: string | null = null;
+  if (introMatch && introMatch[1]) {
+    extracted = introMatch[1].replace(/(?:hai|hu|hoon|ji|here|this side)\b.*$/i, "").trim();
+  } else if (isUnknown) {
+    const words = clean.split(/\s+/).filter(Boolean);
+    const disallowed = ["hi", "hello", "hey", "hlo", "namaste", "pranam", "almond", "badam", "honey", "order", "price", "bhav"];
+    if (words.length >= 1 && words.length <= 3 && clean.length >= 2 && clean.length <= 30 && !words.some(w => disallowed.includes(w.toLowerCase()))) {
+      extracted = clean;
     }
-
-    if (extracted) {
-      return [
-        `Bahut-bahut dhanyawad, ${extracted} ji! 🙏`,
-        "",
-        "Aapka contact Prajnaa CRM inbox mein save kar liya gaya hai.",
-        "",
-        `Bataiye ${extracted} ji, aaj hum aapki kya sahayata kar sakte hain? Kya aap hamare pure Himalayan Organic Almonds (Badam), Raw Flora Honey, Walnuts (Kagzi Akhrot), ya Pahadi Spices explore karna chahte hain? 🌿`,
-      ].join("\n");
-    }
-
-    return [
-      "Namaste ji! 🙏 Prajnaa Market (Pure Himalayan Farm Harvest) mein aapka swagat hai.",
-      "",
-      "Kripya humein apna shubh naam bata dijiye taaki hum aapka contact save kar sakein aur aapki behtar sahayata kar sakein? (Please reply with your name) 🌿",
-    ].join("\n");
   }
 
-  const name = customerName ? `${customerName} ji` : "ji";
+  const resolvedName = extracted || (!isUnknown ? customerName : undefined);
+  const name = resolvedName ? `${resolvedName} ji` : "ji";
 
   // Product Intent: Almonds / Badam
   if (query.includes("almond") || query.includes("badam") || query.includes("badaam") || query.includes("mamra") || query.includes("kagzi almond")) {
@@ -274,8 +255,26 @@ function generateClientAutoReply(customerName?: string, queryText: string = ""):
     return `Aapka bahut-bahut dhanyavaad ${name}! 🙏 Prajnaa Market ke sath judne ke liye shukriya. Agar koi aur sawal ho toh batayein.`;
   }
 
+  // If customer provided their name and no product matched:
+  if (extracted) {
+    return [
+      `Bahut-bahut dhanyawad, ${extracted} ji! 🙏`,
+      "",
+      "Aapka contact Prajnaa CRM inbox mein save kar liya gaya hai.",
+      "",
+      `Bataiye ${extracted} ji, aaj hum aapki kya sahayata kar sakte hain? Kya aap hamare pure Himalayan Organic Almonds (Badam), Raw Flora Honey, Walnuts (Kagzi Akhrot), ya Pahadi Spices explore karna chahte hain? 🌿`,
+    ].join("\n");
+  }
+
   // 11. Greeting
   if (query === "hi" || query === "hello" || query === "namaste" || query === "hey" || query === "pranam" || query === "hlo") {
+    if (isUnknown && !resolvedName) {
+      return [
+        "Namaste ji! 🙏 Prajnaa Market (Pure Himalayan Farm Harvest) mein aapka swagat hai.",
+        "",
+        "Kripya humein apna shubh naam bata dijiye taaki hum aapka contact save kar sakein aur aapki behtar sahayata kar sakein? (Please reply with your name) 🌿",
+      ].join("\n");
+    }
     return `Namaste ${name}! 🙏 Prajnaa Market me aapka swagat hai. Batayein ${name}, aaj hum aapki kya sahayata kar sakte hain? Kya aap hamare Himalayan Almonds (Badam), Raw Flora Honey, ya Walnuts explore karna chahte hain? 🌿`;
   }
 
@@ -1237,6 +1236,7 @@ export default function PrajnaaMasterCrmApp() {
 
   const customersRef = useRef<Customer[]>(INITIAL_CUSTOMERS);
   const messagesMapRef = useRef<Record<string, Message[]>>(INITIAL_MESSAGES_MAP);
+  const notifiedMessageIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     customersRef.current = customers;
@@ -1835,8 +1835,15 @@ export default function PrajnaaMasterCrmApp() {
                   nextCustomers[idx].name = namedMsg.customerName;
                 }
 
-                // Toast notification for incoming WhatsApp message
-                if (isAuthRef.current && !isInitialSyncRef.current && isIncomingNew) {
+                // Toast notification for incoming WhatsApp message (alerted strictly ONCE per message ID)
+                if (
+                  isAuthRef.current &&
+                  !isInitialSyncRef.current &&
+                  isIncomingNew &&
+                  latest.id &&
+                  !notifiedMessageIdsRef.current.has(latest.id)
+                ) {
+                  notifiedMessageIdsRef.current.add(latest.id);
                   toast.info(`💬 New WhatsApp message from ${nextCustomers[idx].name}: "${(latest.text || '').slice(0, 45)}..."`, {
                     action: {
                       label: "Reply",
@@ -1914,7 +1921,13 @@ export default function PrajnaaMasterCrmApp() {
               nextCustomers.unshift(newCust);
               custsModified = true;
 
-              if (isAuthRef.current && !isInitialSyncRef.current) {
+              if (
+                isAuthRef.current &&
+                !isInitialSyncRef.current &&
+                latest.id &&
+                !notifiedMessageIdsRef.current.has(latest.id)
+              ) {
+                notifiedMessageIdsRef.current.add(latest.id);
                 toast.info(`💬 New customer inquiry from ${contactName}!`, {
                   action: {
                     label: "View Chat",
@@ -1930,6 +1943,7 @@ export default function PrajnaaMasterCrmApp() {
           });
 
           if (custsModified) {
+            customersRef.current = nextCustomers;
             setCustomers([...nextCustomers]);
           }
 
@@ -1983,6 +1997,9 @@ export default function PrajnaaMasterCrmApp() {
               }
             });
 
+            if (mapModified) {
+              messagesMapRef.current = nextMap;
+            }
             return mapModified ? nextMap : prevMap;
           });
         } catch (e) {

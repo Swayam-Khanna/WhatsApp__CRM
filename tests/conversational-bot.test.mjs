@@ -95,4 +95,51 @@ describe("PRAJNAA MARKET & CRM — CONVERSATIONAL BOT & CONTACT DISCOVERY", () =
     assert.ok(reply.includes("Rajat ji"));
     assert.ok(reply.includes("Speed Post"));
   });
+
+  test("7. Patron repeatedly sends messages without name - Must answer product inquiries without infinite name loop", () => {
+    const patronPhone = "919805270369";
+    // 1st message: Greeting
+    const msg1 = processConversationalBotReply({
+      senderPhone: patronPhone,
+      existingCustomerName: "Patron (+91 98052 70369)",
+      senderText: "Hi",
+    });
+    assert.ok(msg1.replyText.includes("shubh naam"), "First greeting asks for name");
+
+    // 2nd message: Customer sends greeting again -> Must NOT repeat name request in a loop
+    const msg2 = processConversationalBotReply({
+      senderPhone: patronPhone,
+      existingCustomerName: "Patron (+91 98052 70369)",
+      senderText: "Hello",
+    });
+    assert.ok(!msg2.replyText.includes("shubh naam bata dijiye"), "Must not repeat name prompt repeatedly");
+    assert.ok(msg2.replyText.includes("Prajnaa Market"), "Must give concierge welcome");
+
+    // 3rd message: Customer asks for almonds directly
+    const msg3 = processConversationalBotReply({
+      senderPhone: patronPhone,
+      existingCustomerName: "Patron (+91 98052 70369)",
+      senderText: "I want to order almonds",
+    });
+    assert.ok(msg3.replyText.includes("Mamra Giri Almonds"), "Must answer almond inquiry immediately");
+    assert.ok(msg3.replyText.includes("₹1,250"), "Must provide 500g pricing");
+    assert.ok(msg3.replyText.includes("₹2,400"), "Must provide 1kg pricing");
+
+    // 4th message: Customer provides name
+    const msg4 = processConversationalBotReply({
+      senderPhone: patronPhone,
+      existingCustomerName: "Patron (+91 98052 70369)",
+      senderText: "Mera naam Vikram Singh hai",
+    });
+    assert.equal(msg4.updatedCustomerName, "Vikram Singh", "Captures Vikram Singh");
+    assert.ok(msg4.replyText.includes("Vikram Singh ji"), "Greets Vikram Singh");
+
+    // 5th message: Subsequent inquiry addresses by name
+    const msg5 = processConversationalBotReply({
+      senderPhone: patronPhone,
+      senderText: "walnuts price?",
+    });
+    assert.ok(msg5.replyText.includes("Vikram Singh ji"), "Addresses with captured name");
+    assert.ok(msg5.replyText.includes("Walnuts"), "Provides walnut details");
+  });
 });

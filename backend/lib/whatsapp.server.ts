@@ -389,50 +389,22 @@ export function processConversationalBotReply(params: {
     currentName = session.customerName;
   }
 
-  // 1. If customer name is NOT yet known:
-  if (!currentName) {
-    // Check if customer just provided their name in this message
-    const extractedName = extractCustomerNameFromText(params.senderText);
-    if (extractedName) {
-      if (cleanPhone) {
-        globalThis.__crmChatSessions?.set(cleanPhone, {
-          stage: "name_captured",
-          customerName: extractedName,
-          updatedAt: Date.now(),
-        });
-      }
-      return {
-        updatedCustomerName: extractedName,
-        replyText: [
-          `Bahut-bahut dhanyawad, ${extractedName} ji! 🙏`,
-          "",
-          `Aapka contact Prajnaa CRM inbox mein save kar liya gaya hai.`,
-          "",
-          `Bataiye ${extractedName} ji, aaj hum aapki kya sahayata kar sakte hain? Kya aap hamare pure Himalayan Organic Almonds (Badam), Raw Flora Honey, Walnuts (Kagzi Akhrot), ya Pahadi Spices explore karna chahte hain? 🌿`,
-        ].join("\n"),
-      };
-    }
-
-    // Customer has not provided a name yet -> Greet warmly and ask for their name
+  // 1. Check if customer provided their name in this message
+  let freshlyCapturedName: string | undefined = undefined;
+  const extractedName = extractCustomerNameFromText(params.senderText);
+  if (extractedName) {
+    freshlyCapturedName = extractedName;
+    currentName = extractedName;
     if (cleanPhone) {
       globalThis.__crmChatSessions?.set(cleanPhone, {
-        stage: "awaiting_name",
+        stage: "name_captured",
+        customerName: extractedName,
         updatedAt: Date.now(),
       });
     }
-
-    return {
-      updatedCustomerName: undefined,
-      replyText: [
-        "Namaste ji! 🙏 Prajnaa Market (Pure Himalayan Farm Harvest) mein aapka swagat hai.",
-        "",
-        "Kripya humein apna shubh naam bata dijiye taaki hum aapka contact save kar sakein aur aapki behtar sahayata kar sakein? (Please reply with your name) 🌿",
-      ].join("\n"),
-    };
   }
 
-  // 2. Customer Name is Known (currentName)
-  const nameLabel = `${currentName} ji`;
+  const nameLabel = currentName ? `${currentName} ji` : "ji";
 
   // Product Intent: Himalayan Almonds / Badam
   if (
@@ -674,15 +646,62 @@ export function processConversationalBotReply(params: {
     };
   }
 
-  // 11. Greeting
+  // If customer provided their name in this message and no product intent matched:
+  if (freshlyCapturedName) {
+    return {
+      updatedCustomerName: freshlyCapturedName,
+      replyText: [
+        `Bahut-bahut dhanyawad, ${freshlyCapturedName} ji! 🙏`,
+        "",
+        `Aapka contact Prajnaa CRM inbox mein save kar liya gaya hai.`,
+        "",
+        `Bataiye ${freshlyCapturedName} ji, aaj hum aapki kya sahayata kar sakte hain? Kya aap hamare pure Himalayan Organic Almonds (Badam), Raw Flora Honey, Walnuts (Kagzi Akhrot), ya Pahadi Spices explore karna chahte hain? 🌿`,
+      ].join("\n"),
+    };
+  }
+
+  // 11. Greeting / Welcome
   if (
     query === "hi" ||
     query === "hello" ||
     query === "namaste" ||
     query === "hey" ||
     query === "pranam" ||
-    query === "hlo"
+    query === "hlo" ||
+    query.includes("prajnaa market")
   ) {
+    // If name is unknown:
+    if (!currentName) {
+      if (session?.stage === "awaiting_name") {
+        // Customer was already asked for their name once; do NOT keep asking again and again
+        return {
+          updatedCustomerName: undefined,
+          replyText: [
+            "Namaste ji! 🙏 Prajnaa Market (Pure Himalayan Farm Harvest) mein swagat hai.",
+            "",
+            "Bataiye ji, aaj hum aapki kya sahayata kar sakte hain? Hamare certified Himalayan Organic Almonds (Badam), Raw Flora Honey, Walnuts (Kagzi Akhrot), aur Pahadi Spices uplabdh hain. 🌿",
+          ].join("\n"),
+        };
+      }
+
+      // First greeting from unknown contact -> warmly greet and ask for name once
+      if (cleanPhone) {
+        globalThis.__crmChatSessions?.set(cleanPhone, {
+          stage: "awaiting_name",
+          updatedAt: Date.now(),
+        });
+      }
+
+      return {
+        updatedCustomerName: undefined,
+        replyText: [
+          "Namaste ji! 🙏 Prajnaa Market (Pure Himalayan Farm Harvest) mein aapka swagat hai.",
+          "",
+          "Kripya humein apna shubh naam bata dijiye taaki hum aapka contact save kar sakein aur aapki behtar sahayata kar sakein? (Please reply with your name) 🌿",
+        ].join("\n"),
+      };
+    }
+
     return {
       updatedCustomerName: currentName,
       replyText: `Namaste ${nameLabel}! 🙏 Prajnaa Market me aapka swagat hai. Batayein ${nameLabel}, aaj hum aapki kya sahayata kar sakte hain? Kya aap hamare Himalayan Almonds (Badam), Raw Flora Honey, ya Walnuts explore karna chahte hain? 🌿`,
@@ -690,6 +709,23 @@ export function processConversationalBotReply(params: {
   }
 
   // 12. Fallback
+  if (!currentName && session?.stage !== "awaiting_name") {
+    if (cleanPhone) {
+      globalThis.__crmChatSessions?.set(cleanPhone, {
+        stage: "awaiting_name",
+        updatedAt: Date.now(),
+      });
+    }
+    return {
+      updatedCustomerName: undefined,
+      replyText: [
+        "Namaste ji! 🙏 Prajnaa Market (Pure Himalayan Farm Harvest) mein aapka swagat hai.",
+        "",
+        "Kripya humein apna shubh naam bata dijiye taaki hum aapka contact save kar sakein aur aapki behtar sahayata kar sakein? (Please reply with your name) 🌿",
+      ].join("\n"),
+    };
+  }
+
   return {
     updatedCustomerName: currentName,
     replyText: `Namaste ${nameLabel}! 🙏 Aapka sandesh Prajnaa support team ko mil gaya hai. Store Concierge Nishant ji (+91 80912 65690) ise review karke jald hi aapse direct connect karenge. Agar aap koi product order karna chahte hain, toh kripya product ka naam aur quantity batayein! 🌿`,
