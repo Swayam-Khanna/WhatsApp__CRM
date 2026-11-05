@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     const dbMessages = await Promise.race([
       fetchWithTimeout(),
       new Promise<any[]>((_, reject) =>
-        setTimeout(() => reject(new Error("MongoDB query timeout")), 1200)
+        setTimeout(() => reject(new Error("MongoDB query timeout")), 8000)
       ),
     ]);
 
@@ -66,6 +66,7 @@ export async function GET(req: NextRequest) {
       storage: "hybrid",
     });
   } catch (err: any) {
+    console.error("[CRM Messages GET] Error:", err?.message || err);
         const isDuplicateMessage = (m: any, o: any) => {
       if (m.id && o.id && m.id === o.id) return true;
       const sameFrom = (m.from || "").replace(/\D/g, "").slice(-10) === (o.from || "").replace(/\D/g, "").slice(-10);

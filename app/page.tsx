@@ -1758,12 +1758,26 @@ export default function PrajnaaMasterCrmApp() {
               // Step A: Update messages for existing customers
               updatedCusts.forEach((cust) => {
                 const custPhoneClean = (cust.phone || "").replace(/\D/g, "").slice(-10);
+                const isCustAdmin = cust.id === "cust_admin" || cust.id === "admin";
+
                 const relevantDbMsgs = dbMsgs.filter((m: any) => {
+                  if (m.customerId === cust.id) {
+                    if (m.id) matchedMsgIds.add(m.id);
+                    return true;
+                  }
+
                   const toClean = (m.to || "").replace(/\D/g, "").slice(-10);
                   const fromClean = (m.from || "").replace(/\D/g, "").slice(-10);
-                  const isMatch =
-                    m.customerId === cust.id ||
-                    (custPhoneClean && (toClean === custPhoneClean || fromClean === custPhoneClean));
+
+                  if (isCustAdmin) {
+                    const isAdminDeskMsg = fromClean === adminPhoneClean && toClean === adminPhoneClean;
+                    if (isAdminDeskMsg && m.id) matchedMsgIds.add(m.id);
+                    return isAdminDeskMsg;
+                  }
+
+                  // Counterparty in the conversation:
+                  const counterpartyClean = (m.direction === "inbound" || m.sender === "customer") ? fromClean : toClean;
+                  const isMatch = Boolean(custPhoneClean && counterpartyClean === custPhoneClean);
                   if (isMatch && m.id) matchedMsgIds.add(m.id);
                   return isMatch;
                 });
@@ -1834,7 +1848,7 @@ export default function PrajnaaMasterCrmApp() {
                 const isIncoming = m.direction === "inbound" || m.sender === "customer";
                 const rawCounterparty = isIncoming ? m.from : m.to;
                 const cleanPhone = (rawCounterparty || "").replace(/\D/g, "").slice(-10);
-                if (!cleanPhone) return;
+                if (!cleanPhone || cleanPhone === adminPhoneClean) return;
 
                 const alreadyHandled = updatedCusts.some(
                   (c) => (c.phone || "").replace(/\D/g, "").slice(-10) === cleanPhone || c.id === m.customerId

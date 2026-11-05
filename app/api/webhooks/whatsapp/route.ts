@@ -228,13 +228,13 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
     if (existing) {
       existing.status = st.status;
     }
-    if (db) {
-      try {
+    void getDatabase().then(async (db) => {
+      if (db) {
         await db.collection("crm_messages").updateOne(
           { id: st.messageId },
           { $set: { status: st.status, updatedAt: new Date() } }
         );
-      } catch {}
-    }
+      }
+    }).catch(() => {});
   }
 }
