@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server.js";
 import {
   sendWhatsAppTextMessage,
   getWhatsAppIntegrationStatus,
 } from "../../../../backend/lib/whatsapp.server.ts";
 
-import { getDatabase } from "@/lib/mongodb";
+import { getDatabase } from "../../../../lib/mongodb.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -18,33 +18,46 @@ export async function GET(req: NextRequest) {
   const health = getWhatsAppIntegrationStatus();
 
   try {
-    const db = await getDatabase();
-    const query = phone
-      ? {
-          $or: [
-            { to: { $regex: phone.replace(/\D/g, "").slice(-10) } },
-            { from: { $regex: phone.replace(/\D/g, "").slice(-10) } },
-          ],
-        }
-      : {};
+    const fetchWithTimeout = async () => {
+      const db = await getDatabase();
+      const query = phone
+        ? {
+            $or: [
+              { to: { $regex: phone.replace(/\D/g, "").slice(-10) } },
+              { from: { $regex: phone.replace(/\D/g, "").slice(-10) } },
+            ],
+          }
+        : {};
 
-    const dbMessages = await db
-      .collection("crm_messages")
-      .find(query)
-      .sort({ timestamp: -1 })
-      .limit(100)
-      .toArray();
+      return await db
+        .collection("crm_messages")
+        .find(query)
+        .sort({ timestamp: -1 })
+        .limit(100)
+        .toArray();
+    };
+
+    const dbMessages = await Promise.race([
+      fetchWithTimeout(),
+      new Promise<any[]>((_, reject) =>
+        setTimeout(() => reject(new Error("MongoDB query timeout")), 1200)
+      ),
+    ]);
+
+        const isDuplicateMessage = (m: any, o: any) => {
+      if (m.id && o.id && m.id === o.id) return true;
+      const sameFrom = (m.from || "").replace(/\D/g, "").slice(-10) === (o.from || "").replace(/\D/g, "").slice(-10);
+      const sameTo = (m.to || "").replace(/\D/g, "").slice(-10) === (o.to || "").replace(/\D/g, "").slice(-10);
+      const sameText = (m.text || "").trim() === (o.text || "").trim();
+      const sameDir = (m.direction || m.sender) === (o.direction || o.sender);
+      const timeDiff = Math.abs(
+        new Date(m.timestamp || m.createdAt || 0).getTime() - new Date(o.timestamp || o.createdAt || 0).getTime()
+      );
+      return sameFrom && sameTo && sameText && sameDir && timeDiff < 4000;
+    };
 
     const allMsgs = [...(globalThis.__globalWhatsAppFeed || []), ...(dbMessages || [])];
-    const uniqueMsgs = allMsgs.filter(
-      (m, idx, arr) =>
-        idx ===
-        arr.findIndex(
-          (o) =>
-            (m.id && o.id === m.id) ||
-            ((m.text || "").trim() === (o.text || "").trim() && (m.direction || m.sender) === (o.direction || o.sender))
-        )
-    );
+    const uniqueMsgs = allMsgs.filter((m, idx, arr) => idx === arr.findIndex((o) => isDuplicateMessage(m, o)));
 
     return NextResponse.json({
       success: true,
@@ -53,16 +66,20 @@ export async function GET(req: NextRequest) {
       storage: "hybrid",
     });
   } catch (err: any) {
+        const isDuplicateMessage = (m: any, o: any) => {
+      if (m.id && o.id && m.id === o.id) return true;
+      const sameFrom = (m.from || "").replace(/\D/g, "").slice(-10) === (o.from || "").replace(/\D/g, "").slice(-10);
+      const sameTo = (m.to || "").replace(/\D/g, "").slice(-10) === (o.to || "").replace(/\D/g, "").slice(-10);
+      const sameText = (m.text || "").trim() === (o.text || "").trim();
+      const sameDir = (m.direction || m.sender) === (o.direction || o.sender);
+      const timeDiff = Math.abs(
+        new Date(m.timestamp || m.createdAt || 0).getTime() - new Date(o.timestamp || o.createdAt || 0).getTime()
+      );
+      return sameFrom && sameTo && sameText && sameDir && timeDiff < 4000;
+    };
+
     const feed = globalThis.__globalWhatsAppFeed || [];
-    const cleanFeed = feed.filter(
-      (m, idx, arr) =>
-        idx ===
-        arr.findIndex(
-          (o) =>
-            (m.id && o.id === m.id) ||
-            ((m.text || "").trim() === (o.text || "").trim() && (m.direction || m.sender) === (o.direction || o.sender))
-        )
-    );
+    const cleanFeed = feed.filter((m, idx, arr) => idx === arr.findIndex((o) => isDuplicateMessage(m, o)));
     return NextResponse.json({ success: true, messages: cleanFeed, health, storage: "memory_fallback" });
   }
 }
@@ -94,13 +111,48 @@ export async function POST(req: NextRequest) {
 
     // SCENARIO A: Inbound Customer Message (Triggers Instant Automated Reply)
     if (sender === "customer") {
+      const fromClean = (to || "").replace(/\D/g, "").slice(-10);
+      const { processConversationalBotReply } = await import("../../../../backend/lib/whatsapp.server.ts");
+
+      const botResult = processConversationalBotReply({
+        senderPhone: to,
+        senderText: text,
+        existingCustomerName: customerName,
+        orderNumber,
+      });
+
+      const resolvedName = botResult.updatedCustomerName || customerName || "Customer";
+
+      // If updated customer name found, propagate to past messages in feed & DB
+      if (botResult.updatedCustomerName && fromClean) {
+        (globalThis.__globalWhatsAppFeed || []).forEach((m: any) => {
+          const mFrom = (m.from || "").replace(/\D/g, "").slice(-10);
+          const mTo = (m.to || "").replace(/\D/g, "").slice(-10);
+          if (mFrom === fromClean || mTo === fromClean) {
+            m.customerName = botResult.updatedCustomerName;
+          }
+        });
+
+        if (db) {
+          db.collection("crm_messages").updateMany(
+            {
+              $or: [
+                { from: { $regex: fromClean } },
+                { to: { $regex: fromClean } },
+              ],
+            },
+            { $set: { customerName: botResult.updatedCustomerName } }
+          ).catch(() => {});
+        }
+      }
+
       const customerMsgRecord = {
         id: `msg_cust_${Date.now()}`,
         direction: "inbound",
         sender: "customer",
         from: to,
         to: process.env.ADMIN_WHATSAPP_NUMBER || "918091265690",
-        customerName: customerName || "Customer",
+        customerName: resolvedName,
         text,
         timestamp: new Date().toISOString(),
         status: "delivered",
@@ -118,14 +170,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Automatically construct tailored Prajnaa automated reply without manual typing or templates
-      const { generateAutomatedCustomerReply } = await import("../../../../backend/lib/whatsapp.server.ts");
-      const autoReplyText = generateAutomatedCustomerReply({
-        customerName: customerName || "Customer",
-        customerQuery: text,
-        orderNumber,
-      });
-
+      const autoReplyText = botResult.replyText;
       const replyResult = await sendWhatsAppTextMessage({ to, text: autoReplyText });
 
       const autoReplyRecord = {
@@ -134,7 +179,7 @@ export async function POST(req: NextRequest) {
         sender: "business",
         from: process.env.ADMIN_WHATSAPP_NUMBER || "918091265690",
         to,
-        customerName: customerName || "Customer",
+        customerName: resolvedName,
         text: autoReplyText,
         timestamp: new Date().toISOString(),
         status: "sent",

@@ -429,27 +429,41 @@ div[data-nextjs-dialog-overlay] {
     visibility: hidden !important;
   }
 
-  /* Modal backdrop reset for print */
-  .fixed.inset-0 {
+  /* Modal backdrop and containers reset for print */
+  .fixed,
+  .fixed.inset-0,
+  .fixed.inset-0 > div,
+  .fixed.inset-0 > div > div {
     position: static !important;
-    background: transparent !important;
+    background: #ffffff !important;
     padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    max-height: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
     overflow: visible !important;
+    display: block !important;
   }
 
   /* Render ONLY the official tax invoice container */
   #prajnaa-tax-invoice {
     display: block !important;
     visibility: visible !important;
-    position: static !important;
+    position: relative !important;
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
-    padding: 0 !important;
+    padding: 4mm 6mm !important;
     border: none !important;
     box-shadow: none !important;
+    border-radius: 0 !important;
     background: #ffffff !important;
     color: #111827 !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
   }
 
   #prajnaa-tax-invoice * {

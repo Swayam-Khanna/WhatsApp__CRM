@@ -257,27 +257,41 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
   // Follow-ups list (incorporates explicit lead.tasks and upcoming connects)
   const allFollowUps = useMemo(() => {
     const list: Array<{ lead: LeadRecord; task: any }> = [];
+    const seenTaskKeys = new Set<string>();
+
     filteredLeads.forEach((l) => {
+      let hasExplicitActiveTask = false;
       if (Array.isArray(l.tasks) && l.tasks.length > 0) {
         l.tasks.forEach((t) => {
-          list.push({ lead: l, task: t });
+          const key = `${l.id}_${t.id}`;
+          if (!seenTaskKeys.has(key)) {
+            seenTaskKeys.add(key);
+            list.push({ lead: l, task: t });
+            if (t.status !== "completed" && t.status !== "cancelled") {
+              hasExplicitActiveTask = true;
+            }
+          }
         });
       }
-      // If lead has an upcoming connect date with no explicit task matching that due date, include it!
-      if (l.nextFollowUpAt && (!l.tasks || !l.tasks.some((t) => t.dueAt === l.nextFollowUpAt))) {
-        list.push({
-          lead: l,
-          task: {
-            id: `tsk_connect_${l.id}`,
-            leadId: l.id,
-            title: l.nextAction || `Upcoming Connect with ${l.contactName}`,
-            description: l.notes || `Scheduled upcoming customer connect`,
-            dueAt: l.nextFollowUpAt,
-            status: "pending",
-            priority: l.priority || "normal",
-            createdAt: l.createdAt,
-          },
-        });
+      // If lead has an upcoming connect date with no explicit active task matching, add single connect task!
+      if (!hasExplicitActiveTask && l.nextFollowUpAt) {
+        const key = `${l.id}_connect`;
+        if (!seenTaskKeys.has(key)) {
+          seenTaskKeys.add(key);
+          list.push({
+            lead: l,
+            task: {
+              id: `tsk_connect_${l.id}`,
+              leadId: l.id,
+              title: l.nextAction || `Upcoming Connect with ${l.contactName}`,
+              description: l.notes || `Scheduled upcoming customer connect`,
+              dueAt: l.nextFollowUpAt,
+              status: "pending",
+              priority: l.priority || "normal",
+              createdAt: l.createdAt,
+            },
+          });
+        }
       }
     });
     list.sort((a, b) => new Date(a.task.dueAt).getTime() - new Date(b.task.dueAt).getTime());
@@ -294,7 +308,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
 
       // 1. Status Filter
       if (followupFilter === "pending") {
-        if (isCompleted || isCancelled) return false;
+        if (isCompleted || isCancelled || isOverdue) return false;
       } else if (followupFilter === "completed") {
         if (!isCompleted) return false;
       } else if (followupFilter === "overdue") {
@@ -873,7 +887,22 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
                   </div>
 
                   {/* Column Cards */}
-                  <div className="space-y-2.5 overflow-y-auto pt-3 flex-1 pr-1">
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                    }}
+                    onDrop={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDragOverStage(null);
+                      const leadId = e.dataTransfer.getData("text/plain");
+                      if (leadId) {
+                        await handleMoveStage(leadId, stg.stageKey);
+                      }
+                    }}
+                    className="space-y-2.5 overflow-y-auto pt-3 flex-1 pr-1"
+                  >
                     {stageLeads.length === 0 ? (
                       <div className="p-6 text-center text-neutral-400 text-[11px] border-2 border-dashed border-neutral-200 dark:border-slate-800 rounded-xl">
                         Drop leads here
@@ -1108,7 +1137,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
                 {
                   id: "pending",
                   label: "Pending",
-                  count: allFollowUps.filter((f) => f.task.status !== "completed" && f.task.status !== "cancelled").length,
+                  count: allFollowUps.filter((f) => f.task.status !== "completed" && f.task.status !== "cancelled" && !(new Date(f.task.dueAt).getTime() < Date.now())).length,
                   badgeClass: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200",
                 },
                 {

@@ -1249,6 +1249,8 @@ export class LeadsService {
       customerPhone: lead.contactPhone,
       customerEmail: lead.contactEmail || "wholesale@prajnaa.in",
       totalPaise,
+      subtotalPaise: lead.quotes[0]?.subtotalPaise || totalPaise,
+      discountPaise: lead.quotes[0]?.discountPaise || 0,
       status: "In Transit",
       paymentStatus: link.paymentStatus,
       paymentMethod: lead.businessModel === "b2b_wholesale" ? "credit_invoice" : "whatsapp",

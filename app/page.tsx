@@ -89,10 +89,104 @@ interface Message {
   type?: string;
 }
 
-// Client-side automated reply generator strictly focused on the customer's specific question
+// Client-side automated reply generator with multi-step unknown sender greeting, name capture & Himalayan catalog recommendations
 function generateClientAutoReply(customerName?: string, queryText: string = ""): string {
-  const query = queryText.toLowerCase().trim();
-  const name = customerName && customerName !== "Customer" ? `${customerName} ji` : "ji";
+  const query = (queryText || "").toLowerCase().trim();
+  const isUnknown = !customerName || customerName === "Customer" || customerName === "Patron" || customerName.startsWith("Patron (") || customerName.startsWith("+91");
+
+  // If customer is unknown, check if this message provides their name or is a greeting
+  if (isUnknown) {
+    const clean = queryText.trim();
+    // Intro pattern
+    const introMatch = clean.match(/(?:mera\s+naam|my\s+name\s+is|this\s+is|i\s+am|iam|main|mai|naam|name\s*:?)\s+([A-Za-z\u0900-\u097F\s]{2,30})/i);
+    let extracted: string | null = null;
+    if (introMatch && introMatch[1]) {
+      extracted = introMatch[1].replace(/(?:hai|hu|hoon|ji|here|this side)\b.*$/i, "").trim();
+    } else {
+      const words = clean.split(/\s+/).filter(Boolean);
+      const disallowed = ["hi", "hello", "hey", "hlo", "namaste", "pranam", "almond", "badam", "honey", "order", "price", "bhav"];
+      if (words.length >= 1 && words.length <= 3 && clean.length >= 2 && clean.length <= 30 && !words.some(w => disallowed.includes(w.toLowerCase()))) {
+        extracted = clean;
+      }
+    }
+
+    if (extracted) {
+      return [
+        `Bahut-bahut dhanyawad, ${extracted} ji! 🙏`,
+        "",
+        "Aapka contact Prajnaa CRM inbox mein save kar liya gaya hai.",
+        "",
+        `Bataiye ${extracted} ji, aaj hum aapki kya sahayata kar sakte hain? Kya aap hamare pure Himalayan Organic Almonds (Badam), Raw Flora Honey, Walnuts (Kagzi Akhrot), ya Pahadi Spices explore karna chahte hain? 🌿`,
+      ].join("\n");
+    }
+
+    return [
+      "Namaste ji! 🙏 Prajnaa Market (Pure Himalayan Farm Harvest) mein aapka swagat hai.",
+      "",
+      "Kripya humein apna shubh naam bata dijiye taaki hum aapka contact save kar sakein aur aapki behtar sahayata kar sakein? (Please reply with your name) 🌿",
+    ].join("\n");
+  }
+
+  const name = customerName ? `${customerName} ji` : "ji";
+
+  // Product Intent: Almonds / Badam
+  if (query.includes("almond") || query.includes("badam") || query.includes("badaam") || query.includes("mamra") || query.includes("kagzi almond")) {
+    return [
+      `Namaste ${name}! 🌿 Prajnaa Market ke certified 100% pure Himalayan Organic Almonds (Badam) direct mountain orchards se harvest kiye jate hain:`,
+      "",
+      "🌰 *Himalayan Mamra Giri Almonds (High Natural Oil)*:",
+      "• 500g Pack: ₹1,250",
+      "• 1kg Pack: ₹2,400 *(Best Value & Free Shipping)*",
+      "",
+      "🌰 *Kashmir Sweet Organic Almonds (Giri)*:",
+      "• 500g Pack: ₹720",
+      "• 1kg Pack: ₹1,400",
+      "",
+      "✨ *Prajnaa Farm Guarantee*:",
+      "✔ 100% Chemical-free, unpolished single-origin harvest",
+      "✔ Insured India Post Speed Post delivery (2–3 din mein dispatch from Solan hub)",
+      "✔ Free delivery on orders above ₹999",
+      "✔ Official UPI: prajnaa@upi",
+      "",
+      "Kripya batayein aap kaun sa pack aur kitni quantity lena chahte hain? Saath hi apna delivery address aur pincode share kar dijiye, hum turant order book kar denge! 🙏",
+    ].join("\n");
+  }
+
+  // Product Intent: Honey / Shehad
+  if (query.includes("honey") || query.includes("shehad") || query.includes("shahad") || query.includes("flora honey") || query.includes("madhu")) {
+    return [
+      `Namaste ${name}! 🍯 Hamara Himalayan Raw Flora Honey 100% raw, unheated aur multi-flora forest harvest hai:`,
+      "",
+      "• 500g Glass Jar: ₹550",
+      "• 1kg Pack: ₹950",
+      "• 5kg Bulk Saver: ₹3,950",
+      "",
+      "Kripya batayein aap kitni quantity order karna chahte hain aur apna delivery pincode share karein! 🌿",
+    ].join("\n");
+  }
+
+  // Product Intent: Walnuts / Akhrot
+  if (query.includes("walnut") || query.includes("akhrot") || query.includes("kagzi") || query.includes("walnuts")) {
+    return [
+      `Namaste ${name}! 🌰 Direct Kashmir & Himachal valley ke certified fresh walnuts:`,
+      "",
+      "• Kashmir Kagzi Walnuts (In-Shell): 500g ₹450 | 1kg ₹850",
+      "• Pure Kashmiri Walnut Kernels (Giri): 500g ₹650 | 1kg ₹1,250",
+      "",
+      "Kripya apna delivery address share karein, hum turant dispatch note create kar denge! 🌿",
+    ].join("\n");
+  }
+
+  // Address acknowledgement
+  if (/\b\d{6}\b/.test(query) || query.includes("address") || query.includes("road") || query.includes("nagar") || query.includes("pata") || query.includes("pincode")) {
+    return [
+      `Bahut badhiya ${name}! 🙏 Aapka delivery address note kar liya gaya hai.`,
+      "",
+      "Himalayan farm fresh packaging Solan hub (Outer Solan Road, Solan, HP – 173212) se 2–3 din mein Speed Post dwara dispatch ho jayegi.",
+      "",
+      "Payment aap hamare official UPI desk *prajnaa@upi* par kar sakte hain. Payment ke baad screenshot yahan share kar dijiye taaki hum order confirm kar sakein! 🌿",
+    ].join("\n");
+  }
 
   // 1. Order Cancellation
   if (query.includes("cancel") || query.includes("radd")) {
@@ -180,12 +274,12 @@ function generateClientAutoReply(customerName?: string, queryText: string = ""):
   }
 
   // 11. Greeting
-  if (query === "hi" || query === "hello" || query === "namaste" || query === "hey" || query === "pranam") {
-    return `Namaste ${name}! 🙏 Prajnaa Market me aapka swagat hai. Batayein, aaj hum aapki kya sahayata kar sakte hain?`;
+  if (query === "hi" || query === "hello" || query === "namaste" || query === "hey" || query === "pranam" || query === "hlo") {
+    return `Namaste ${name}! 🙏 Prajnaa Market me aapka swagat hai. Batayein ${name}, aaj hum aapki kya sahayata kar sakte hain? Kya aap hamare Himalayan Almonds (Badam), Raw Flora Honey, ya Walnuts explore karna chahte hain? 🌿`;
   }
 
   // 12. Fallback: Concise & Direct
-  return `Namaste ${name}! 🙏 Aapka sawal Prajnaa support team ko mil gaya hai. Store Concierge Nishant ji ise review karke jald hi aapse direct connect karenge.`;
+  return `Namaste ${name}! 🙏 Aapka sandesh Prajnaa support team ko mil gaya hai. Store Concierge Nishant ji (+91 80912 65690) ise review karke jald hi aapse direct connect karenge. Agar aap koi product order karna chahte hain, toh kripya product ka naam aur quantity batayein! 🌿`;
 }
 
 interface OrderItem {
@@ -375,6 +469,43 @@ const ROLE_PERMISSIONS: Record<
 
 // Initial Mock Customers Data
 const INITIAL_CUSTOMERS: Customer[] = [
+  {
+    id: "cust_admin",
+    name: "Store Admin (Prajnaa Desk)",
+    phone: "+91 80912 65690",
+    email: "admin@prajnaa.in",
+    location: "Outer Solan Road, Solan, Himachal Pradesh",
+    totalOrders: 0,
+    totalSpent: 0,
+    customerSince: "Oct 2026",
+    isVip: true,
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+    address: {
+      line1: "Outer Solan Road, Solan",
+      city: "Solan",
+      state: "Himachal Pradesh",
+      pincode: "173212",
+      country: "India",
+    },
+    unreadCount: 0,
+    lastMessageTime: "Just now",
+    lastMessageText: "Prajnaa CRM Active Desk",
+    latestOrder: {
+      id: "ord_admin_desk",
+      orderNumber: "ADMIN-DESK",
+      itemsCount: 0,
+      amount: 0,
+      paymentStatus: "Paid",
+      orderStatus: "Processing",
+      date: "Today",
+      time: "Just now",
+      items: [],
+      subtotal: 0,
+      discount: 0,
+      shipping: 0,
+      paymentMethod: "Internal Desk",
+    },
+  },
   {
     id: "cust_rajat",
     name: "Rajat",
@@ -1459,14 +1590,29 @@ export default function PrajnaaMasterCrmApp() {
                   orderStatus: (ord.status === "Delivered" ? "Delivered" : "Processing") as any,
                   date: orderDate,
                   items: Array.isArray(ord.items)
-                    ? ord.items.map((it: any) => ({
-                        name: it.productName || it.name,
-                        weight: it.weight || "500g",
-                        qty: it.quantity || it.qty || 1,
-                        price: (it.unitPricePaise ? it.unitPricePaise / 100 : it.price) || 0,
-                        total: (it.totalPaise ? it.totalPaise / 100 : it.total) || 0,
-                        image: it.productImage || "🌾",
-                      }))
+                    ? ord.items.map((it: any) => {
+                        const qty = Math.max(1, Number(it.quantity || it.qty || 1));
+                        const price = Number((it.unitPricePaise ? it.unitPricePaise / 100 : it.price) || 0);
+                        let total = Number((it.totalPaise ? it.totalPaise / 100 : it.total) || 0);
+                        if (total <= 0 || (total <= price && qty > 1)) {
+                          total = price * qty;
+                        }
+                        let weight = it.weight || "Standard Pack";
+                        const nameL = (it.productName || it.name || "").toLowerCase();
+                        if (nameL.includes("5kg") || nameL.includes("5 kg")) weight = "5kg Bulk Pack";
+                        else if (nameL.includes("1kg") || nameL.includes("1 kg")) weight = "1kg Pack";
+                        else if (nameL.includes("250g") || nameL.includes("250 g")) weight = "250g Pack";
+                        else if (nameL.includes("1l") || nameL.includes("1 litre")) weight = "1 Litre";
+
+                        return {
+                          name: it.productName || it.name,
+                          weight,
+                          qty,
+                          price,
+                          total,
+                          image: it.productImage || "🌾",
+                        };
+                      })
                     : [],
                   subtotal: (ord.subtotalPaise ? ord.subtotalPaise / 100 : orderTotal),
                   discount: (ord.discountPaise ? ord.discountPaise / 100 : 0),
@@ -1602,42 +1748,47 @@ export default function PrajnaaMasterCrmApp() {
           const json = await res.json();
           if (json && json.success && Array.isArray(json.messages) && json.messages.length > 0) {
             const dbMsgs = json.messages;
-            setMessagesMap((prevMap) => {
-              let hasChanges = false;
-              const nextMap = { ...prevMap };
+            const adminPhoneClean = "8091265690";
 
-              setCustomers((currentCusts) => {
-                currentCusts.forEach((cust) => {
-                  const custPhoneClean = (cust.phone || "").replace(/\D/g, "").slice(-10);
-                  const relevantDbMsgs = dbMsgs.filter((m: any) => {
-                    const toClean = (m.to || "").replace(/\D/g, "").slice(-10);
-                    const fromClean = (m.from || "").replace(/\D/g, "").slice(-10);
-                    return (
-                      m.customerId === cust.id ||
-                      (custPhoneClean && (toClean === custPhoneClean || fromClean === custPhoneClean))
-                    );
-                  });
+            setCustomers((currentCusts) => {
+              let custsChanged = false;
+              const updatedCusts = [...currentCusts];
+              const matchedMsgIds = new Set<string>();
 
-                  if (relevantDbMsgs.length > 0) {
-                    const currentList = nextMap[cust.id] || [];
+              // Step A: Update messages for existing customers
+              updatedCusts.forEach((cust) => {
+                const custPhoneClean = (cust.phone || "").replace(/\D/g, "").slice(-10);
+                const relevantDbMsgs = dbMsgs.filter((m: any) => {
+                  const toClean = (m.to || "").replace(/\D/g, "").slice(-10);
+                  const fromClean = (m.from || "").replace(/\D/g, "").slice(-10);
+                  const isMatch =
+                    m.customerId === cust.id ||
+                    (custPhoneClean && (toClean === custPhoneClean || fromClean === custPhoneClean));
+                  if (isMatch && m.id) matchedMsgIds.add(m.id);
+                  return isMatch;
+                });
+
+                if (relevantDbMsgs.length > 0) {
+                  relevantDbMsgs.sort(
+                    (a: any, b: any) => new Date(a.timestamp || a.createdAt || 0).getTime() - new Date(b.timestamp || b.createdAt || 0).getTime()
+                  );
+
+                  setMessagesMap((prevMap) => {
+                    const currentList = prevMap[cust.id] || [];
                     const newToAdd: Message[] = [];
-
-                    // Sort chronologically ascending
-                    relevantDbMsgs.sort(
-                      (a: any, b: any) => new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime()
-                    );
 
                     relevantDbMsgs.forEach((dbM: any) => {
                       const alreadyExists = currentList.some(
                         (ex) =>
-                          ex.id === dbM.id ||
-                          (ex.text?.trim() === dbM.text?.trim() && ((ex.sender === "business" && (dbM.sender === "business" || dbM.direction === "outbound")) || (ex.sender === "customer" && (dbM.sender === "customer" || dbM.direction === "inbound"))))
-
-
+                          (ex.id && dbM.id && ex.id === dbM.id) ||
+                          (ex.text?.trim() === dbM.text?.trim() &&
+                            ((ex.sender === "business" && (dbM.sender === "business" || dbM.direction === "outbound")) ||
+                              (ex.sender === "customer" && (dbM.sender === "customer" || dbM.direction === "inbound"))))
                       );
+
                       if (!alreadyExists) {
-                        const timeStr = dbM.timestamp
-                          ? new Date(dbM.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                        const timeStr = dbM.timestamp || dbM.createdAt
+                          ? new Date(dbM.timestamp || dbM.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
                           : "Just now";
                         newToAdd.push({
                           id: dbM.id || `msg_db_${Date.now()}_${Math.random()}`,
@@ -1651,21 +1802,137 @@ export default function PrajnaaMasterCrmApp() {
                     });
 
                     if (newToAdd.length > 0) {
-                      nextMap[cust.id] = [...currentList, ...newToAdd];
-                      hasChanges = true;
+                      custsChanged = true;
                       const latestNew = newToAdd[newToAdd.length - 1];
                       cust.lastMessageText = latestNew.text;
                       cust.lastMessageTime = latestNew.time;
+                      if (latestNew.sender === "customer" && cust.id !== selectedCustomerId) {
+                        cust.unreadCount = (cust.unreadCount || 0) + 1;
+                      }
+                      // Propagate customer name update if detected
+                      const namedMsg = relevantDbMsgs.find(
+                        (m: any) => m.customerName && m.customerName !== "Customer" && m.customerName !== "Patron" && !m.customerName.startsWith("Patron (") && !m.customerName.startsWith("+91")
+                      );
+                      if (namedMsg && cust.id !== "cust_admin" && cust.name !== namedMsg.customerName) {
+                        cust.name = namedMsg.customerName;
+                      }
+                      return {
+                        ...prevMap,
+                        [cust.id]: [...currentList, ...newToAdd],
+                      };
                     }
-                  }
-                });
-                return hasChanges ? [...currentCusts] : currentCusts;
+                    return prevMap;
+                  });
+                }
               });
 
-              return hasChanges ? nextMap : prevMap;
+              // Step B: Auto-create conversation & customer for any unknown senders (e.g. Admin or new customer WhatsApp messages)
+              const unmatchedMsgs = dbMsgs.filter((m: any) => !m.id || !matchedMsgIds.has(m.id));
+
+              const groupedUnmatched: Record<string, any[]> = {};
+              unmatchedMsgs.forEach((m: any) => {
+                const isIncoming = m.direction === "inbound" || m.sender === "customer";
+                const rawCounterparty = isIncoming ? m.from : m.to;
+                const cleanPhone = (rawCounterparty || "").replace(/\D/g, "").slice(-10);
+                if (!cleanPhone) return;
+
+                const alreadyHandled = updatedCusts.some(
+                  (c) => (c.phone || "").replace(/\D/g, "").slice(-10) === cleanPhone || c.id === m.customerId
+                );
+                if (alreadyHandled) return;
+
+                if (!groupedUnmatched[cleanPhone]) {
+                  groupedUnmatched[cleanPhone] = [];
+                }
+                groupedUnmatched[cleanPhone].push(m);
+              });
+
+              Object.entries(groupedUnmatched).forEach(([cleanPhone, msgs]) => {
+                msgs.sort(
+                  (a: any, b: any) => new Date(a.timestamp || a.createdAt || 0).getTime() - new Date(b.timestamp || b.createdAt || 0).getTime()
+                );
+
+                const latestMsg = msgs[msgs.length - 1];
+                const isAdminContact = cleanPhone.endsWith(adminPhoneClean);
+                const formattedPhone = cleanPhone.length === 10
+                  ? `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`
+                  : `+${cleanPhone}`;
+
+                const contactName = latestMsg.customerName && latestMsg.customerName !== "Customer"
+                  ? latestMsg.customerName
+                  : isAdminContact
+                  ? "Admin (WhatsApp)"
+                  : `Patron (${formattedPhone})`;
+
+                const newCustId = latestMsg.customerId || `cust_wa_${cleanPhone}`;
+                const latestTime = latestMsg.timestamp || latestMsg.createdAt
+                  ? new Date(latestMsg.timestamp || latestMsg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                  : "Just now";
+
+                const convertedMsgs: Message[] = msgs.map((dbM: any) => ({
+                  id: dbM.id || `msg_db_${Date.now()}_${Math.random()}`,
+                  sender: dbM.direction === "inbound" || dbM.sender === "customer" ? "customer" : "business",
+                  text: dbM.text,
+                  time: dbM.timestamp || dbM.createdAt
+                    ? new Date(dbM.timestamp || dbM.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                    : "Just now",
+                  status: (dbM.status as any) || "delivered",
+                  isAutomated: Boolean(dbM.isAutomated),
+                }));
+
+                const newCustomer: Customer = {
+                  id: newCustId,
+                  name: contactName,
+                  phone: formattedPhone,
+                  email: "",
+                  location: isAdminContact ? "Headquarters Desk" : "WhatsApp Direct",
+                  totalOrders: 0,
+                  totalSpent: 0,
+                  customerSince: "Today",
+                  isVip: isAdminContact,
+                  avatar: "",
+                  address: {
+                    line1: "Direct WhatsApp Inquiry",
+                    city: "Solan",
+                    state: "Himachal Pradesh",
+                    pincode: "173212",
+                    country: "India",
+                  },
+                  unreadCount: latestMsg.direction === "inbound" || latestMsg.sender === "customer" ? 1 : 0,
+                  lastMessageText: latestMsg.text,
+                  lastMessageTime: latestTime,
+                  latestOrder: {
+                    id: `inq_${cleanPhone}`,
+                    orderNumber: "INQUIRY-ONLY",
+                    itemsCount: 0,
+                    amount: 0,
+                    paymentStatus: "Pending",
+                    orderStatus: "Processing",
+                    date: "Today",
+                    time: latestTime,
+                    items: [],
+                    subtotal: 0,
+                    discount: 0,
+                    shipping: 0,
+                    paymentMethod: "WhatsApp Chat",
+                  },
+                };
+
+                updatedCusts.unshift(newCustomer);
+                custsChanged = true;
+
+                setMessagesMap((prevMap) => ({
+                  ...prevMap,
+                  [newCustId]: convertedMsgs,
+                }));
+              });
+
+              return custsChanged ? [...updatedCusts] : currentCusts;
             });
           }
-        } catch {}
+        } catch (e) {
+          console.warn("[CRM Sync] Message sync error:", e);
+        }
       };
 
       syncCrmOrders();
@@ -1673,11 +1940,17 @@ export default function PrajnaaMasterCrmApp() {
       const interval = setInterval(() => {
         syncCrmOrders();
         syncCrmMessages();
-      }, 8000);
+      }, 1000);
+
+      const handleWindowFocus = () => {
+        syncCrmOrders();
+        syncCrmMessages();
+      };
+      window.addEventListener("focus", handleWindowFocus);
       window.addEventListener("prajnaa_order_placed", syncCrmOrders);
       window.addEventListener("storage", syncCrmOrders);
 
-      return () => {
+      return () => { window.removeEventListener("focus", handleWindowFocus);
         clearInterval(interval);
         window.removeEventListener("prajnaa_order_placed", syncCrmOrders);
         window.removeEventListener("storage", syncCrmOrders);
@@ -2344,6 +2617,24 @@ export default function PrajnaaMasterCrmApp() {
             [selectedCustomerId]: [...(prev[selectedCustomerId] || []), autoMsg],
           }));
 
+          setCustomers((prevCusts) => {
+            const idx = prevCusts.findIndex((c) => c.id === selectedCustomerId);
+            if (idx === -1) return prevCusts;
+            const updated = [...prevCusts];
+            const updatedName = data?.inboundMessage?.customerName && data.inboundMessage.customerName !== "Customer" && data.inboundMessage.customerName !== "Patron" && !data.inboundMessage.customerName.startsWith("Patron (")
+              ? data.inboundMessage.customerName
+              : updated[idx].name;
+            const target = {
+              ...updated[idx],
+              name: updatedName,
+              lastMessageText: autoText,
+              lastMessageTime: "Just now",
+            };
+            updated.splice(idx, 1);
+            updated.unshift(target);
+            return updated;
+          });
+
           toast.success(`⚡ Automated reply sent to ${custName}!`, {
             description: "Instant response sent automatically without manual typing or templates.",
           });
@@ -2407,6 +2698,16 @@ export default function PrajnaaMasterCrmApp() {
       ...prev,
       [selectedCustomerId]: [...(prev[selectedCustomerId] || []), newMsg],
     }));
+
+    setCustomers((prevCusts) => {
+      const idx = prevCusts.findIndex((c) => c.id === selectedCustomerId);
+      if (idx === -1) return prevCusts;
+      const updated = [...prevCusts];
+      const target = { ...updated[idx], lastMessageText: messageText, lastMessageTime: "Just now" };
+      updated.splice(idx, 1);
+      updated.unshift(target);
+      return updated;
+    });
 
     setInputMessage("");
 
@@ -2891,14 +3192,20 @@ export default function PrajnaaMasterCrmApp() {
           customerEmail: newOrderCustomerEmail.trim(),
           amount: total,
           totalPaise: total * 100,
+          subtotalPaise: subtotal * 100,
+          discountPaise: discount * 100,
+          shippingPaise: shipping * 100,
           paymentMethod: newOrderPaymentMethod.toLowerCase(),
           paymentStatus: newOrderPaymentStatus.toLowerCase(),
           status: newOrderStatus.toLowerCase(),
           items: lineItems.map((i: any) => ({
             productName: i.name,
+            weight: i.weight,
             quantity: i.qty,
             price: i.price,
+            total: i.total,
             unitPricePaise: i.price * 100,
+            totalPaise: i.total * 100,
           })),
           shippingAddressSnapshot: {
             line1: newOrderAddress || "Civil Lines",
@@ -3092,14 +3399,29 @@ export default function PrajnaaMasterCrmApp() {
             ? new Date(ord.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
             : "10:15 AM",
           items: Array.isArray(ord.items) && ord.items.length > 0
-            ? ord.items.map((it: any) => ({
-                name: it.productName || it.name || "Himalayan Produce",
-                weight: it.weight || "500g",
-                qty: it.quantity || it.qty || 1,
-                price: (it.unitPricePaise ? it.unitPricePaise / 100 : it.price) || 0,
-                total: (it.totalPaise ? it.totalPaise / 100 : it.total) || 0,
-                image: it.productImage || "🌾",
-              }))
+            ? ord.items.map((it: any) => {
+                const qty = Math.max(1, Number(it.quantity || it.qty || 1));
+                const price = Number((it.unitPricePaise ? it.unitPricePaise / 100 : it.price) || 0);
+                let total = Number((it.totalPaise ? it.totalPaise / 100 : it.total) || 0);
+                if (total <= 0 || (total <= price && qty > 1)) {
+                  total = price * qty;
+                }
+                let weight = it.weight || "Standard Pack";
+                const nameL = (it.productName || it.name || "").toLowerCase();
+                if (nameL.includes("5kg") || nameL.includes("5 kg")) weight = "5kg Bulk Pack";
+                else if (nameL.includes("1kg") || nameL.includes("1 kg")) weight = "1kg Pack";
+                else if (nameL.includes("250g") || nameL.includes("250 g")) weight = "250g Pack";
+                else if (nameL.includes("1l") || nameL.includes("1 litre")) weight = "1 Litre";
+
+                return {
+                  name: it.productName || it.name || "Himalayan Produce",
+                  weight,
+                  qty,
+                  price,
+                  total,
+                  image: it.productImage || "🌾",
+                };
+              })
             : [],
           subtotal: ord.subtotalPaise ? ord.subtotalPaise / 100 : orderTotal,
           discount: ord.discountPaise ? ord.discountPaise / 100 : 0,
@@ -4906,7 +5228,7 @@ export default function PrajnaaMasterCrmApp() {
 
                   const mappedItems = rawItems.length > 0
                     ? rawItems.map((it: any) => {
-                        const qty = Number(it.quantity || it.requestedQuantity || it.qty || 1);
+                        const qty = Math.max(1, Number(it.quantity || it.requestedQuantity || it.qty || 1));
                         const price = Number(
                           it.unitPricePaise ? it.unitPricePaise / 100 :
                           it.indicativeUnitPricePaise ? it.indicativeUnitPricePaise / 100 :
@@ -4918,10 +5240,18 @@ export default function PrajnaaMasterCrmApp() {
                           it.total || 0
                         );
                         const effectivePrice = price > 0 ? price : (qty > 0 && total > 0 ? total / qty : 950);
-                        const effectiveTotal = total > 0 ? total : effectivePrice * qty;
+                        const effectiveTotal = (total > effectivePrice ? total : effectivePrice * qty);
+
+                        let itemWeight = it.weight || it.unit || "Standard Pack";
+                        const nameLower = (it.productName || it.name || "").toLowerCase();
+                        if (nameLower.includes("5kg") || nameLower.includes("5 kg")) itemWeight = "5kg Bulk Pack";
+                        else if (nameLower.includes("1kg") || nameLower.includes("1 kg")) itemWeight = "1kg Pack";
+                        else if (nameLower.includes("250g") || nameLower.includes("250 g")) itemWeight = "250g Pack";
+                        else if (nameLower.includes("1l") || nameLower.includes("1 litre")) itemWeight = "1 Litre";
+
                         return {
                           name: it.productName || it.name || "Himalayan Forest Produce",
-                          weight: it.weight || it.unit || "500g",
+                          weight: itemWeight,
                           qty,
                           price: Math.round(effectivePrice * 100) / 100,
                           total: Math.round(effectiveTotal * 100) / 100,
@@ -4931,7 +5261,7 @@ export default function PrajnaaMasterCrmApp() {
                     : [
                         {
                           name: "Himalayan Forest Produce",
-                          weight: "500g",
+                          weight: "Standard Pack",
                           qty: 1,
                           price: lead.estimatedValuePaise ? lead.estimatedValuePaise / 100 : 950,
                           total: lead.estimatedValuePaise ? lead.estimatedValuePaise / 100 : 950,
@@ -6066,52 +6396,59 @@ export default function PrajnaaMasterCrmApp() {
                       </div>
 
                       {/* Latest Order Card */}
-                      <div className="rounded-2xl border border-neutral-200/80 p-3.5 space-y-3 bg-white shadow-2xs">
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider">Latest Order</span>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 shrink-0">
-                              ● {currentCustomer.latestOrder.orderStatus}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-bold text-xs text-neutral-900 font-mono truncate" title={currentCustomer.latestOrder.orderNumber}>
-                              {currentCustomer.latestOrder.orderNumber}
-                            </span>
-                            <button
-                              onClick={() => {
-                                setSelectedOrderForView(currentCustomer.latestOrder);
-                                setActiveNav("order_details");
-                              }}
-                              className="text-[11px] font-semibold text-emerald-800 hover:text-emerald-900 border border-emerald-200 bg-emerald-50 rounded-lg px-2.5 py-1 transition cursor-pointer shrink-0"
-                            >
-                              View Order
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2 pt-1 border-t border-neutral-100">
-                          {currentCustomer.latestOrder.items.map((item, idx) => (
-                            <div key={idx} className="flex items-center justify-between text-xs">
-                              <div className="flex items-center gap-2">
-                                <span className="text-base">{item.image}</span>
-                                <div>
-                                  <p className="font-semibold text-neutral-800 leading-tight">{item.name}</p>
-                                  <span className="text-[10px] text-neutral-500">{item.qty} × ₹{item.price}</span>
-                                </div>
-                              </div>
-                              <span className="font-bold text-neutral-900">₹{item.total.toLocaleString("en-IN")}</span>
+                      {currentCustomer.latestOrder && currentCustomer.latestOrder.orderNumber !== "INQUIRY-ONLY" && currentCustomer.latestOrder.items?.length > 0 ? (
+                        <div className="rounded-2xl border border-neutral-200/80 p-3.5 space-y-3 bg-white shadow-2xs">
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider">Latest Order</span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 shrink-0">
+                                ● {currentCustomer.latestOrder.orderStatus}
+                              </span>
                             </div>
-                          ))}
-                        </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold text-xs text-neutral-900 font-mono truncate" title={currentCustomer.latestOrder.orderNumber}>
+                                {currentCustomer.latestOrder.orderNumber}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setSelectedOrderForView(currentCustomer.latestOrder);
+                                  setActiveNav("order_details");
+                                }}
+                                className="text-[11px] font-semibold text-emerald-800 hover:text-emerald-900 border border-emerald-200 bg-emerald-50 rounded-lg px-2.5 py-1 transition cursor-pointer shrink-0"
+                              >
+                                View Order
+                              </button>
+                            </div>
+                          </div>
 
-                        <div className="pt-2 border-t border-neutral-100 space-y-1 text-xs">
-                          <div className="flex justify-between font-bold text-sm text-neutral-900 pt-1 border-t border-neutral-100">
-                            <span>Total</span>
-                            <span className="text-emerald-800 font-extrabold">₹{currentCustomer.latestOrder.amount.toLocaleString("en-IN")}</span>
+                          <div className="space-y-2 pt-1 border-t border-neutral-100">
+                            {(currentCustomer.latestOrder.items || []).map((item, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-base">{item.image}</span>
+                                  <div>
+                                    <p className="font-semibold text-neutral-800 leading-tight">{item.name}</p>
+                                    <span className="text-[10px] text-neutral-500">{item.qty} × ₹{item.price}</span>
+                                  </div>
+                                </div>
+                                <span className="font-bold text-neutral-900">₹{item.total.toLocaleString("en-IN")}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="pt-2 border-t border-neutral-100 space-y-1 text-xs">
+                            <div className="flex justify-between font-bold text-sm text-neutral-900 pt-1 border-t border-neutral-100">
+                              <span>Total</span>
+                              <span className="text-emerald-800 font-extrabold">₹{(currentCustomer.latestOrder.amount || 0).toLocaleString("en-IN")}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-neutral-200 p-4 text-center text-xs text-neutral-500 bg-neutral-50/50">
+                          <p className="font-bold text-neutral-700">Direct WhatsApp Inquiry</p>
+                          <p className="text-[11px] text-neutral-400 mt-0.5">No orders linked yet. Convert to lead or order anytime.</p>
+                        </div>
+                      )}
                     </>
                   )}
 
@@ -6123,7 +6460,7 @@ export default function PrajnaaMasterCrmApp() {
                           {crmOrders.filter((o) =>
                             o.customerPhone?.replace(/\D/g, "").endsWith(currentCustomer.phone.replace(/\D/g, "").slice(-10)) ||
                             o.customerEmail === currentCustomer.email ||
-                            o.orderNumber === currentCustomer.latestOrder.orderNumber.replace("#", "")
+                            (currentCustomer.latestOrder?.orderNumber && o.orderNumber === currentCustomer.latestOrder.orderNumber.replace("#", ""))
                           ).length || 1} Orders
                         </span>
                       </div>
@@ -6132,10 +6469,10 @@ export default function PrajnaaMasterCrmApp() {
                           const matchedOrders = crmOrders.filter((o) =>
                             o.customerPhone?.replace(/\D/g, "").endsWith(currentCustomer.phone.replace(/\D/g, "").slice(-10)) ||
                             o.customerEmail === currentCustomer.email ||
-                            o.orderNumber === currentCustomer.latestOrder.orderNumber.replace("#", "")
+                            (currentCustomer.latestOrder?.orderNumber && o.orderNumber === currentCustomer.latestOrder.orderNumber.replace("#", ""))
                           );
 
-                          const displayList = matchedOrders.length > 0 ? matchedOrders : [currentCustomer.latestOrder];
+                          const displayList = matchedOrders.length > 0 ? matchedOrders : (currentCustomer.latestOrder ? [currentCustomer.latestOrder] : []);
 
                           return displayList.map((ord: any, idx: number) => {
                             const orderNum = ord.orderNumber?.startsWith("#") ? ord.orderNumber : `#${ord.orderNumber || ord.id || "PM2024001234"}`;
@@ -10341,11 +10678,11 @@ export default function PrajnaaMasterCrmApp() {
             </div>
 
             {/* Scrollable Document Preview Area */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-neutral-200/60 dark:bg-slate-950 flex justify-center items-start">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-neutral-200/60 dark:bg-slate-950 flex justify-center items-start print:p-0 print:m-0 print:bg-white print:overflow-visible">
               {/* THE OFFICIAL TAX INVOICE A4 SHEET */}
               <div
                 id="prajnaa-tax-invoice"
-                className="bg-white text-neutral-900 p-6 sm:p-10 w-full max-w-[850px] h-fit min-h-fit shadow-xl rounded-2xl print:rounded-none print:shadow-none print:border-none print:p-0 print:m-0 space-y-6 text-xs font-sans border border-neutral-300 my-4"
+                className="bg-white text-neutral-900 p-6 sm:p-8 w-full max-w-[850px] h-fit min-h-fit shadow-xl rounded-2xl print:rounded-none print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full space-y-4 text-xs font-sans border border-neutral-300 print:border-none my-4 print:my-0"
               >
                 {/* 1. Header: Brand Letterhead & Tax Invoice Heading */}
                 <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-4 border-b-2 border-emerald-900/80">
@@ -10480,155 +10817,190 @@ export default function PrajnaaMasterCrmApp() {
                 </div>
 
                 {/* 3. Itemized Goods Table */}
-                <div className="border border-neutral-300 rounded-xl overflow-hidden">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-[#0F3D2E] text-white text-[11px]">
-                      <tr>
-                        <th className="py-2.5 px-3 font-semibold text-center w-8">#</th>
-                        <th className="py-2.5 px-3 font-semibold">Description of Produce & Harvest</th>
-                        <th className="py-2.5 px-3 font-semibold text-center w-24">HSN Code</th>
-                        <th className="py-2.5 px-3 font-semibold text-center w-20">Qty</th>
-                        <th className="py-2.5 px-3 font-semibold text-right w-24">Unit Rate</th>
-                        <th className="py-2.5 px-3 font-semibold text-right w-28">Amount (₹)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-200 text-neutral-800">
-                      {selectedOrderForView.items && selectedOrderForView.items.length > 0 ? (
-                        selectedOrderForView.items.map((it, idx) => {
-                          const itemQty = Number(it.qty || (it as any).quantity || 1);
-                          const itemPrice = Number(it.price || 0);
-                          const itemTotal = Number(it.total != null && it.total > 0 ? it.total : itemPrice * itemQty);
-                          return (
-                            <tr key={idx} className="hover:bg-neutral-50">
-                              <td className="py-2.5 px-3 text-center font-mono text-[11px] text-neutral-500">{idx + 1}</td>
-                              <td className="py-2.5 px-3">
-                                <span className="font-bold text-neutral-900 block">{it.name}</span>
-                                <span className="text-[10px] text-neutral-500 font-mono">
-                                  Pack / Weight: {it.weight || "Standard Pack"} • Certified Himalayan Single-Origin
-                                </span>
-                              </td>
-                              <td className="py-2.5 px-3 text-center font-mono text-[11px] text-neutral-600">
-                                {getProductHsn(it.name)}
-                              </td>
-                              <td className="py-2.5 px-3 text-center font-mono font-bold">{itemQty}</td>
-                              <td className="py-2.5 px-3 text-right font-mono">
-                                ₹{itemPrice.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </td>
-                              <td className="py-2.5 px-3 text-right font-mono font-bold text-neutral-900">
-                                ₹{itemTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </td>
+                {(() => {
+                  const rawItems = selectedOrderForView.items && selectedOrderForView.items.length > 0
+                    ? selectedOrderForView.items
+                    : [
+                        {
+                          name: "Himalayan Artisanal Produce Package",
+                          weight: "Standard Pack",
+                          qty: selectedOrderForView.itemsCount || 1,
+                          price: Number(selectedOrderForView.amount || 0),
+                          total: Number(selectedOrderForView.amount || 0),
+                        },
+                      ];
+
+                  const parsedInvoiceItems = rawItems.map((it: any) => {
+                    const qty = Math.max(1, Number(it.qty || it.quantity || 1));
+                    let price = Number(it.price || 0);
+                    let total = Number(it.total || 0);
+
+                    if (price <= 0 && total > 0) {
+                      price = Math.round((total / qty) * 100) / 100;
+                    }
+                    if (total <= 0 || (total <= price && qty > 1)) {
+                      total = Math.round(price * qty * 100) / 100;
+                    }
+                    if (price <= 0 && total <= 0) {
+                      const found = productsList.find(
+                        (p) => p.name.toLowerCase() === (it.name || "").toLowerCase() || p.id === it.productId
+                      );
+                      price = found?.price || 450;
+                      total = price * qty;
+                    }
+
+                    let packWeight = it.weight || "Standard Pack";
+                    const nameL = (it.name || it.productName || "").toLowerCase();
+                    if (nameL.includes("5kg") || nameL.includes("5 kg")) packWeight = "5kg Bulk Pack";
+                    else if (nameL.includes("1kg") || nameL.includes("1 kg")) packWeight = "1kg Pack";
+                    else if (nameL.includes("250g") || nameL.includes("250 g")) packWeight = "250g Pack";
+                    else if (nameL.includes("1l") || nameL.includes("1 litre")) packWeight = "1 Litre";
+
+                    return {
+                      ...it,
+                      name: it.name || it.productName || "Himalayan Produce",
+                      qty,
+                      price,
+                      total,
+                      weight: packWeight,
+                    };
+                  });
+
+                  const computedSubtotal = parsedInvoiceItems.reduce((acc, it) => acc + it.total, 0);
+                  const discountVal = Number(selectedOrderForView.discount || 0);
+                  const shippingVal = Number(selectedOrderForView.shipping || 0);
+                  const computedTotal = Math.max(0, computedSubtotal - discountVal + shippingVal);
+                  const finalInvoiceAmount = selectedOrderForView.amount != null && selectedOrderForView.amount > 0 && selectedOrderForView.amount === computedTotal
+                    ? selectedOrderForView.amount
+                    : computedTotal;
+                  const discountPct = computedSubtotal > 0 && discountVal > 0
+                    ? ((discountVal / computedSubtotal) * 100).toFixed(1)
+                    : "0";
+                  const gstVal = finalInvoiceAmount > 0 ? (finalInvoiceAmount * 0.05 / 1.05) : 0;
+
+                  return (
+                    <>
+                      <div className="border border-neutral-300 rounded-xl overflow-hidden shadow-2xs">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="bg-[#0F3D2E] text-white text-[11px]">
+                            <tr>
+                              <th className="py-2 px-3 font-semibold text-center w-8">#</th>
+                              <th className="py-2 px-3 font-semibold">Description of Produce & Harvest</th>
+                              <th className="py-2 px-3 font-semibold text-center w-24">HSN Code</th>
+                              <th className="py-2 px-3 font-semibold text-center w-16">Qty</th>
+                              <th className="py-2 px-3 font-semibold text-right w-24">Unit Rate</th>
+                              <th className="py-2 px-3 font-semibold text-right w-28">Amount (₹)</th>
                             </tr>
-                          );
-                        })
-                      ) : (
-                        <tr>
-                          <td className="py-2.5 px-3 text-center font-mono text-[11px] text-neutral-500">1</td>
-                          <td className="py-2.5 px-3">
-                            <span className="font-bold text-neutral-900 block">Himalayan Artisanal Produce Consignment</span>
-                            <span className="text-[10px] text-neutral-500 font-mono">
-                              Natural high-altitude harvest package ({selectedOrderForView.itemsCount || 1} items)
+                          </thead>
+                          <tbody className="divide-y divide-neutral-200 text-neutral-800 bg-white">
+                            {parsedInvoiceItems.map((it, idx) => (
+                              <tr key={idx} className="hover:bg-neutral-50/80">
+                                <td className="py-2 px-3 text-center font-mono text-[11px] text-neutral-500">{idx + 1}</td>
+                                <td className="py-2 px-3">
+                                  <span className="font-bold text-neutral-900 block">{it.name}</span>
+                                  <span className="text-[10px] text-neutral-500 font-mono">
+                                    Pack / Weight: {it.weight} • Certified Himalayan Single-Origin
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3 text-center font-mono text-[11px] text-neutral-600">
+                                  {getProductHsn(it.name)}
+                                </td>
+                                <td className="py-2 px-3 text-center font-mono font-bold">{it.qty}</td>
+                                <td className="py-2 px-3 text-right font-mono">
+                                  ₹{it.price.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900">
+                                  ₹{it.total.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* 4. Commercial Summary & Tax Calculation */}
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-1 print-keep">
+                        {/* Left (7 cols): Words, Payment Details & Notes */}
+                        <div className="sm:col-span-7 space-y-2">
+                          <div className="p-3 rounded-xl border border-neutral-200 bg-neutral-50/80 space-y-1">
+                            <span className="text-[10px] font-bold uppercase text-neutral-500 tracking-wider block">
+                              Invoice Total in Words:
                             </span>
-                          </td>
-                          <td className="py-2.5 px-3 text-center font-mono text-[11px] text-neutral-600">0910 99 90</td>
-                          <td className="py-2.5 px-3 text-center font-mono font-bold">{selectedOrderForView.itemsCount || 1}</td>
-                          <td className="py-2.5 px-3 text-right font-mono">
-                            ₹{Number(selectedOrderForView.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono font-bold text-neutral-900">
-                            ₹{Number(selectedOrderForView.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* 4. Commercial Summary & Tax Calculation */}
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 pt-1 print-keep">
-                  {/* Left (7 cols): Words, Payment Details & Notes */}
-                  <div className="sm:col-span-7 space-y-3">
-                    <div className="p-3 rounded-xl border border-neutral-200 bg-neutral-50/80 space-y-1">
-                      <span className="text-[10px] font-bold uppercase text-neutral-500 tracking-wider block">
-                        Invoice Total in Words:
-                      </span>
-                      <p className="font-bold text-neutral-900 text-xs">
-                        {numberToWordsIndian(selectedOrderForView.amount || 0)}
-                      </p>
-                    </div>
-
-                    <div className="p-3 rounded-xl border border-neutral-200 space-y-1 text-[11px]">
-                      <div className="flex items-center justify-between border-b border-neutral-100 pb-1">
-                        <span className="font-bold text-neutral-600">Payment Method:</span>
-                        <strong className="text-neutral-900">{selectedOrderForView.paymentMethod || "UPI Direct"}</strong>
-                      </div>
-                      <div className="flex items-center justify-between border-b border-neutral-100 pb-1">
-                        <span className="font-bold text-neutral-600">Payment Status:</span>
-                        <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded">
-                          ● {selectedOrderForView.paymentStatus || "Paid"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-neutral-500">Transaction Desk:</span>
-                        <span className="font-mono text-[10px] text-neutral-700">Official Desk (prajnaa@upi)</span>
-                      </div>
-                    </div>
-
-                    <div className="text-[10px] text-neutral-500 space-y-0.5 leading-relaxed pt-1">
-                      <p className="font-semibold text-neutral-700">Terms & Harvest Warranty:</p>
-                      <p>• Certified pesticide-free Himalayan single-origin farm harvest with zero adulteration.</p>
-                      <p>• Goods dispatched via India Post Speed Post are tracked and insured under postal transit rules.</p>
-                      <p>• For queries or re-orders, reach concierge at <strong>+91 80912 65690</strong> on WhatsApp.</p>
-                    </div>
-                  </div>
-
-                  {/* Right (5 cols): Calculation Box */}
-                  <div className="sm:col-span-5">
-                    <div className="p-3.5 rounded-xl border border-neutral-300 bg-neutral-50/70 space-y-2 text-xs">
-                      <div className="flex justify-between text-neutral-600">
-                        <span>Produce Subtotal:</span>
-                        <span className="font-mono font-semibold text-neutral-900">
-                          ₹{Number(selectedOrderForView.subtotal || selectedOrderForView.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between text-neutral-600">
-                        <span>Speed Post Delivery:</span>
-                        <span className="font-mono font-semibold text-neutral-900">
-                          {Number(selectedOrderForView.shipping || 0) > 0
-                            ? `₹${Number(selectedOrderForView.shipping).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                            : "FREE (Included)"}
-                        </span>
-                      </div>
-
-                      {(() => {
-                        const subtotalVal = Number(selectedOrderForView.subtotal || selectedOrderForView.amount || 0);
-                        const discountVal = Number(selectedOrderForView.discount || 0);
-                        const discountPct = subtotalVal > 0 && discountVal > 0 ? ((discountVal / subtotalVal) * 100).toFixed(1) : "0";
-                        if (discountVal <= 0) return null;
-                        return (
-                          <div className="flex justify-between text-emerald-700 font-semibold">
-                            <span>Discount Applied ({discountPct}%):</span>
-                            <span className="font-mono font-bold">-₹{discountVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <p className="font-bold text-neutral-900 text-xs">
+                              {numberToWordsIndian(finalInvoiceAmount)}
+                            </p>
                           </div>
-                        );
-                      })()}
 
-                      <div className="flex justify-between text-[11px] text-neutral-500 pt-1 border-t border-neutral-200">
-                        <span>Applicable GST (5% Included):</span>
-                        <span className="font-mono">
-                          ₹{(Number(selectedOrderForView.amount || 0) * 0.05 / 1.05).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
-                      </div>
+                          <div className="p-3 rounded-xl border border-neutral-200 bg-neutral-50/50 space-y-1 text-[11px]">
+                            <div className="flex items-center justify-between border-b border-neutral-100 pb-1">
+                              <span className="font-bold text-neutral-600">Payment Method:</span>
+                              <strong className="text-neutral-900">{selectedOrderForView.paymentMethod || "UPI Direct"}</strong>
+                            </div>
+                            <div className="flex items-center justify-between border-b border-neutral-100 pb-1">
+                              <span className="font-bold text-neutral-600">Payment Status:</span>
+                              <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded">
+                                ● {selectedOrderForView.paymentStatus || "Paid"}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-neutral-500">Transaction Desk:</span>
+                              <span className="font-mono text-[10px] text-neutral-700">Official Desk (prajnaa@upi)</span>
+                            </div>
+                          </div>
 
-                      <div className="flex justify-between items-center text-sm font-extrabold text-neutral-900 pt-2 border-t-2 border-neutral-300">
-                        <span>Total Amount:</span>
-                        <span className="text-base font-mono text-emerald-800 font-extrabold">
-                          ₹{Number(selectedOrderForView.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
+                          <div className="text-[10px] text-neutral-500 space-y-0.5 leading-relaxed pt-0.5">
+                            <p className="font-semibold text-neutral-700">Terms & Harvest Warranty:</p>
+                            <p>• Certified pesticide-free Himalayan single-origin farm harvest with zero adulteration.</p>
+                            <p>• Goods dispatched via India Post Speed Post are tracked and insured under postal transit rules.</p>
+                            <p>• For queries or re-orders, reach concierge at <strong>+91 80912 65690</strong> on WhatsApp.</p>
+                          </div>
+                        </div>
+
+                        {/* Right (5 cols): Calculation Box */}
+                        <div className="sm:col-span-5">
+                          <div className="p-3 rounded-xl border border-neutral-300 bg-neutral-50/70 space-y-2 text-xs">
+                            <div className="flex justify-between text-neutral-600">
+                              <span>Produce Subtotal:</span>
+                              <span className="font-mono font-semibold text-neutral-900">
+                                ₹{computedSubtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+
+                            <div className="flex justify-between text-neutral-600">
+                              <span>Speed Post Delivery:</span>
+                              <span className="font-mono font-semibold text-neutral-900">
+                                {shippingVal > 0
+                                  ? `₹${shippingVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                  : "FREE (Included)"}
+                              </span>
+                            </div>
+
+                            {discountVal > 0 && (
+                              <div className="flex justify-between text-emerald-700 font-semibold">
+                                <span>Discount Applied ({discountPct}%):</span>
+                                <span className="font-mono font-bold">-₹{discountVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                              </div>
+                            )}
+
+                            <div className="flex justify-between text-[11px] text-neutral-500 pt-1 border-t border-neutral-200">
+                              <span>Applicable GST (5% Included):</span>
+                              <span className="font-mono">
+                                ₹{gstVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+
+                            <div className="flex justify-between items-center text-sm font-extrabold text-neutral-900 pt-2 border-t-2 border-neutral-300">
+                              <span>Total Amount:</span>
+                              <span className="text-base font-mono text-emerald-800 font-extrabold">
+                                ₹{finalInvoiceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                </div>
+                    </>
+                  );
+                })()}
 
                 {/* 5. Official Stamp & Authorized Signatory */}
                 <div className="pt-4 border-t border-neutral-200 flex flex-col sm:flex-row items-center justify-between gap-4 print-keep">
