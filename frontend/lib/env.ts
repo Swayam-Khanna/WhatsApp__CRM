@@ -52,6 +52,16 @@ export const NEXT_PUBLIC_APP_URL = safeGetEnv(
   "NEXT_PUBLIC_APP_URL",
   metaEnv.NEXT_PUBLIC_APP_URL,
 );
+export const VITE_API_BASE_URL = safeGetEnv(
+  typeof process !== "undefined" ? process.env.VITE_API_BASE_URL : undefined,
+  "VITE_API_BASE_URL",
+  metaEnv.VITE_API_BASE_URL,
+);
+export const VITE_WS_URL = safeGetEnv(
+  typeof process !== "undefined" ? process.env.VITE_WS_URL : undefined,
+  "VITE_WS_URL",
+  metaEnv.VITE_WS_URL,
+);
 export const MODE =
   (typeof process !== "undefined" ? process.env.NEXT_PUBLIC_NODE_ENV : "") ||
   (typeof process !== "undefined" ? process.env.NODE_ENV : "") ||

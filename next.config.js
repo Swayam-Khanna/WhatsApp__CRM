@@ -34,6 +34,8 @@ const nextConfig = {
     NEXT_PUBLIC_RAZORPAY_KEY_ID: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
     NEXT_PUBLIC_APP_URL: appUrl,
+    VITE_API_BASE_URL: process.env.VITE_API_BASE_URL,
+    VITE_WS_URL: process.env.VITE_WS_URL,
   },
   images: {
     formats: ["image/avif", "image/webp"],
