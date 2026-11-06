@@ -58,4 +58,5 @@ if (process.env.NODE_ENV !== "production") {
   globalThis.postgresClientGlobal = client;
 }
 
+export { client };
 export const db = drizzle(client, { schema });

@@ -49,6 +49,7 @@ RUN adduser --system --uid 1001 nextjs
 
 # Set correct permissions for nextjs user
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
