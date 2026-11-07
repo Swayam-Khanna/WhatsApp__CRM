@@ -4243,23 +4243,23 @@ export default function PrajnaaMasterCrmApp() {
       {/* ========================================================= */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden pb-14 md:pb-0 relative">
         {/* TOP HEADER BAR (With Theme Switcher & Role Badge) */}
-        <header className={`h-[56px] md:h-[62px] px-3 md:px-6 ${themeStyles.headerBg} border-b flex items-center justify-between shrink-0 z-30 shadow-2xs`}>
-          <div className="flex items-center gap-2">
+        <header className={`h-[56px] md:h-[62px] px-3 md:px-6 ${themeStyles.headerBg} border-b flex items-center justify-between shrink-0 z-30 shadow-2xs gap-2 min-w-0`}>
+          <div className="flex items-center gap-2 min-w-0 flex-1 max-w-[200px] sm:max-w-xs md:max-w-sm lg:max-w-md">
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="md:hidden p-2 rounded-xl text-neutral-600 hover:bg-neutral-100 transition cursor-pointer"
+              className="md:hidden p-2 rounded-xl text-neutral-600 hover:bg-neutral-100 transition cursor-pointer shrink-0"
               title="Open Navigation Menu"
             >
               <Menu className="h-5 w-5" />
             </button>
-            <div className="md:hidden flex items-center">
+            <div className="md:hidden flex items-center shrink-0">
               <img
                 src="/prajnaa-logo.png"
                 alt="Prajnaa Market"
                 className="h-7 w-auto object-contain"
               />
             </div>
-            <div ref={globalSearchRef} className="relative hidden sm:block w-[240px] md:w-[340px] lg:w-[400px]">
+            <div ref={globalSearchRef} className="relative hidden sm:block w-full min-w-0">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 pointer-events-none" />
               <input
                 ref={globalSearchInputRef}
@@ -4535,23 +4535,23 @@ export default function PrajnaaMasterCrmApp() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-3.5">
+          <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-3 shrink-0">
             {/* Role / Work Area Indicator Pill */}
-            <div className={`hidden sm:flex px-2.5 py-1 rounded-full border text-xs font-semibold items-center gap-1.5 shadow-2xs ${userPermissions.badgeColor}`}>
-              <ShieldCheck className="h-3.5 w-3.5" />
+            <div className={`hidden xl:flex px-2.5 py-1 rounded-full border text-xs font-semibold items-center gap-1.5 shadow-2xs whitespace-nowrap shrink-0 ${userPermissions.badgeColor}`}>
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
               <span>{currentUser.role}</span>
             </div>
 
             {/* THEME SWITCHER DROPDOWN BUTTON */}
-            <div className="relative">
+            <div className="relative shrink-0">
               <button
                 onClick={() => setShowThemeMenu(!showThemeMenu)}
-                className="px-2.5 py-1.5 rounded-xl border border-neutral-200/80 bg-white/80 hover:bg-neutral-100 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                className="px-2 sm:px-2.5 py-1.5 rounded-xl border border-neutral-200/80 bg-white/80 hover:bg-neutral-100 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
                 title="Change Theme"
               >
-                <Palette className="h-4 w-4 text-emerald-600" />
-                <span className="hidden sm:inline capitalize">{currentTheme} Theme</span>
-                <ChevronDown className="h-3.5 w-3.5 text-neutral-400" />
+                <Palette className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span className="hidden lg:inline capitalize">{currentTheme} Theme</span>
+                <ChevronDown className="h-3.5 w-3.5 text-neutral-400 shrink-0" />
               </button>
 
               {/* Theme Menu Dropdown */}
@@ -4600,33 +4600,33 @@ export default function PrajnaaMasterCrmApp() {
               )}
             </div>
 
-            {/* Official WhatsApp Business Badge */}
-            <div className="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200/80 shadow-2xs">
+            {/* Official WhatsApp Business Badge - Responsive on All Devices */}
+            <div className="hidden sm:flex items-center gap-2 sm:gap-2.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200/80 shadow-2xs shrink-0 whitespace-nowrap">
               <div className="h-7 w-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
-                <MessageSquare className="h-3.5 w-3.5" />
+                <MessageSquare className="h-3.5 w-3.5 shrink-0" />
               </div>
-              <div className="text-left hidden sm:block">
-                <span className="text-[9px] font-medium text-neutral-500 block leading-none">
+              <div className="text-left whitespace-nowrap shrink-0">
+                <span className="text-[9px] font-medium text-neutral-500 hidden xl:block leading-none whitespace-nowrap">
                   Official WhatsApp Number
                 </span>
-                <span className="text-xs font-bold text-neutral-900 font-mono tracking-tight">
+                <span className="text-xs font-bold text-neutral-900 font-mono tracking-tight whitespace-nowrap">
                   +91 80912 65690
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 pl-1">
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+              <div className="flex items-center gap-1.5 pl-0.5 shrink-0 whitespace-nowrap">
+                <span className="hidden xl:inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300 items-center gap-1 whitespace-nowrap shrink-0">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
                   Meta: Pending
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 whitespace-nowrap shrink-0">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
                   CRM: Connected
                 </span>
               </div>
             </div>
 
             {/* Notification Bell with Live Unread Dropdown */}
-            <div ref={notificationRef} className="relative">
+            <div ref={notificationRef} className="relative shrink-0">
               <button
                 onClick={() => setShowNotificationMenu(!showNotificationMenu)}
                 className={`relative p-2 rounded-xl transition cursor-pointer ${
@@ -4872,10 +4872,10 @@ export default function PrajnaaMasterCrmApp() {
             </div>
 
             {/* User Profile Dropdown Menu */}
-            <div className="relative">
+            <div className="relative shrink-0">
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="flex items-center gap-2.5 pl-2 border-l border-neutral-200 hover:opacity-85 transition cursor-pointer"
+                className="flex items-center gap-1.5 sm:gap-2.5 pl-1.5 sm:pl-2 border-l border-neutral-200 hover:opacity-85 transition cursor-pointer shrink-0"
               >
                 {currentUser.avatar ? (
                   <img
@@ -6316,7 +6316,7 @@ export default function PrajnaaMasterCrmApp() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-1 p-1 bg-white border border-neutral-200/80 rounded-xl text-xs font-semibold shadow-2xs self-start sm:self-auto overflow-x-auto">
+              <div className="flex items-center gap-1 p-1 bg-white border border-neutral-200/80 rounded-xl text-xs font-semibold shadow-2xs self-start sm:self-auto overflow-x-auto no-scrollbar">
                 {(["7d", "30d", "quarter"] as const).map((t) => (
                   <button
                     key={t}
@@ -6850,7 +6850,7 @@ export default function PrajnaaMasterCrmApp() {
             {/* Search and Quick Filters Bar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               {/* Status Tabs with Counters */}
-              <div className="flex items-center gap-1.5 border-b border-neutral-200 pb-2 overflow-x-auto w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 border-b border-neutral-200 pb-2 overflow-x-auto w-full sm:w-auto no-scrollbar">
                 {[
                   { id: "all", label: "All Orders", count: orderTabCounts.all },
                   { id: "pending", label: "Pending", count: orderTabCounts.pending },
@@ -7631,7 +7631,7 @@ export default function PrajnaaMasterCrmApp() {
               <span className="text-xs font-bold text-emerald-950 dark:text-emerald-300 shrink-0 flex items-center gap-1.5">
                 <Sparkles className="h-3.5 w-3.5 text-emerald-600" /> Quick Harvest Presets:
               </span>
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar">
                 {BROADCAST_PRESETS.map((preset, idx) => (
                   <button
                     key={idx}
@@ -7974,7 +7974,7 @@ export default function PrajnaaMasterCrmApp() {
 
             {/* Filter and Search Bar */}
             <div className={`p-4 rounded-2xl border shadow-2xs flex items-center justify-between gap-4 ${themeStyles.cardBg}`}>
-              <div className="flex items-center gap-1.5 overflow-x-auto">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
                 {(["all", "In Stock", "Low Stock", "Out of Stock", "Pre-Order"] as const).map((st) => (
                   <button
                     key={st}
