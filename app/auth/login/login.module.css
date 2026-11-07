@@ -1,0 +1,383 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400;1,9..40,500;1,9..40,600;1,9..40,700&display=swap");
+
+.loginWrapper {
+  font-family: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: #fbfcfa;
+  min-height: calc(100vh - 180px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  padding: 24px 8vw 56px;
+  box-sizing: border-box;
+}
+
+.loginGrid {
+  display: grid;
+  grid-template-columns: 1fr minmax(380px, 520px);
+  gap: 6vw;
+  align-items: center;
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+.leftColumn {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.headline {
+  font-size: clamp(40px, 5.2vw, 68px);
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  color: #1b1f1c;
+  margin: 0 0 20px 0;
+}
+
+.subheadline {
+  font-size: 20px;
+  color: #5b655f;
+  max-width: 28em;
+  line-height: 1.55;
+  margin: 0 0 36px 0;
+}
+
+.checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.checklistItem {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 18px;
+  font-weight: 500;
+  color: #1b1f1c;
+}
+
+.checkCircle {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  border-radius: 50%;
+  background-color: #e6f0ec;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0f3d2e;
+}
+
+.cardColumn {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.loginCard {
+  background-color: #ffffff;
+  border: 1px solid #d8dfda;
+  border-radius: 40px;
+  padding: 44px;
+  box-shadow: 0 24px 60px -24px rgba(15, 61, 46, 0.28);
+  width: 100%;
+  max-width: 520px;
+  box-sizing: border-box;
+}
+
+.cardTitle {
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #1b1f1c;
+  margin: 0 0 8px 0;
+}
+
+.cardSubtitle {
+  font-size: 15px;
+  color: #5b655f;
+  line-height: 1.5;
+  margin: 0 0 28px 0;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+}
+
+.fieldGroup {
+  margin-bottom: 20px;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1b1f1c;
+  margin-bottom: 8px;
+}
+
+.passwordLabelRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.forgotLink {
+  color: #0f3d2e;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+
+.forgotLink:hover {
+  text-decoration: underline;
+  opacity: 0.85;
+}
+
+.forgotLink:focus-visible {
+  outline: 3px solid #e8650f;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.inputWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.pillInput {
+  width: 100%;
+  height: 56px;
+  border-radius: 999px;
+  border: 1px solid #d8dfda;
+  background-color: #ffffff;
+  padding: 0 24px;
+  font-size: 16px;
+  font-family: inherit;
+  color: #1b1f1c;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pillInputWithIcon {
+  padding-right: 56px;
+}
+
+.pillInput::placeholder {
+  color: #9aa59e;
+}
+
+.pillInput:focus {
+  border-color: #0f3d2e;
+  box-shadow: 0 0 0 3px rgba(15, 61, 46, 0.25);
+}
+
+.pillInput:focus-visible {
+  outline: 3px solid #e8650f;
+  outline-offset: 2px;
+}
+
+.eyeButton {
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #5b655f;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: color 0.15s ease;
+}
+
+.eyeButton:hover {
+  color: #1b1f1c;
+}
+
+.eyeButton:focus-visible {
+  outline: 3px solid #e8650f;
+  outline-offset: 2px;
+}
+
+.fieldError {
+  font-size: 13px;
+  color: #dc2626;
+  margin-top: 6px;
+  padding-left: 12px;
+}
+
+.primaryButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 58px;
+  border-radius: 999px;
+  background: #0f3d2e;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 600;
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 10px 24px -10px rgba(15, 61, 46, 0.7);
+  transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  box-sizing: border-box;
+}
+
+.primaryButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: #0b2d22;
+  box-shadow: 0 14px 28px -8px rgba(15, 61, 46, 0.8);
+}
+
+.primaryButton:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.primaryButton:focus-visible {
+  outline: 3px solid #e8650f;
+  outline-offset: 2px;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.dividerLine {
+  flex: 1;
+  height: 1px;
+  background-color: #d8dfda;
+}
+
+.dividerText {
+  font-size: 14px;
+  color: #5b655f;
+  font-weight: 500;
+}
+
+.googleButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  height: 54px;
+  border-radius: 999px;
+  border: 1px solid #d8dfda;
+  background-color: transparent;
+  color: #1b1f1c;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.googleButton:hover:not(:disabled) {
+  background-color: #e6f0ec;
+}
+
+.googleButton:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.googleButton:focus-visible {
+  outline: 3px solid #e8650f;
+  outline-offset: 2px;
+}
+
+.cardFooter {
+  border-top: 1px solid #d8dfda;
+  padding-top: 24px;
+  margin-top: 24px;
+  text-align: center;
+  font-size: 15px;
+  color: #5b655f;
+}
+
+.registerLink {
+  color: #0f3d2e;
+  font-weight: 700;
+  text-decoration: none;
+  margin-left: 4px;
+  transition: opacity 0.15s ease;
+}
+
+.registerLink:hover {
+  text-decoration: underline;
+  opacity: 0.85;
+}
+
+.registerLink:focus-visible {
+  outline: 3px solid #e8650f;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Responsive styles below 900px */
+@media (max-width: 899px) {
+  .loginWrapper {
+    padding: 24px 16px 48px;
+    min-height: auto;
+  }
+
+  .loginGrid {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .leftColumn {
+    text-align: center;
+    align-items: center;
+  }
+
+  .headline {
+    margin-bottom: 14px;
+  }
+
+  .subheadline {
+    margin-bottom: 0;
+    max-width: 100%;
+    font-size: 17px;
+  }
+
+  .checklist {
+    display: none;
+  }
+
+  .loginCard {
+    padding: 28px;
+    border-radius: 30px;
+    max-width: 100%;
+  }
+
+  .cardTitle {
+    font-size: 28px;
+  }
+}
