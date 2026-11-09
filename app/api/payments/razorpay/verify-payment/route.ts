@@ -128,6 +128,55 @@ export async function POST(req: Request) {
       console.warn("[Razorpay Verify] Neon order update warning:", dbErr);
     }
 
+    // 4. Update WhatsApp CRM order
+    try {
+      const { crmOrders } = await import("../../../../../backend/schema/crm.ts");
+      const cleanOrderId = String(order_id).replace(/^#+/, "");
+      await db
+        .insert(crmOrders)
+        .values({
+          id: cleanOrderId,
+          orderNumber: cleanOrderId,
+          customerName: contact?.name || null,
+          customerPhone: contact?.phone || "",
+          customerEmail: contact?.email || null,
+          totalPaise: Math.round(Number(amount) * 100),
+          status: "Processing",
+          paymentStatus: "paid",
+          paymentMethod: "razorpay",
+          shippingAddressSnapshot: {
+            fullName: contact?.name || "",
+            line1: shipping_address || "",
+            postalCode: shipping_pincode || "",
+          },
+          items: items || [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: crmOrders.orderNumber,
+          set: {
+            paymentStatus: "paid",
+            status: "Processing",
+            updatedAt: new Date(),
+          },
+        });
+
+      if (!globalThis.__globalCrmOrders) globalThis.__globalCrmOrders = [];
+      const exIdx = globalThis.__globalCrmOrders.findIndex(
+        (o) => o.orderNumber === cleanOrderId || o.id === cleanOrderId
+      );
+      if (exIdx >= 0) {
+        globalThis.__globalCrmOrders[exIdx] = {
+          ...globalThis.__globalCrmOrders[exIdx],
+          paymentStatus: "paid",
+          status: "Processing",
+        };
+      }
+    } catch (crmErr) {
+      console.warn("[Razorpay Verify] CRM sync note:", crmErr);
+    }
+
     // 5. Send confirmation notification email to admin/team
     try {
       await sendAdminEmailNotification({

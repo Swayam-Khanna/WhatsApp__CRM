@@ -6,7 +6,7 @@ import { isOrderPendingReview } from "@/lib/orders/order-constants";
 import { calculateOrderTotals } from "@/lib/orders/order-pricing";
 import { generateUniqueOrderId } from "@/lib/orders/order-id-generator.server";
 import { db } from "../../../../backend/db.ts";
-import { orders, orderItems, orderStatusLogs, farmerProducts, productInventory, profiles } from "../../../../backend/schema/index.ts";
+import { orders, orderItems, orderStatusLogs, farmerProducts, productInventory, profiles, crmOrders } from "../../../../backend/schema/index.ts";
 import { adminDb } from "../../../../frontend/lib/firebase-admin.ts";
 import { isNeonDataProvider } from "../../../../backend/lib/data-provider.ts";
 
@@ -611,6 +611,75 @@ export async function POST(req: NextRequest) {
           createdAt: now,
         });
       });
+
+      // Synchronize manual admin order with WhatsApp CRM immediately
+      try {
+        const crmItems = validatedItems.map((it) => ({
+          productId: it.productId,
+          productName: it.productName,
+          quantity: it.quantity,
+          unitPricePaise: it.unitPricePaise,
+          totalPaise: it.totalPaise,
+          productImage: it.productImage || null,
+        }));
+        const crmRecord = {
+          id: uniqueOrderId,
+          orderNumber: uniqueOrderId,
+          customerName: customerName.trim(),
+          customerPhone: customerPhone.trim(),
+          customerEmail: customerEmail ? customerEmail.trim().toLowerCase() : null,
+          totalPaise,
+          subtotalPaise,
+          shippingPaise,
+          discountPaise,
+          status: "Processing",
+          paymentStatus: "pending",
+          paymentMethod: cleanMethod,
+          shippingAddressSnapshot: {
+            fullName: customerName.trim(),
+            line1: shippingAddress.trim(),
+            postalCode: shippingPincode.trim(),
+            phone: customerPhone.trim(),
+          },
+          items: crmItems,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        await db
+          .insert(crmOrders)
+          .values(crmRecord)
+          .onConflictDoUpdate({
+            target: crmOrders.orderNumber,
+            set: {
+              customerName: crmRecord.customerName,
+              customerPhone: crmRecord.customerPhone,
+              customerEmail: crmRecord.customerEmail,
+              totalPaise: crmRecord.totalPaise,
+              subtotalPaise: crmRecord.subtotalPaise,
+              shippingPaise: crmRecord.shippingPaise,
+              discountPaise: crmRecord.discountPaise,
+              status: crmRecord.status,
+              paymentStatus: crmRecord.paymentStatus,
+              paymentMethod: crmRecord.paymentMethod,
+              shippingAddressSnapshot: crmRecord.shippingAddressSnapshot,
+              items: crmRecord.items,
+              updatedAt: now,
+            },
+          });
+
+        if (!globalThis.__globalCrmOrders) globalThis.__globalCrmOrders = [];
+        const existingIdx = globalThis.__globalCrmOrders.findIndex(
+          (o) => o.orderNumber === uniqueOrderId || o.id === uniqueOrderId
+        );
+        if (existingIdx >= 0) {
+          globalThis.__globalCrmOrders[existingIdx] = { ...globalThis.__globalCrmOrders[existingIdx], ...crmRecord };
+        } else {
+          globalThis.__globalCrmOrders.unshift(crmRecord);
+        }
+      } catch (crmSyncErr) {
+        console.warn("[Admin Orders] WhatsApp CRM sync note:", crmSyncErr);
+      }
 
       return NextResponse.json({
         success: true,

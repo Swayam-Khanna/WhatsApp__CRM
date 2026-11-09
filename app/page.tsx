@@ -1202,7 +1202,8 @@ export default function PrajnaaMasterCrmApp() {
             allOrders.forEach((ord: any) => {
               if (!ord.customerPhone && !ord.customerName) return;
 
-              const orderIdStr = String(ord.orderNumber || ord.id || "");
+              const cleanOrderNum = String(ord.orderNumber || ord.id || "").replace(/^#+/, "");
+              const orderIdStr = cleanOrderNum;
               const orderTotal = ord.totalPaise ? ord.totalPaise / 100 : ord.amount || 0;
               const orderDate = ord.createdAt
                 ? new Date(ord.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
@@ -1229,7 +1230,7 @@ export default function PrajnaaMasterCrmApp() {
 
                 const formattedOrder: Order = {
                   id: ord.id || `ord_${Date.now()}`,
-                  orderNumber: `#${ord.orderNumber || ord.id}`,
+                  orderNumber: `#${cleanOrderNum}`,
                   itemsCount: ord.items?.length || 1,
                   amount: orderTotal,
                   paymentStatus: (ord.paymentStatus === "paid" ? "Paid" : "Pending") as any,
@@ -1269,7 +1270,7 @@ export default function PrajnaaMasterCrmApp() {
                 // CRITICAL: Ensure customer's messagesMap ALWAYS gets the order message thread
                 setMessagesMap((prevMsgs) => {
                   const existingList = prevMsgs[targetCustId] || [];
-                  const orderNumTag = `#${ord.orderNumber || ord.id}`;
+                  const orderNumTag = `#${cleanOrderNum}`;
                   const alreadyHasOrderMsg = existingList.some((m) => m.text?.includes(orderNumTag));
                   if (alreadyHasOrderMsg) return prevMsgs;
 
@@ -1278,7 +1279,7 @@ export default function PrajnaaMasterCrmApp() {
 
                   const newMessages: Message[] = [
                     {
-                      id: `msg_order_${ord.orderNumber || ord.id}`,
+                      id: `msg_order_${cleanOrderNum}`,
                       sender: "business",
                       text: businessFirstMessage,
                       time: "Just now",
@@ -1295,12 +1296,26 @@ export default function PrajnaaMasterCrmApp() {
                 let updatedCustomer: Customer;
                 if (existingIdx >= 0) {
                   const existing = prevCusts[existingIdx];
+                  const custMatchedOrders = allOrders.filter((o) => {
+                    const oPhone = (o.customerPhone || "").replace(/\D/g, "");
+                    return (
+                      (cleanPhone.length >= 10 && oPhone.endsWith(cleanPhone.slice(-10))) ||
+                      (ord.customerEmail && o.customerEmail?.toLowerCase() === ord.customerEmail.toLowerCase())
+                    );
+                  });
+                  const totalSpentForCust = custMatchedOrders.reduce(
+                    (acc, o) => acc + (o.totalPaise ? o.totalPaise / 100 : o.amount || 0),
+                    0
+                  );
+
                   updatedCustomer = {
                     ...existing,
                     latestOrder: formattedOrder,
+                    totalOrders: Math.max(custMatchedOrders.length, (existing.totalOrders || 0)),
+                    totalSpent: Math.max(totalSpentForCust, (existing.totalSpent || 0)),
                     unreadCount: isNewToSession ? (existing.unreadCount || 0) + 1 : existing.unreadCount,
                     lastMessageTime: isNewToSession ? "Just now" : existing.lastMessageTime,
-                    lastMessageText: `📦 Order #${ord.orderNumber || ord.id} confirmation sent to customer`,
+                    lastMessageText: `📦 Order #${cleanOrderNum} confirmation sent to customer`,
                   };
                 } else {
                   updatedCustomer = {
@@ -1323,7 +1338,7 @@ export default function PrajnaaMasterCrmApp() {
                     },
                     unreadCount: 0,
                     lastMessageTime: "Just now",
-                    lastMessageText: `📦 Order #${ord.orderNumber || ord.id} confirmation sent to customer`,
+                    lastMessageText: `📦 Order #${cleanOrderNum} confirmation sent to customer`,
                     latestOrder: formattedOrder,
                   };
                 }
@@ -1336,7 +1351,7 @@ export default function PrajnaaMasterCrmApp() {
                     setSelectedCustomerId(targetCustId);
                     playOrderChime();
                     toast.success(
-                      `🌾 New WhatsApp Order #${ord.orderNumber || ord.id} from ${ord.customerName || "Customer"} (₹${orderTotal.toLocaleString("en-IN")}) received!`,
+                      `🌾 New WhatsApp Order #${cleanOrderNum} from ${ord.customerName || "Customer"} (₹${orderTotal.toLocaleString("en-IN")}) received!`,
                       {
                         description: "Customer conversation opened in CRM Inbox.",
                         action: {
@@ -1359,7 +1374,7 @@ export default function PrajnaaMasterCrmApp() {
 
               // Add to shipments
               setShipments((prevShipments) => {
-                const shipOrderNum = `#${ord.orderNumber || ord.id}`;
+                const shipOrderNum = `#${cleanOrderNum}`;
                 if (prevShipments.some((s) => s.orderId === shipOrderNum)) return prevShipments;
                 const newTracking = ord.trackingId || `ET${Math.floor(100000000 + Math.random() * 900000000)}IN`;
                 const newShipment = {
@@ -2453,7 +2468,7 @@ export default function PrajnaaMasterCrmApp() {
   const handleMarkOrderAsPaid = async (targetOrder: Order) => {
     if (!targetOrder) return;
     const ordNum = targetOrder.orderNumber;
-    const cleanNum = ordNum.replace("#", "");
+    const cleanNum = ordNum.replace(/^#+/, "");
     const customerName = targetOrder.customerName || "Customer";
     const amountFormatted = Number(targetOrder.amount || 0).toLocaleString("en-IN");
 
@@ -2513,6 +2528,10 @@ export default function PrajnaaMasterCrmApp() {
       try {
         localStorage.setItem("prajnaa_crm_orders", JSON.stringify(updated));
       } catch {}
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new CustomEvent("prajnaa_order_placed"));
+      }
       return updated;
     });
 
@@ -2831,30 +2850,76 @@ export default function PrajnaaMasterCrmApp() {
       trackingNumber: `ET${Math.floor(100000000 + Math.random() * 900000000)}IN`,
     };
 
+    const crmOrderPayload = {
+      id: orderNum,
+      orderNumber: orderNum,
+      customerName: newOrderCustomerName.trim(),
+      customerPhone: cleanPhone.slice(-10),
+      customerEmail: newOrderCustomerEmail.trim(),
+      amount: total,
+      totalPaise: Math.round(total * 100),
+      subtotalPaise: Math.round(subtotal * 100),
+      discountPaise: Math.round(discount * 100),
+      shippingPaise: Math.round(shipping * 100),
+      paymentMethod: newOrderPaymentMethodChoice.toLowerCase(),
+      paymentStatus: newOrderPaymentStatus.toLowerCase(),
+      status: newOrderStatus === "Completed" ? "Delivered" : newOrderStatus,
+      items: lineItems.map((i: any) => ({
+        productName: i.name,
+        weight: i.weight,
+        quantity: i.qty,
+        price: i.price,
+        total: i.total,
+        unitPricePaise: Math.round(i.price * 100),
+        totalPaise: Math.round(i.total * 100),
+      })),
+      shippingAddressSnapshot: {
+        fullName: newOrderCustomerName.trim(),
+        line1: newOrderAddress || "Civil Lines",
+        city: newOrderCity || "Dehradun",
+        postalCode: newOrderPincode || "248001",
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
     setIsSubmittingNewOrder(true);
 
     try {
-      // 1. Add to local state
+      // 1. Add immediately to local orders state
       setCreatedOrders((prev) => [newOrderObj, ...prev]);
+      setCrmOrders((prev) => [crmOrderPayload, ...prev]);
       setSelectedOrderForView(newOrderObj);
 
       // 2. Add or update customer in customers list
-      const targetCustId = `cust_${cleanPhone.slice(-10)}`;
+      let determinedTargetCustId = `cust_${cleanPhone.slice(-10)}`;
+      if (currentCustomer?.phone && currentCustomer.phone.replace(/\D/g, "").endsWith(cleanPhone.slice(-10))) {
+        determinedTargetCustId = currentCustomer.id;
+      }
+
       setCustomers((prev) => {
-        const existingIdx = prev.findIndex((c) => c.phone.replace(/\D/g, "").endsWith(cleanPhone.slice(-10)));
+        const existingIdx = prev.findIndex(
+          (c) =>
+            c.id === determinedTargetCustId ||
+            c.phone.replace(/\D/g, "").endsWith(cleanPhone.slice(-10))
+        );
         if (existingIdx >= 0) {
+          const matchedCust = prev[existingIdx];
+          determinedTargetCustId = matchedCust.id;
           const updated = [...prev];
           updated[existingIdx] = {
-            ...updated[existingIdx],
-            totalOrders: updated[existingIdx].totalOrders + 1,
-            totalSpent: updated[existingIdx].totalSpent + total,
+            ...matchedCust,
+            totalOrders: (matchedCust.totalOrders || 0) + 1,
+            totalSpent: (matchedCust.totalSpent || 0) + total,
             latestOrder: newOrderObj,
+            lastMessageTime: "Just now",
+            lastMessageText: `📦 Order ${fullOrderNum} confirmed!`,
           };
           return updated;
         }
 
         const newCust: Customer = {
-          id: targetCustId,
+          id: determinedTargetCustId,
           name: newOrderCustomerName.trim(),
           phone: `+91 ${cleanPhone.slice(-10)}`,
           email: newOrderCustomerEmail.trim() || `${cleanPhone.slice(-10)}@prajnaamarket.com`,
@@ -2879,11 +2944,13 @@ export default function PrajnaaMasterCrmApp() {
         return [newCust, ...prev];
       });
 
+      setSelectedCustomerId(determinedTargetCustId);
+
       // 3. Add first WhatsApp message from Store Admin
       const firstMsgText = `Namaste ${newOrderCustomerName.trim()}! 🙏 Prajnaa Market se connect karne ke liye dhanyawad.\n\nAapne hamare Prajnaa portal se yeh saman order kiya hai:\n\n📦 *Order ID:* ${fullOrderNum}\n🌾 *Saman / Items:* ${lineItems.map((i: any) => `${i.name} × ${i.qty}`).join(", ")}\n💰 *Total Amount:* ₹${total.toLocaleString("en-IN")}\n📍 *Delivery Address:* ${newOrderAddress || "Civil Lines"}, ${newOrderCity} - ${newOrderPincode}\n🚚 *Shipping Mode:* India Post Speed Post (2-3 din me dispatch)\n\nHum aapka order organic farms se pack kar rahe hain. Kisi bhi jaankari ya payment confirmation ke liye aap yahan reply kar sakte hain! 🌿`;
 
       setMessagesMap((prev) => {
-        const existing = prev[targetCustId] || [];
+        const existing = prev[determinedTargetCustId] || [];
         const newMsg: Message = {
           id: `msg_order_${orderNum}`,
           sender: "business",
@@ -2891,55 +2958,45 @@ export default function PrajnaaMasterCrmApp() {
           time: formattedTime,
           status: "delivered",
         };
-        return {
+        const nextMap = {
           ...prev,
-          [targetCustId]: [...existing, newMsg],
+          [determinedTargetCustId]: [...existing, newMsg],
         };
+        if (currentCustomer?.id && currentCustomer.id !== determinedTargetCustId) {
+          nextMap[currentCustomer.id] = [...(prev[currentCustomer.id] || []), newMsg];
+        }
+        return nextMap;
       });
 
       // 4. Save to localStorage
       try {
         const saved = localStorage.getItem("prajnaa_crm_orders");
         const list = saved ? JSON.parse(saved) : [];
-        list.unshift(newOrderObj);
+        list.unshift(crmOrderPayload);
         localStorage.setItem("prajnaa_crm_orders", JSON.stringify(list));
       } catch {}
 
       // 5. Asynchronously persist to API / PostgreSQL database
       fetch("/api/crm/orders", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orderNumber: orderNum,
-          customerName: newOrderCustomerName.trim(),
-          customerPhone: cleanPhone.slice(-10),
-          customerEmail: newOrderCustomerEmail.trim(),
-          amount: total,
-          totalPaise: total * 100,
-          subtotalPaise: subtotal * 100,
-          discountPaise: discount * 100,
-          shippingPaise: shipping * 100,
-          paymentMethod: newOrderPaymentMethod.toLowerCase(),
-          paymentStatus: newOrderPaymentStatus.toLowerCase(),
-          status: newOrderStatus.toLowerCase(),
-          items: lineItems.map((i: any) => ({
-            productName: i.name,
-            weight: i.weight,
-            quantity: i.qty,
-            price: i.price,
-            total: i.total,
-            unitPricePaise: i.price * 100,
-            totalPaise: i.total * 100,
-          })),
-          shippingAddressSnapshot: {
-            line1: newOrderAddress || "Civil Lines",
-            city: newOrderCity || "Dehradun",
-            postalCode: newOrderPincode || "248001",
-          },
-        }),
-      }).catch((err) => console.warn("API sync error:", err));
+        headers: {
+          "Content-Type": "application/json",
+          "x-crm-client": "prajnaa-crm-browser",
+        },
+        body: JSON.stringify(crmOrderPayload),
+      })
+        .then(() => {
+          syncCrmOrders();
+        })
+        .catch((err) => console.warn("API sync error:", err));
 
-      // 6. Reset form, switch to "all" filter, and close modal
+      // 6. Broadcast real-time event to all open tabs and windows
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("prajnaa_order_placed", { detail: crmOrderPayload }));
+        window.dispatchEvent(new Event("storage"));
+      }
+
+      // 7. Reset form, switch to "all" filter, and close modal
       setOrdersFilter("all");
       setNewOrderCustomerName("");
       setNewOrderCustomerPhone("");
@@ -2974,13 +3031,13 @@ export default function PrajnaaMasterCrmApp() {
 
     // 1. Manually created orders (Highest Priority)
     createdOrders.forEach((o) => {
-      const num = o.orderNumber?.replace("#", "") || o.id;
+      const num = o.orderNumber?.replace(/^#+/, "") || o.id;
       if (num) map.set(num, o);
     });
 
     // 2. Synchronized CRM Orders from API & LocalStorage
     crmOrders.forEach((ord: any) => {
-      const num = String(ord.orderNumber || ord.id || "").replace("#", "");
+      const num = String(ord.orderNumber || ord.id || "").replace(/^#+/, "");
       if (num && !map.has(num)) {
         const orderTotal = ord.totalPaise ? ord.totalPaise / 100 : ord.amount || 0;
         const rawStatus = String(ord.status || ord.orderStatus || "Pending").toLowerCase();
@@ -3047,7 +3104,7 @@ export default function PrajnaaMasterCrmApp() {
 
     // 3. Fallback to Customers' latest orders
     customers.forEach((c) => {
-      const num = c.latestOrder?.orderNumber?.replace("#", "");
+      const num = c.latestOrder?.orderNumber?.replace(/^#+/, "");
       if (num && !map.has(num)) {
         map.set(num, {
           ...c.latestOrder,
@@ -3061,6 +3118,44 @@ export default function PrajnaaMasterCrmApp() {
 
     return Array.from(map.values());
   }, [createdOrders, crmOrders, customers]);
+
+  // Customer-specific orders dynamically resolved from unifiedOrders
+  const customerOrders = useMemo(() => {
+    if (!currentCustomer) return [];
+    const cleanPhone = (currentCustomer.phone || "").replace(/\D/g, "").slice(-10);
+    const cEmail = (currentCustomer.email || "").trim().toLowerCase();
+    const cName = (currentCustomer.name || "").trim().toLowerCase();
+
+    return unifiedOrders.filter((o) => {
+      const oPhone = (o.customerPhone || "").replace(/\D/g, "").slice(-10);
+      const oEmail = (o.customerEmail || "").trim().toLowerCase();
+      const oName = (o.customerName || "").trim().toLowerCase();
+
+      const phoneMatch = Boolean(cleanPhone && oPhone && cleanPhone === oPhone);
+      const emailMatch = Boolean(cEmail && oEmail && cEmail === oEmail && cEmail !== "guest@prajnaafarm.com");
+      const nameMatch = Boolean(cName && oName && cName === oName && cName !== "customer" && cName !== "patron" && !cName.startsWith("patron ("));
+      const latestOrderMatch = Boolean(
+        currentCustomer.latestOrder?.orderNumber && (
+          o.orderNumber === currentCustomer.latestOrder.orderNumber ||
+          o.orderNumber.replace(/^#+/, "") === currentCustomer.latestOrder.orderNumber.replace(/^#+/, "")
+        )
+      );
+
+      return phoneMatch || emailMatch || nameMatch || latestOrderMatch;
+    });
+  }, [currentCustomer, unifiedOrders]);
+
+  const activeCustomerTotalOrders = Math.max(customerOrders.length, currentCustomer?.totalOrders || 0);
+  const activeCustomerTotalSpent = customerOrders.length > 0
+    ? customerOrders.reduce((sum, o) => sum + (o.amount || 0), 0)
+    : (currentCustomer?.totalSpent || 0);
+  const activeCustomerLatestOrder = customerOrders[0] || (
+    currentCustomer?.latestOrder &&
+    currentCustomer.latestOrder.orderNumber !== "INQUIRY-ONLY" &&
+    (currentCustomer.latestOrder.items?.length || 0) > 0
+      ? currentCustomer.latestOrder
+      : null
+  );
 
   // Dynamic Dashboard Timeframe Data computed from real unifiedOrders
   const TIMEFRAME_DATA = useMemo(() => {
@@ -6051,7 +6146,7 @@ export default function PrajnaaMasterCrmApp() {
                       customerDrawerTab === "orders" ? "border-emerald-600 text-emerald-800 font-bold" : "border-transparent text-neutral-500 hover:text-neutral-800"
                     }`}
                   >
-                    Orders ({currentCustomer.totalOrders})
+                    Orders ({activeCustomerTotalOrders})
                   </button>
                   <button
                     onClick={() => setCustomerDrawerTab("notes")}
@@ -6119,11 +6214,11 @@ export default function PrajnaaMasterCrmApp() {
                           </div>
                           <div className="flex items-center justify-between gap-3">
                             <span className="text-neutral-500 shrink-0">Total Orders</span>
-                            <span className="font-medium text-neutral-800 text-right">{currentCustomer.totalOrders} orders</span>
+                            <span className="font-medium text-neutral-800 text-right">{activeCustomerTotalOrders} orders</span>
                           </div>
                           <div className="flex items-center justify-between gap-3">
                             <span className="text-neutral-500 shrink-0">Total Spent</span>
-                            <span className="font-bold text-neutral-900 text-right">₹{currentCustomer.totalSpent.toLocaleString("en-IN")}</span>
+                            <span className="font-bold text-neutral-900 text-right">₹{activeCustomerTotalSpent.toLocaleString("en-IN")}</span>
                           </div>
                         </div>
 
@@ -6141,22 +6236,22 @@ export default function PrajnaaMasterCrmApp() {
                       </div>
 
                       {/* Latest Order Card */}
-                      {currentCustomer.latestOrder && currentCustomer.latestOrder.orderNumber !== "INQUIRY-ONLY" && currentCustomer.latestOrder.items?.length > 0 ? (
+                      {activeCustomerLatestOrder && (activeCustomerLatestOrder.items?.length || 0) > 0 ? (
                         <div className="rounded-2xl border border-neutral-200/80 p-3.5 space-y-3 bg-white shadow-2xs">
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider">Latest Order</span>
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 shrink-0">
-                                ● {currentCustomer.latestOrder.orderStatus}
+                                ● {activeCustomerLatestOrder.orderStatus}
                               </span>
                             </div>
                             <div className="flex items-center justify-between gap-2">
-                              <span className="font-bold text-xs text-neutral-900 font-mono truncate" title={currentCustomer.latestOrder.orderNumber}>
-                                {currentCustomer.latestOrder.orderNumber}
+                              <span className="font-bold text-xs text-neutral-900 font-mono truncate" title={activeCustomerLatestOrder.orderNumber}>
+                                {activeCustomerLatestOrder.orderNumber}
                               </span>
                               <button
                                 onClick={() => {
-                                  setSelectedOrderForView(currentCustomer.latestOrder);
+                                  setSelectedOrderForView(activeCustomerLatestOrder);
                                   setActiveNav("order_details");
                                 }}
                                 className="text-[11px] font-semibold text-emerald-800 hover:text-emerald-900 border border-emerald-200 bg-emerald-50 rounded-lg px-2.5 py-1 transition cursor-pointer shrink-0"
@@ -6167,7 +6262,7 @@ export default function PrajnaaMasterCrmApp() {
                           </div>
 
                           <div className="space-y-2 pt-1 border-t border-neutral-100">
-                            {(currentCustomer.latestOrder.items || []).map((item, idx) => (
+                            {(activeCustomerLatestOrder.items || []).map((item, idx) => (
                               <div key={idx} className="flex items-center justify-between text-xs">
                                 <div className="flex items-center gap-2">
                                   <span className="text-base">{item.image}</span>
@@ -6184,7 +6279,7 @@ export default function PrajnaaMasterCrmApp() {
                           <div className="pt-2 border-t border-neutral-100 space-y-1 text-xs">
                             <div className="flex justify-between font-bold text-sm text-neutral-900 pt-1 border-t border-neutral-100">
                               <span>Total</span>
-                              <span className="text-emerald-800 font-extrabold">₹{(currentCustomer.latestOrder.amount || 0).toLocaleString("en-IN")}</span>
+                              <span className="text-emerald-800 font-extrabold">₹{(activeCustomerLatestOrder.amount || 0).toLocaleString("en-IN")}</span>
                             </div>
                           </div>
                         </div>
@@ -6202,32 +6297,32 @@ export default function PrajnaaMasterCrmApp() {
                       <div className="flex items-center justify-between">
                         <h4 className="font-bold text-xs text-neutral-900 dark:text-white">Past Orders History</h4>
                         <span className="text-[11px] font-semibold text-neutral-500">
-                          {crmOrders.filter((o) =>
-                            o.customerPhone?.replace(/\D/g, "").endsWith(currentCustomer.phone.replace(/\D/g, "").slice(-10)) ||
-                            o.customerEmail === currentCustomer.email ||
-                            (currentCustomer.latestOrder?.orderNumber && o.orderNumber === currentCustomer.latestOrder.orderNumber.replace("#", ""))
-                          ).length || 1} Orders
+                          {customerOrders.length || activeCustomerTotalOrders} Orders
                         </span>
                       </div>
                       <div className="space-y-2">
                         {(() => {
-                          const matchedOrders = crmOrders.filter((o) =>
-                            o.customerPhone?.replace(/\D/g, "").endsWith(currentCustomer.phone.replace(/\D/g, "").slice(-10)) ||
-                            o.customerEmail === currentCustomer.email ||
-                            (currentCustomer.latestOrder?.orderNumber && o.orderNumber === currentCustomer.latestOrder.orderNumber.replace("#", ""))
-                          );
+                          const displayList = customerOrders.length > 0 ? customerOrders : (activeCustomerLatestOrder ? [activeCustomerLatestOrder] : []);
 
-                          const displayList = matchedOrders.length > 0 ? matchedOrders : (currentCustomer.latestOrder ? [currentCustomer.latestOrder] : []);
+                          if (displayList.length === 0) {
+                            return (
+                              <div className="text-center py-6 text-xs text-neutral-500 bg-neutral-50 rounded-xl border border-dashed border-neutral-200">
+                                No orders linked yet for this customer.
+                              </div>
+                            );
+                          }
 
                           return displayList.map((ord: any, idx: number) => {
                             const orderNum = ord.orderNumber?.startsWith("#") ? ord.orderNumber : `#${ord.orderNumber || ord.id || "N/A"}`;
-                            const orderAmt = ord.totalPaise ? ord.totalPaise / 100 : ord.amount || 1740;
-                            const orderStatus = ord.status || ord.orderStatus || "Processing";
-                            const orderDate = ord.createdAt
+                            const orderAmt = ord.amount || (ord.totalPaise ? ord.totalPaise / 100 : 0);
+                            const orderStatus = ord.orderStatus || ord.status || "Processing";
+                            const orderDate = ord.date || (ord.createdAt
                               ? new Date(ord.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-                              : ord.date || "12 Mar 2024";
-                            const itemsCount = ord.items?.length || ord.itemsCount || 2;
+                              : "Today");
+                            const itemsCount = ord.items?.length || ord.itemsCount || 1;
                             const itemsText = Array.isArray(ord.items) && ord.items.length > 0
+                              ? ord.items.map((i: any) => `${i.productName || i.name} × ${i.quantity || i.qty || 1}`).join(", ")
+                              : "Himalayan produce harvest";
                               ? ord.items.map((i: any) => `${i.productName || i.name} × ${i.quantity || i.qty || 1}`).join(", ")
                               : "Himalayan produce harvest";
 
@@ -10101,14 +10196,23 @@ export default function PrajnaaMasterCrmApp() {
                         : c
                     )
                   );
-                  setCrmOrders((prev) =>
-                    prev.map((o) =>
+                  setCrmOrders((prev) => {
+                    const updated = prev.map((o) =>
                       `#${o.orderNumber || o.id}` === selectedOrderForView.orderNumber ||
-                      String(o.orderNumber || o.id) === selectedOrderForView.orderNumber
+                      String(o.orderNumber || o.id) === selectedOrderForView.orderNumber ||
+                      String(o.orderNumber || o.id).replace(/^#+/, "") === selectedOrderForView.orderNumber.replace(/^#+/, "")
                         ? { ...o, status: statusUpdateChoice }
                         : o
-                    )
-                  );
+                    );
+                    try {
+                      localStorage.setItem("prajnaa_crm_orders", JSON.stringify(updated));
+                    } catch {}
+                    return updated;
+                  });
+                  if (typeof window !== "undefined") {
+                    window.dispatchEvent(new Event("storage"));
+                    window.dispatchEvent(new CustomEvent("prajnaa_order_placed"));
+                  }
                   setShowStatusModal(false);
                   toast.success(`Order status updated to ${statusUpdateChoice}! Customer notified on WhatsApp.`);
                 }}

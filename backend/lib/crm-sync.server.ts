@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { db } from "../db.ts";
 import { orderCrmSync } from "../schema/orders.ts";
+import { crmOrders } from "../schema/crm.ts";
 import { eq, or } from "drizzle-orm";
 
 export interface CrmShippingAddress {
@@ -251,8 +252,67 @@ export async function syncOrderToWhatsAppCrm(
   const crmBaseUrl = (
     options.crmUrl ||
     process.env.WHATSAPP_CRM_URL ||
-    "https://whatsapp-crm-qje9.vercel.app"
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.BETTER_AUTH_URL ||
+    (process.env.PORT ? `http://localhost:${process.env.PORT}` : "http://localhost:3000")
   ).replace(/\/$/, "");
+
+  // Directly upsert into PostgreSQL crmOrders table and memory cache for zero-latency local availability
+  try {
+    const cleanPhone = normalizeIndianPhone(payload.customerPhone);
+    const directCrmRecord = {
+      id: orderNumber,
+      orderNumber,
+      customerName: payload.customerName || null,
+      customerPhone: cleanPhone || payload.customerPhone,
+      customerEmail: payload.customerEmail || null,
+      totalPaise: payload.totalPaise,
+      subtotalPaise: payload.subtotalPaise || 0,
+      shippingPaise: payload.shippingPaise || 0,
+      discountPaise: payload.discountPaise || 0,
+      status: payload.status || "Processing",
+      paymentStatus: payload.paymentStatus || "pending",
+      paymentMethod: payload.paymentMethod || "whatsapp",
+      shippingAddressSnapshot: payload.shippingAddressSnapshot || null,
+      items: payload.items || [],
+      createdAt: payload.createdAt ? new Date(payload.createdAt) : new Date(),
+      updatedAt: new Date(),
+    };
+
+    await db
+      .insert(crmOrders)
+      .values(directCrmRecord)
+      .onConflictDoUpdate({
+        target: crmOrders.orderNumber,
+        set: {
+          customerName: directCrmRecord.customerName,
+          customerPhone: directCrmRecord.customerPhone,
+          customerEmail: directCrmRecord.customerEmail,
+          totalPaise: directCrmRecord.totalPaise,
+          subtotalPaise: directCrmRecord.subtotalPaise,
+          shippingPaise: directCrmRecord.shippingPaise,
+          discountPaise: directCrmRecord.discountPaise,
+          status: directCrmRecord.status,
+          paymentStatus: directCrmRecord.paymentStatus,
+          paymentMethod: directCrmRecord.paymentMethod,
+          shippingAddressSnapshot: directCrmRecord.shippingAddressSnapshot,
+          items: directCrmRecord.items,
+          updatedAt: new Date(),
+        },
+      });
+
+    if (!globalThis.__globalCrmOrders) globalThis.__globalCrmOrders = [];
+    const existingIdx = globalThis.__globalCrmOrders.findIndex(
+      (o) => o.orderNumber === orderNumber || o.id === orderNumber
+    );
+    if (existingIdx >= 0) {
+      globalThis.__globalCrmOrders[existingIdx] = { ...globalThis.__globalCrmOrders[existingIdx], ...directCrmRecord };
+    } else {
+      globalThis.__globalCrmOrders.unshift(directCrmRecord);
+    }
+  } catch (directPersistErr: any) {
+    console.warn("[CRM Sync] Direct DB upsert note:", directPersistErr?.message || directPersistErr);
+  }
 
   const endpoint = `${crmBaseUrl}/api/crm/orders`;
   const apiKey = options.apiKey || process.env.WHATSAPP_CRM_API_KEY;
@@ -268,6 +328,7 @@ export async function syncOrderToWhatsAppCrm(
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "X-Correlation-Id": `corr_${orderNumber}_${Date.now()}`,
+      "x-crm-client": "prajnaa-crm-sync",
     };
 
     if (apiKey) {

@@ -214,6 +214,10 @@ export function AddOrderModal({ isOpen, onClose, onOrderCreated }: AddOrderModal
       }
 
       toast.success(data.message || `Order created successfully!`);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("prajnaa_order_placed", { detail: data.order }));
+        window.dispatchEvent(new Event("storage"));
+      }
       onOrderCreated(data.order);
       onClose();
     } catch (err: any) {

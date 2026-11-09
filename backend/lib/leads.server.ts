@@ -20,6 +20,8 @@ import {
   WHOLESALE_STAGES,
   RETAIL_STAGES,
 } from "../../frontend/lib/types/leads.ts";
+import { db } from "../db.ts";
+import { crmOrders } from "../schema/crm.ts";
 
 export type {
   BusinessModel,
@@ -972,6 +974,33 @@ export class LeadsService {
 
     if (!globalThis.__globalCrmOrders) globalThis.__globalCrmOrders = [];
     globalThis.__globalCrmOrders.unshift(crmOrder);
+
+    // Persist into PostgreSQL crm_orders table
+    try {
+      db.insert(crmOrders)
+        .values({
+          id: orderNumber,
+          orderNumber,
+          customerName: crmOrder.customerName,
+          customerPhone: crmOrder.customerPhone,
+          customerEmail: crmOrder.customerEmail,
+          totalPaise: crmOrder.totalPaise,
+          subtotalPaise: crmOrder.subtotalPaise,
+          shippingPaise: 0,
+          discountPaise: crmOrder.discountPaise,
+          status: "Processing",
+          paymentStatus: crmOrder.paymentStatus,
+          paymentMethod: crmOrder.paymentMethod,
+          shippingAddressSnapshot: crmOrder.shippingAddressSnapshot,
+          items: crmOrder.items,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .onConflictDoNothing()
+        .catch((dbErr) => console.warn("[Leads CRM Sync] DB upsert warning:", dbErr));
+    } catch (dbErr) {
+      console.warn("[Leads CRM Sync] DB upsert warning:", dbErr);
+    }
 
     lead.activities.unshift({
       id: `act_${Date.now()}`,

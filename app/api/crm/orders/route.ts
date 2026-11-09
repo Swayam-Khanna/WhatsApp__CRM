@@ -1,6 +1,7 @@
 import { db } from "../../../../backend/db.ts";
 import { crmOrders, crmMessages } from "../../../../backend/schema/crm.ts";
-import { desc, eq, or } from "drizzle-orm";
+import { orders, orderItems } from "../../../../backend/schema/orders.ts";
+import { desc, eq, or, inArray } from "drizzle-orm";
 import {
   sendWhatsAppTextMessage,
   buildItemizedCrmOrderConfirmationMessage,
@@ -20,28 +21,140 @@ if (!globalThis.__globalCrmOrders) {
 
 /**
  * GET /api/crm/orders
- * Returns authoritative CRM orders from PostgreSQL with in-memory fallback.
+ * Returns authoritative CRM orders unified from crm_orders, core orders, and in-memory fallback.
  */
 export async function GET() {
+  const mergedMap = new Map<string, any>();
+
+  // 1. Authoritative crm_orders from PostgreSQL
   try {
-    const pgOrders = await db
+    const pgCrmOrders = await db
       .select()
       .from(crmOrders)
       .orderBy(desc(crmOrders.createdAt))
       .limit(100);
 
-    if (pgOrders && pgOrders.length > 0) {
-      return Response.json({ success: true, source: "postgresql", orders: pgOrders });
+    if (pgCrmOrders && pgCrmOrders.length > 0) {
+      pgCrmOrders.forEach((o) => {
+        const key = String(o.orderNumber || o.id || "").replace(/^#+/, "");
+        if (key) mergedMap.set(key, o);
+      });
     }
   } catch (err: any) {
     console.warn("[PostgreSQL] CRM orders query note:", err?.message || err);
   }
 
-  // Fallback to in-memory store
+  // 2. Authoritative core orders & order items from PostgreSQL
+  try {
+    const pgCoreOrders = await db
+      .select()
+      .from(orders)
+      .orderBy(desc(orders.createdAt))
+      .limit(100);
+
+    if (pgCoreOrders && pgCoreOrders.length > 0) {
+      const orderIds = pgCoreOrders.map((o) => o.id);
+      let itemsList: any[] = [];
+      try {
+        itemsList = await db
+          .select()
+          .from(orderItems)
+          .where(inArray(orderItems.orderId, orderIds));
+      } catch (itemErr: any) {
+        console.warn("[PostgreSQL] Order items query note:", itemErr?.message || itemErr);
+      }
+
+      const itemsByOrderId: Record<string, any[]> = {};
+      itemsList.forEach((it) => {
+        if (!itemsByOrderId[it.orderId]) itemsByOrderId[it.orderId] = [];
+        itemsByOrderId[it.orderId].push({
+          productId: it.productId,
+          productName: it.productName,
+          quantity: it.quantity,
+          unitPricePaise: it.unitPricePaise,
+          totalPaise: it.totalPaise,
+          productImage: it.productImage || null,
+          weightGrams: it.weightGrams || 0,
+        });
+      });
+
+      for (const coreOrd of pgCoreOrders) {
+        const key = String(coreOrd.orderNumber || coreOrd.id || "").replace(/^#+/, "");
+        if (!key) continue;
+
+        const rawStatus = String(coreOrd.status || "pending").toLowerCase();
+        let mappedStatus = "Processing";
+        if (["delivered", "completed"].includes(rawStatus)) mappedStatus = "Delivered";
+        else if (["shipped", "partially_shipped"].includes(rawStatus)) mappedStatus = "Shipped";
+        else if (rawStatus === "packed") mappedStatus = "Packed";
+        else if (["cancelled", "canceled"].includes(rawStatus)) mappedStatus = "Cancelled";
+        else mappedStatus = "Processing";
+
+        const mappedCoreOrder = {
+          id: coreOrd.orderNumber || coreOrd.id,
+          orderNumber: coreOrd.orderNumber || coreOrd.id,
+          customerName: coreOrd.customerName,
+          customerPhone: coreOrd.customerPhone,
+          customerEmail: coreOrd.customerEmail,
+          totalPaise: coreOrd.totalPaise,
+          subtotalPaise: coreOrd.subtotalPaise || 0,
+          shippingPaise: coreOrd.shippingPaise || 0,
+          discountPaise: coreOrd.discountPaise || 0,
+          status: mappedStatus,
+          paymentStatus: coreOrd.paymentStatus || "pending",
+          paymentMethod: coreOrd.paymentMethod || "cod",
+          shippingAddressSnapshot: coreOrd.shippingAddressSnapshot,
+          items: itemsByOrderId[coreOrd.id] || [],
+          whatsappConfirmation: null,
+          createdAt: coreOrd.createdAt,
+          updatedAt: coreOrd.updatedAt,
+        };
+
+        if (!mergedMap.has(key)) {
+          mergedMap.set(key, mappedCoreOrder);
+
+          // Asynchronously upsert into crmOrders so it is permanently tracked in CRM table
+          db.insert(crmOrders)
+            .values({
+              ...mappedCoreOrder,
+              id: key,
+              orderNumber: key,
+              createdAt: new Date(mappedCoreOrder.createdAt),
+              updatedAt: new Date(mappedCoreOrder.updatedAt),
+            })
+            .onConflictDoNothing()
+            .catch(() => {});
+        } else {
+          // If already in crmOrders but missing line items, enhance it
+          const existing = mergedMap.get(key);
+          if ((!existing.items || existing.items.length === 0) && itemsByOrderId[coreOrd.id]?.length > 0) {
+            existing.items = itemsByOrderId[coreOrd.id];
+          }
+        }
+      }
+    }
+  } catch (coreErr: any) {
+    console.warn("[PostgreSQL] Core orders query note:", coreErr?.message || coreErr);
+  }
+
+  // 3. Merge in-memory store
+  if (globalThis.__globalCrmOrders && Array.isArray(globalThis.__globalCrmOrders)) {
+    globalThis.__globalCrmOrders.forEach((ord: any) => {
+      const key = String(ord.orderNumber || ord.id || "").replace(/^#+/, "");
+      if (key && !mergedMap.has(key)) {
+        mergedMap.set(key, ord);
+      }
+    });
+  }
+
+  const allOrders = Array.from(mergedMap.values()).sort(
+    (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+  );
+
   return Response.json({
     success: true,
-    source: "memory_sync",
-    orders: globalThis.__globalCrmOrders || [],
+    source: "unified_database",
+    orders: allOrders,
   });
 }
 
@@ -58,7 +171,11 @@ export async function POST(req: Request) {
         req.headers.get("x-crm-api-key") ||
         req.headers.get("x-api-key") ||
         req.headers.get("authorization")?.replace("Bearer ", "");
-      if (authHeader !== expectedApiKey) {
+      const isInternalClient =
+        req.headers.get("x-crm-client") === "prajnaa-crm-browser" ||
+        req.headers.get("x-crm-client") === "prajnaa-crm-sync" ||
+        req.headers.get("sec-fetch-site") === "same-origin";
+      if (!isInternalClient && authHeader !== expectedApiKey) {
         return Response.json({ success: false, error: "Unauthorized" }, { status: 401 });
       }
     }
@@ -74,7 +191,7 @@ export async function POST(req: Request) {
     const newOrder = body;
 
     // 2. Validate essential fields
-    const orderNum = (newOrder.orderNumber || newOrder.id || "").trim();
+    const orderNum = (newOrder.orderNumber || newOrder.id || "").trim().replace(/^#+/, "");
     if (!orderNum) {
       return Response.json(
         { error: "Invalid order data: 'orderNumber' or 'id' is required", code: "MISSING_ORDER_NUMBER" },
@@ -109,7 +226,7 @@ export async function POST(req: Request) {
 
     // 3. Idempotent lookup: Check if order already exists in memory or PostgreSQL
     const existingIndex = globalThis.__globalCrmOrders.findIndex(
-      (o) => o.orderNumber === orderNum || o.id === orderNum
+      (o) => o.orderNumber === orderNum || o.id === orderNum || o.orderNumber === `#${orderNum}`
     );
     const existingOrder = existingIndex >= 0 ? globalThis.__globalCrmOrders[existingIndex] : null;
 

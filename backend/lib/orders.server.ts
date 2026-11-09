@@ -17,6 +17,7 @@ import {
   farmerProfiles,
 } from "../schema/index.ts";
 import { isOnlinePaymentsEnabled } from "./features.ts";
+import { syncOrderToWhatsAppCrm } from "./crm-sync.server.ts";
 
 export interface CreateOrderItemInput {
   productId: string;
@@ -781,6 +782,13 @@ export async function createOrderAtomic(params: CreateOrderParams) {
       shippingAddressSnapshot: params.shippingAddressSnapshot,
     });
     whatsappUrl = generateWhatsAppLink(adminWhatsAppPhone, message);
+  }
+
+  // 3G. Auto-sync order into WhatsApp CRM
+  try {
+    await syncOrderToWhatsAppCrm(finalOrder, calc.items);
+  } catch (crmSyncErr) {
+    console.warn("[OrderService] Auto-sync to WhatsApp CRM warning:", crmSyncErr);
   }
 
   return {

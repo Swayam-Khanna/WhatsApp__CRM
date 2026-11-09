@@ -72,6 +72,25 @@ export async function GET(req: Request) {
       if (orderData) break;
     }
 
+    if (isPaid && orderId) {
+      try {
+        const { db } = await import("../../../../../backend/db.ts");
+        const { orders } = await import("../../../../../backend/schema/orders.ts");
+        const { crmOrders } = await import("../../../../../backend/schema/crm.ts");
+        const { eq, or } = await import("drizzle-orm");
+        await db
+          .update(orders)
+          .set({ paymentStatus: "collected", status: "confirmed", updatedAt: new Date() })
+          .where(or(eq(orders.id, orderId), eq(orders.orderNumber, orderId)));
+        await db
+          .update(crmOrders)
+          .set({ paymentStatus: "paid", status: "Processing", updatedAt: new Date() })
+          .where(or(eq(crmOrders.id, orderId), eq(crmOrders.orderNumber, orderId)));
+      } catch (dbErr) {
+        console.warn("[Cashfree Verify] DB update note:", dbErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       orderId,
