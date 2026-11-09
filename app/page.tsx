@@ -6036,10 +6036,10 @@ export default function PrajnaaMasterCrmApp() {
                   </button>
                   <span className="text-[11px] font-semibold text-neutral-500">Customer Dossier</span>
                 </div>
-                <div className="flex items-center border-b border-neutral-200 px-4 shrink-0 text-xs font-semibold">
+                <div className="flex items-center border-b border-neutral-200 px-4 shrink-0 text-xs font-semibold overflow-x-auto no-scrollbar gap-1">
                   <button
                     onClick={() => setCustomerDrawerTab("customer")}
-                    className={`py-3.5 px-2 border-b-2 transition cursor-pointer ${
+                    className={`py-3.5 px-2 border-b-2 transition cursor-pointer whitespace-nowrap shrink-0 ${
                       customerDrawerTab === "customer" ? "border-emerald-600 text-emerald-800 font-bold" : "border-transparent text-neutral-500 hover:text-neutral-800"
                     }`}
                   >
@@ -6047,7 +6047,7 @@ export default function PrajnaaMasterCrmApp() {
                   </button>
                   <button
                     onClick={() => setCustomerDrawerTab("orders")}
-                    className={`py-3.5 px-2 border-b-2 transition cursor-pointer ${
+                    className={`py-3.5 px-2 border-b-2 transition cursor-pointer whitespace-nowrap shrink-0 ${
                       customerDrawerTab === "orders" ? "border-emerald-600 text-emerald-800 font-bold" : "border-transparent text-neutral-500 hover:text-neutral-800"
                     }`}
                   >
@@ -6055,7 +6055,7 @@ export default function PrajnaaMasterCrmApp() {
                   </button>
                   <button
                     onClick={() => setCustomerDrawerTab("notes")}
-                    className={`py-3.5 px-2 border-b-2 transition cursor-pointer ${
+                    className={`py-3.5 px-2 border-b-2 transition cursor-pointer whitespace-nowrap shrink-0 ${
                       customerDrawerTab === "notes" ? "border-emerald-600 text-emerald-800 font-bold" : "border-transparent text-neutral-500 hover:text-neutral-800"
                     }`}
                   >
@@ -6063,7 +6063,7 @@ export default function PrajnaaMasterCrmApp() {
                   </button>
                   <button
                     onClick={() => setCustomerDrawerTab("activity")}
-                    className={`py-3.5 px-2 border-b-2 transition cursor-pointer ${
+                    className={`py-3.5 px-2 border-b-2 transition cursor-pointer whitespace-nowrap shrink-0 ${
                       customerDrawerTab === "activity" ? "border-emerald-600 text-emerald-800 font-bold" : "border-transparent text-neutral-500 hover:text-neutral-800"
                     }`}
                   >
@@ -6108,22 +6108,22 @@ export default function PrajnaaMasterCrmApp() {
                           </span>
                         )}
 
-                        <div className="w-full mt-4 pt-3 border-t border-neutral-200/70 space-y-2 text-left text-xs">
-                          <div className="flex items-center justify-between">
-                            <span className="text-neutral-500">Email</span>
-                            <span className="font-medium text-neutral-800 truncate max-w-[170px]">{currentCustomer.email}</span>
+                        <div className="w-full mt-4 pt-3 border-t border-neutral-200/70 space-y-2.5 text-left text-xs">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-neutral-500 shrink-0">Email</span>
+                            <span className="font-medium text-neutral-800 text-right truncate max-w-[170px]" title={currentCustomer.email}>{currentCustomer.email}</span>
                           </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-neutral-500">Location</span>
-                            <span className="font-medium text-neutral-800">{currentCustomer.location}</span>
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="text-neutral-500 shrink-0 pt-0.5">Location</span>
+                            <span className="font-medium text-neutral-800 text-right leading-snug break-words max-w-[170px]">{currentCustomer.location}</span>
                           </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-neutral-500">Total Orders</span>
-                            <span className="font-medium text-neutral-800">{currentCustomer.totalOrders} orders</span>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-neutral-500 shrink-0">Total Orders</span>
+                            <span className="font-medium text-neutral-800 text-right">{currentCustomer.totalOrders} orders</span>
                           </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-neutral-500">Total Spent</span>
-                            <span className="font-bold text-neutral-900">₹{currentCustomer.totalSpent.toLocaleString("en-IN")}</span>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-neutral-500 shrink-0">Total Spent</span>
+                            <span className="font-bold text-neutral-900 text-right">₹{currentCustomer.totalSpent.toLocaleString("en-IN")}</span>
                           </div>
                         </div>
 
