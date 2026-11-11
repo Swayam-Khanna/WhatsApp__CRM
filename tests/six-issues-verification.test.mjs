@@ -127,3 +127,4 @@ describe("VERIFICATION FOR 6 CORE CRM ISSUES", () => {
     assert.equal(updatedTotal, 2, "Opening conversation c1 brings total unread count down to 2");
   });
 });
+
