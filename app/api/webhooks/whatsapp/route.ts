@@ -71,11 +71,17 @@ export async function POST(req: NextRequest) {
 
     // 1. Verify Meta signature (or permit authenticated internal dashboard webhook tests)
     if (!isInternalTest && !verifyWebhookSignature(rawBody, signature)) {
-      console.warn("[WhatsApp Webhook] Invalid signature rejected.");
+      console.error("[WhatsApp Webhook Security Alert] Invalid Meta signature rejected. Signature header:", signature, "Payload length:", rawBody?.length);
       return new Response("Invalid signature", { status: 401 });
     }
 
-    const payload = JSON.parse(rawBody);
+    let payload: any;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch (parseErr: any) {
+      console.error("[WhatsApp Webhook Malformed JSON Error]:", parseErr?.message || parseErr, "Body:", rawBody?.slice(0, 200));
+      return NextResponse.json({ error: "Malformed JSON payload" }, { status: 400 });
+    }
 
     // 2. Parse inbound messages and delivery receipts
     const { messages, statuses } = parseInboundWebhookPayload(payload);
@@ -212,8 +218,9 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
             or(ilike(crmMessages.from, `%${fromClean}%`), ilike(crmMessages.to, `%${fromClean}%`))
           );
       }
+      console.log(`[WhatsApp Inbound Ingested] Successfully saved message ID: ${inboundRecord.id} from ${inboundRecord.from}`);
     } catch (e: any) {
-      console.warn("[PostgreSQL] Failed to persist inbound msg:", e?.message || e);
+      console.error("[WhatsApp Webhook Ingestion Error] Failed to persist inbound message to PostgreSQL:", e?.message || e, { messageId: inboundRecord.id, from: inboundRecord.from });
     }
 
     // Automated customer bot reply if message is NOT from the store admin

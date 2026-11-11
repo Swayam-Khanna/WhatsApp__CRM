@@ -9,6 +9,7 @@ const seeds = "/assets/prod-seeds.jpg";
 export const products: Product[] = [
   {
     slug: "himalayan-dried-apricots",
+    sku: "PM-APR-500",
     name: "Himalayan Dried Apricots (Red)",
     category: "dry-fruits",
     farmerSlug: "ramesh-singh",
@@ -167,7 +168,7 @@ export const products: Product[] = [
   },
   {
     slug: "walnuts",
-    sku: "0028",
+    sku: "PM-WAL-250",
     name: "Himalayan Mountain Walnuts",
     category: "dry-fruits",
     farmerSlug: "ramesh-singh",
@@ -282,6 +283,7 @@ export const products: Product[] = [
   },
   {
     slug: "organic-almonds",
+    sku: "PM-ALM-500",
     name: "Mamra Almonds",
     category: "dry-fruits",
     farmerSlug: "ramesh-singh",
@@ -301,6 +303,7 @@ export const products: Product[] = [
   },
   {
     slug: "turmeric-powder",
+    sku: "PM-TUR-250",
     name: "Stone-Ground Turmeric",
     category: "spices",
     farmerSlug: "vikram-rao",
@@ -318,6 +321,7 @@ export const products: Product[] = [
   },
   {
     slug: "mango-pickle",
+    sku: "PM-PCK-400",
     name: "Heirloom Mango Pickle",
     category: "pickles",
     farmerSlug: "asha-patel",
@@ -335,6 +339,7 @@ export const products: Product[] = [
   },
   {
     slug: "pink-himalayan-salt",
+    sku: "PM-SLT-500",
     name: "Pink Himalayan Salt",
     category: "salts",
     farmerSlug: "vikram-rao",
@@ -350,6 +355,7 @@ export const products: Product[] = [
   },
   {
     slug: "garam-masala",
+    sku: "PM-MAS-200",
     name: "House Garam Masala",
     category: "masalas",
     farmerSlug: "asha-patel",
@@ -368,6 +374,7 @@ export const products: Product[] = [
   },
   {
     slug: "mixed-seeds",
+    sku: "PM-SED-500",
     name: "Five-Seed Mix",
     category: "seeds",
     farmerSlug: "lakshmi-devi",
@@ -388,6 +395,7 @@ const variants: Product[] = [
   {
     ...products[0],
     slug: "california-almonds",
+    sku: "PM-CAL-500",
     name: "California Almonds",
     price: 720,
     mrp: 850,
@@ -403,6 +411,7 @@ const variants: Product[] = [
   {
     ...products[1],
     slug: "chilli-powder",
+    sku: "PM-CHL-250",
     name: "Guntur Red Chilli",
     price: 220,
     weight: "250 g",
@@ -416,6 +425,7 @@ const variants: Product[] = [
   {
     ...products[2],
     slug: "lemon-pickle",
+    sku: "PM-LMN-400",
     name: "Salt-Cured Lemon Pickle",
     price: 320,
     weight: "400 g",
@@ -430,6 +440,7 @@ const variants: Product[] = [
   {
     ...products[3],
     slug: "black-salt",
+    sku: "PM-BSL-500",
     name: "Black Salt (Kala Namak)",
     image: salt,
     images: [salt],
@@ -445,6 +456,7 @@ const variants: Product[] = [
   {
     ...products[4],
     slug: "chai-masala",
+    sku: "PM-CHM-150",
     name: "Spiced Chai Masala",
     price: 260,
     weight: "150 g",
@@ -458,6 +470,7 @@ const variants: Product[] = [
   {
     ...products[5],
     slug: "chia-seeds",
+    sku: "PM-CHI-250",
     name: "Black Chia Seeds",
     price: 220,
     weight: "250 g",
@@ -471,14 +484,19 @@ const variants: Product[] = [
 
 export const allProducts: Product[] = [...products, ...variants];
 
-export const productBySlug = (slug: string) => {
-  if (!slug) return undefined;
-  const s = String(slug).toLowerCase().trim();
-  if (s === "0028" || s.includes("walnut")) {
-    const foundWalnut = allProducts.find((p) => p.slug === "walnuts" || p.sku === "0028");
+export const productBySlug = (identifier: string) => {
+  if (!identifier) return undefined;
+  const s = String(identifier).toLowerCase().trim();
+  if (s === "0028" || s === "pm-wal-250" || s.includes("walnut")) {
+    const foundWalnut = allProducts.find((p) => p.slug === "walnuts" || p.sku === "PM-WAL-250" || p.sku === "0028");
     if (foundWalnut) return foundWalnut;
   }
-  return allProducts.find((p) => p.slug === slug || p.sku === slug);
+  return allProducts.find(
+    (p) =>
+      p.slug.toLowerCase() === s ||
+      (p.sku && p.sku.toLowerCase() === s) ||
+      ((p as any).id && String((p as any).id).toLowerCase() === s)
+  );
 };
 export const productsByCategory = (slug: string) => allProducts.filter((p) => p.category === slug);
 export const productsByFarmer = (slug: string) => allProducts.filter((p) => p.farmerSlug === slug);

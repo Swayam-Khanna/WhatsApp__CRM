@@ -59,10 +59,11 @@ export function getWhatsAppIntegrationStatus() {
  * Validates Meta x-hub-signature-256 header.
  */
 export function verifyWebhookSignature(rawBody: string, signatureHeader?: string | null, customSecret?: string): boolean {
-  const secret = customSecret || process.env.WHATSAPP_APP_SECRET;
+  const secret = customSecret || process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET;
   if (!secret) return true; // In staging without app secret, permit verification
 
   if (!signatureHeader || !signatureHeader.startsWith("sha256=")) {
+    console.error("[WhatsApp Webhook Signature Verification Error] Missing or malformed x-hub-signature-256 header:", signatureHeader);
     return false;
   }
 
@@ -71,9 +72,17 @@ export function verifyWebhookSignature(rawBody: string, signatureHeader?: string
   try {
     const sigBuf = Buffer.from(signature, "hex");
     const hmacBuf = Buffer.from(hmac, "hex");
-    if (sigBuf.length !== hmacBuf.length) return false;
-    return crypto.timingSafeEqual(sigBuf, hmacBuf);
-  } catch {
+    if (sigBuf.length !== hmacBuf.length) {
+      console.error("[WhatsApp Webhook Signature Verification Error] Signature length mismatch");
+      return false;
+    }
+    const match = crypto.timingSafeEqual(sigBuf, hmacBuf);
+    if (!match) {
+      console.error("[WhatsApp Webhook Signature Verification Error] Signature hash mismatch against configured secret");
+    }
+    return match;
+  } catch (err: any) {
+    console.error("[WhatsApp Webhook Signature Verification Error] Exception during signature check:", err?.message || err);
     return false;
   }
 }

@@ -75,19 +75,47 @@ export async function GET(req: Request) {
     if (isPaid && orderId) {
       try {
         const { db } = await import("../../../../../backend/db.ts");
-        const { orders } = await import("../../../../../backend/schema/orders.ts");
+        const { orders, orderItems } = await import("../../../../../backend/schema/orders.ts");
         const { crmOrders } = await import("../../../../../backend/schema/crm.ts");
         const { eq, or } = await import("drizzle-orm");
+
         await db
           .update(orders)
           .set({ paymentStatus: "collected", status: "confirmed", updatedAt: new Date() })
           .where(or(eq(orders.id, orderId), eq(orders.orderNumber, orderId)));
+
         await db
           .update(crmOrders)
           .set({ paymentStatus: "paid", status: "Processing", updatedAt: new Date() })
           .where(or(eq(crmOrders.id, orderId), eq(crmOrders.orderNumber, orderId)));
-      } catch (dbErr) {
-        console.warn("[Cashfree Verify] DB update note:", dbErr);
+
+        // Decrement stock for the confirmed order
+        try {
+          const { decrementOrderStockAtomic } = await import("../../../../../backend/lib/orders.server.ts");
+          const itemsFromDb = await db
+            .select()
+            .from(orderItems)
+            .where(or(eq(orderItems.orderId, orderId)));
+
+          if (itemsFromDb && itemsFromDb.length > 0) {
+            await decrementOrderStockAtomic(
+              itemsFromDb.map((it: any) => ({
+                productId: it.productId,
+                productSlug: it.productSlug,
+                slug: it.productSlug,
+                productName: it.productName,
+                quantity: it.quantity,
+                weightGrams: it.weightGrams || 500,
+              })),
+              String(orderId)
+            );
+            console.log(`[Stock Decrement Success] Cashfree Order #${orderId}: Stock decremented successfully.`);
+          }
+        } catch (stockErr: any) {
+          console.error(`[Stock Sync Failure] Cashfree Order #${orderId} stock decrement error:`, stockErr?.message || stockErr);
+        }
+      } catch (dbErr: any) {
+        console.error("[Cashfree Verify Error] DB update error:", dbErr?.message || dbErr);
       }
     }
 

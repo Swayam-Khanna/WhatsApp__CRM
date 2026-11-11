@@ -17,6 +17,7 @@ export interface CrmShippingAddress {
 
 export interface CrmOrderItem {
   productId?: string;
+  sku?: string;
   productName: string;
   quantity: number;
   unitPricePaise: number;
@@ -128,6 +129,7 @@ export function buildCrmOrderPayload(order: any, fallbackItems: any[] = []): Crm
 
     return {
       productId: it.productId || it.productSlug || it.slug,
+      sku: it.sku || it.productSku || undefined,
       productName: it.productName || it.name || "Prajnaa Himalayan Produce",
       quantity: qty,
       unitPricePaise,
@@ -372,6 +374,11 @@ export async function syncOrderToWhatsAppCrm(
     // 4xx Validation error from CRM: mark permanent failure
     if (response.status >= 400 && response.status < 500) {
       const errorMsg = responseData?.error || `CRM rejected payload with HTTP ${response.status}`;
+      console.error(`[CRM Order Sync Failed - 4xx Client Error] Order #${orderNumber}:`, {
+        status: response.status,
+        error: errorMsg,
+        payload,
+      });
       await recordOutboxEntry({
         id: existingOutbox?.id || outboxId,
         orderId: payload.id,
@@ -393,6 +400,11 @@ export async function syncOrderToWhatsAppCrm(
 
     // 5xx Server error: mark retry pending
     const serverError = responseData?.error || `CRM server returned HTTP ${response.status}`;
+    console.error(`[CRM Order Sync Failed - 5xx Server Error] Order #${orderNumber}:`, {
+      status: response.status,
+      error: serverError,
+      payload,
+    });
     await recordOutboxEntry({
       id: existingOutbox?.id || outboxId,
       orderId: payload.id,
@@ -414,6 +426,12 @@ export async function syncOrderToWhatsAppCrm(
     const errorMsg = err.name === "AbortError"
       ? `CRM request timed out after ${timeoutMs}ms`
       : err.message || "Network error communicating with WhatsApp CRM";
+
+    console.error(`[CRM Order Sync Network/Timeout Exception] Order #${orderNumber}:`, {
+      error: errorMsg,
+      name: err.name,
+      stack: err.stack,
+    });
 
     await recordOutboxEntry({
       id: existingOutbox?.id || outboxId,
