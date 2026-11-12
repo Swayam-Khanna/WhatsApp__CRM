@@ -51,7 +51,7 @@ declare global {
   var postgresClientGlobal: undefined | postgres.Sql;
 }
 
-const client =
+export const client =
   globalThis.postgresClientGlobal ?? createPostgresClient();
 
 if (process.env.NODE_ENV !== "production") {
