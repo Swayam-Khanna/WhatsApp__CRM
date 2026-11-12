@@ -7,7 +7,10 @@ export interface WhatsAppMessage {
   createdAt?: string;
   status: "sent" | "delivered" | "read" | "failed";
   mediaUrl?: string;
-  mediaType?: "image" | "document" | "audio";
+  mediaType?: "image" | "document" | "audio" | "video";
+  mediaId?: string;
+  mimeType?: string;
+  filename?: string;
   templateName?: string;
 }
 
@@ -867,6 +870,11 @@ class WhatsAppCrmService {
             text: msg.text || "",
             timestamp: timeStr,
             status: msg.status || "delivered",
+            mediaId: msg.mediaId,
+            mediaUrl: msg.mediaUrl,
+            mediaType: msg.type || (msg.mediaId ? "image" : undefined),
+            mimeType: msg.mimeType,
+            filename: msg.filename,
           });
           localStorage.setItem(this.getStorageKey(`messages_${conv.id}`), JSON.stringify(convMessages));
           updatedCount++;

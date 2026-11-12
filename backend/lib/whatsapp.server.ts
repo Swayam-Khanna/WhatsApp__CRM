@@ -180,6 +180,141 @@ export async function sendWhatsAppTextMessage(params: {
 }
 
 /**
+ * Uploads media buffer to Meta Cloud API and returns media ID.
+ */
+export async function uploadWhatsAppMedia(params: {
+  buffer: Buffer;
+  filename: string;
+  mimeType: string;
+}): Promise<{ success: boolean; mediaId?: string; error?: string }> {
+  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || "1395630476965721";
+  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  if (!phoneId || !token) {
+    return { success: false, error: "WhatsApp credentials not configured" };
+  }
+
+  try {
+    const formData = new FormData();
+    const blob = new Blob([new Uint8Array(params.buffer)], { type: params.mimeType });
+    formData.append("file", blob, params.filename);
+    formData.append("type", params.mimeType);
+    formData.append("messaging_product", "whatsapp");
+
+    const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/media`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, error: data.error?.message || "Failed to upload media to Meta" };
+    }
+    return { success: true, mediaId: data.id };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Error uploading media" };
+  }
+}
+
+/**
+ * Sends outbound WhatsApp media message (image, video, audio, document)
+ */
+export async function sendWhatsAppMediaMessage(params: {
+  to: string;
+  type: "image" | "video" | "document" | "audio";
+  mediaId?: string;
+  mediaUrl?: string;
+  filename?: string;
+  caption?: string;
+}): Promise<WhatsAppMessageResult> {
+  const cleanTo = params.to.replace(/\D/g, "");
+  const formattedTo = cleanTo.length === 10 ? `91${cleanTo}` : cleanTo;
+  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || "1395630476965721";
+  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  const whatsappUrl = `https://wa.me/${formattedTo}`;
+
+  if (phoneId && token) {
+    try {
+      const mediaObject: Record<string, any> = {};
+      if (params.mediaId) {
+        mediaObject.id = params.mediaId;
+      } else if (params.mediaUrl) {
+        mediaObject.link = params.mediaUrl;
+      } else {
+        return {
+          success: false,
+          recipientPhone: formattedTo,
+          mode: "cloud_api",
+          error: "Either mediaId or mediaUrl is required",
+        };
+      }
+
+      if (params.caption && params.type !== "audio") {
+        mediaObject.caption = params.caption;
+      }
+      if (params.filename && params.type === "document") {
+        mediaObject.filename = params.filename;
+      }
+
+      const payload = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: formattedTo,
+        type: params.type,
+        [params.type]: mediaObject,
+      };
+
+      const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        const errorMsg = data.error?.error_data?.details || data.error?.message || "WhatsApp Media API request failed";
+        return {
+          success: false,
+          recipientPhone: formattedTo,
+          mode: "cloud_api",
+          error: errorMsg,
+          whatsappUrl,
+        };
+      }
+
+      return {
+        success: true,
+        messageId: data.messages?.[0]?.id || `wamid_${Date.now()}`,
+        recipientPhone: formattedTo,
+        mode: "cloud_api",
+        whatsappUrl,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        recipientPhone: formattedTo,
+        mode: "cloud_api",
+        error: err.message || "Failed to dispatch media message",
+        whatsappUrl,
+      };
+    }
+  }
+
+  return {
+    success: true,
+    messageId: `wamid_sim_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
+    recipientPhone: formattedTo,
+    mode: "direct_link_fallback",
+    whatsappUrl,
+  };
+}
+
+/**
  * Builds standard Prajnaa Market Order Confirmation Message.
  */
 export function buildOfficialOrderConfirmationMessage(order: {

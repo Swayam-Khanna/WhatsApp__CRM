@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import {
   sendWhatsAppTextMessage,
+  sendWhatsAppMediaMessage,
   getWhatsAppIntegrationStatus,
 } from "../../../../backend/lib/whatsapp.server.ts";
 
@@ -92,10 +93,22 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { to, text, customerId, orderNumber, customerName, sender = "business" } = body;
+    const {
+      to,
+      text = "",
+      customerId,
+      orderNumber,
+      customerName,
+      sender = "business",
+      type = "text",
+      mediaUrl,
+      mediaId,
+      mimeType,
+      filename,
+    } = body;
 
-    if (!to || !text) {
-      return NextResponse.json({ error: "Recipient phone 'to' and message 'text' are required" }, { status: 400 });
+    if (!to || (!text && !mediaUrl && !mediaId)) {
+      return NextResponse.json({ error: "Recipient phone 'to' and message content are required" }, { status: 400 });
     }
 
     if (!globalThis.__globalWhatsAppFeed) {
@@ -226,15 +239,33 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const result = await sendWhatsAppTextMessage({ to, text });
+    let result: any;
+    const isMedia = type && type !== "text" && (mediaUrl || mediaId);
+    if (isMedia) {
+      result = await sendWhatsAppMediaMessage({
+        to,
+        type: type as any,
+        mediaId,
+        mediaUrl,
+        filename,
+        caption: text,
+      });
+    } else {
+      result = await sendWhatsAppTextMessage({ to, text });
+    }
 
     const messageRecord = {
       id: result.messageId || `msg_${Date.now()}`,
       direction: "outbound",
       sender: "business",
       from: process.env.ADMIN_WHATSAPP_NUMBER || "918091265690",
-      to: result.recipientPhone,
+      to: result.recipientPhone || cleanTo,
       text,
+      type: type || "text",
+      mediaId: mediaId || null,
+      mediaUrl: mediaUrl || null,
+      mimeType: mimeType || null,
+      filename: filename || null,
       timestamp: new Date().toISOString(),
       status: "sent",
       customerId,

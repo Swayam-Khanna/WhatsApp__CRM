@@ -32,6 +32,7 @@ import {
   Edit3,
   Filter,
   Download,
+  FileText,
   Plus,
   QrCode,
   MapPin,
@@ -88,6 +89,10 @@ interface Message {
   senderName?: string;
   date?: string;
   type?: string;
+  mediaId?: string;
+  mediaUrl?: string;
+  mimeType?: string;
+  filename?: string;
 }
 
 // Client-side automated reply generator with multi-step unknown sender greeting, name capture & Himalayan catalog recommendations
@@ -877,6 +882,37 @@ export default function PrajnaaMasterCrmApp() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const notifiedOrdersRef = useRef<Set<string>>(new Set());
 
+  // Media lightbox & upload state
+  const [selectedLightboxMedia, setSelectedLightboxMedia] = useState<{ url: string; type?: string; title?: string } | null>(null);
+  const [selectedUploadFile, setSelectedUploadFile] = useState<File | null>(null);
+  const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
+  const [isUploadingMedia, setIsUploadingMedia] = useState<boolean>(false);
+  const mediaFileInputRef = useRef<HTMLInputElement | null>(null);
+  const docFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleSelectMediaFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSelectedUploadFile(file);
+    if (file.type.startsWith("image/") || file.type.startsWith("video/")) {
+      const url = URL.createObjectURL(file);
+      setUploadPreviewUrl(url);
+    } else {
+      setUploadPreviewUrl(null);
+    }
+    setShowAttachmentMenu(false);
+  };
+
+  const handleClearSelectedFile = () => {
+    if (uploadPreviewUrl) {
+      URL.revokeObjectURL(uploadPreviewUrl);
+    }
+    setSelectedUploadFile(null);
+    setUploadPreviewUrl(null);
+    if (mediaFileInputRef.current) mediaFileInputRef.current.value = "";
+    if (docFileInputRef.current) docFileInputRef.current.value = "";
+  };
+
   const playOrderChime = () => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -1608,6 +1644,11 @@ export default function PrajnaaMasterCrmApp() {
                     time: timeStr,
                     status: (dbM.status as any) || "delivered",
                     isAutomated: Boolean(dbM.isAutomated),
+                    type: dbM.type || (dbM.mediaId ? "image" : "text"),
+                    mediaId: dbM.mediaId,
+                    mediaUrl: dbM.mediaUrl,
+                    mimeType: dbM.mimeType,
+                    filename: dbM.filename,
                   });
                 }
               });
@@ -2358,9 +2399,70 @@ export default function PrajnaaMasterCrmApp() {
     setShowSimulateCustomerMenu(false);
   };
 
-  // Handle Send Text Message via Official WhatsApp API
+  // Handle Send Text & Media Message via Official WhatsApp API
   const handleSendMessage = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+
+    // Handle outbound media sending (photo, video, document)
+    if (selectedUploadFile) {
+      const fileToSend = selectedUploadFile;
+      const captionText = inputMessage.trim();
+      const previewSrc = uploadPreviewUrl;
+      handleClearSelectedFile();
+      setInputMessage("");
+
+      let mediaType: "image" | "video" | "document" | "audio" = "document";
+      if (fileToSend.type.startsWith("image/")) mediaType = "image";
+      else if (fileToSend.type.startsWith("video/")) mediaType = "video";
+      else if (fileToSend.type.startsWith("audio/")) mediaType = "audio";
+
+      const optimisticMsg: Message = {
+        id: `msg_media_${Date.now()}`,
+        sender: "business",
+        text: captionText || `[${mediaType.toUpperCase()}: ${fileToSend.name}]`,
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        status: "sent",
+        type: mediaType,
+        mediaUrl: previewSrc || undefined,
+        filename: fileToSend.name,
+      };
+
+      setMessagesMap((prev) => ({
+        ...prev,
+        [selectedCustomerId]: [...(prev[selectedCustomerId] || []), optimisticMsg],
+      }));
+
+      if (currentCustomer?.phone) {
+        setIsUploadingMedia(true);
+        const formData = new FormData();
+        formData.append("file", fileToSend);
+        formData.append("to", currentCustomer.phone);
+        formData.append("caption", captionText);
+        formData.append("customerId", selectedCustomerId);
+        formData.append("orderNumber", currentCustomer.latestOrder?.orderNumber || "");
+
+        fetch("/api/crm/messages/upload", {
+          method: "POST",
+          body: formData,
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            setIsUploadingMedia(false);
+            if (data && data.success) {
+              toast.success(`${mediaType.toUpperCase()} sent to WhatsApp!`);
+            } else {
+              toast.error(data?.error || "Failed to dispatch media to WhatsApp");
+            }
+          })
+          .catch((err) => {
+            setIsUploadingMedia(false);
+            console.error("Media upload error:", err);
+            toast.error("Network error uploading media");
+          });
+      }
+      return;
+    }
+
     if (!inputMessage.trim()) return;
 
     // If staff is testing in Customer Mode, dispatch query and trigger instant auto-reply
@@ -5488,6 +5590,12 @@ export default function PrajnaaMasterCrmApp() {
                     const isBusiness = msg.sender === "business";
 
                     if (!msg.isQr) {
+                      const isImage = msg.type === "image" || (msg.mimeType && msg.mimeType.startsWith("image/"));
+                      const isVideo = msg.type === "video" || (msg.mimeType && msg.mimeType.startsWith("video/"));
+                      const isAudio = msg.type === "audio" || msg.type === "voice" || (msg.mimeType && msg.mimeType.startsWith("audio/"));
+                      const isDoc = msg.type === "document" || (msg.mimeType && (msg.mimeType.includes("pdf") || msg.mimeType.includes("document") || msg.mimeType.includes("sheet") || msg.mimeType.includes("text")));
+                      const mediaSrc = msg.mediaUrl || (msg.mediaId ? `/api/whatsapp/media/${msg.mediaId}` : "");
+
                       return (
                         <div key={msg.id} className={`flex ${isBusiness ? "justify-end" : "justify-start"}`}>
                           <div
@@ -5501,7 +5609,59 @@ export default function PrajnaaMasterCrmApp() {
                                 <span>🤖 Automated Response • Instant</span>
                               </div>
                             )}
-                            <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+
+                            {/* Image Attachment Preview */}
+                            {isImage && mediaSrc && (
+                              <div className="rounded-xl overflow-hidden mb-1.5 border border-black/10 shadow-xs max-w-[280px]">
+                                <img
+                                  src={mediaSrc}
+                                  alt={msg.text || "WhatsApp Image"}
+                                  className="w-full h-auto max-h-72 object-cover cursor-pointer hover:opacity-95 transition bg-neutral-100"
+                                  onClick={() => setSelectedLightboxMedia({ url: mediaSrc, type: "image", title: msg.text || "Photo" })}
+                                />
+                              </div>
+                            )}
+
+                            {/* Video Attachment Preview */}
+                            {isVideo && mediaSrc && (
+                              <div className="rounded-xl overflow-hidden mb-1.5 border border-black/10 max-w-[280px]">
+                                <video
+                                  src={mediaSrc}
+                                  controls
+                                  className="w-full h-auto max-h-72 rounded-lg bg-black"
+                                />
+                              </div>
+                            )}
+
+                            {/* Audio / Voice Note */}
+                            {isAudio && mediaSrc && (
+                              <div className="mb-1.5 max-w-[280px]">
+                                <audio src={mediaSrc} controls className="w-full h-9" />
+                              </div>
+                            )}
+
+                            {/* Document Preview */}
+                            {isDoc && mediaSrc && (
+                              <a
+                                href={mediaSrc}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                download
+                                className="flex items-center gap-2.5 p-2.5 bg-black/5 hover:bg-black/10 rounded-xl transition mb-1 text-xs"
+                              >
+                                <FileText className="h-5 w-5 text-emerald-600 shrink-0" />
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-semibold truncate">{msg.filename || msg.text || "Document Attachment"}</p>
+                                  <span className="text-[10px] text-neutral-500">Click to view / download</span>
+                                </div>
+                                <Download className="h-4 w-4 text-neutral-500 shrink-0" />
+                              </a>
+                            )}
+
+                            {(!isImage && !isVideo && !isDoc) || (msg.text && !msg.text.startsWith("[Image Attachment]") && !msg.text.startsWith("[Video Attachment]")) ? (
+                              <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+                            ) : null}
+
                             <div className="flex items-center justify-end gap-1 text-[9px] text-neutral-500 pt-0.5">
                               <span>{msg.time}</span>
                               {isBusiness && <CheckCheck className="h-3 w-3 text-sky-500" />}
@@ -5879,6 +6039,55 @@ export default function PrajnaaMasterCrmApp() {
                   </div>
                 )}
 
+                {/* File Attachment Upload Preview Banner */}
+                {selectedUploadFile && (
+                  <div className="px-3.5 py-2 bg-emerald-50 border-t border-emerald-200 flex items-center justify-between text-xs animate-in fade-in duration-150">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {uploadPreviewUrl && (selectedUploadFile.type.startsWith("image/") || selectedUploadFile.type.startsWith("video/")) ? (
+                        selectedUploadFile.type.startsWith("image/") ? (
+                          <img src={uploadPreviewUrl} alt="Preview" className="h-10 w-10 object-cover rounded-lg border border-emerald-300 shadow-2xs" />
+                        ) : (
+                          <video src={uploadPreviewUrl} className="h-10 w-10 object-cover rounded-lg border border-emerald-300 bg-black" />
+                        )
+                      ) : (
+                        <div className="h-10 w-10 bg-emerald-200/80 rounded-lg flex items-center justify-center font-bold text-emerald-900 text-lg">
+                          📄
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="font-bold truncate text-emerald-950 max-w-[220px]">{selectedUploadFile.name}</p>
+                        <span className="text-[10px] text-emerald-700">
+                          {(selectedUploadFile.size / 1024).toFixed(1)} KB • Ready to send with caption
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleClearSelectedFile}
+                      className="p-1 hover:bg-emerald-200/70 rounded-full text-emerald-800 transition cursor-pointer"
+                      title="Remove attachment"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Hidden File Inputs */}
+                <input
+                  type="file"
+                  ref={mediaFileInputRef}
+                  onChange={handleSelectMediaFile}
+                  accept="image/*,video/*"
+                  className="hidden"
+                />
+                <input
+                  type="file"
+                  ref={docFileInputRef}
+                  onChange={handleSelectMediaFile}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.txt"
+                  className="hidden"
+                />
+
                 {/* Chat Bottom Input Bar */}
                 <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-neutral-200/80 flex items-center gap-2 shrink-0">
                   {/* Sender Mode Toggle */}
@@ -5945,7 +6154,9 @@ export default function PrajnaaMasterCrmApp() {
                   <input
                     type="text"
                     placeholder={
-                      chatSenderMode === "customer"
+                      selectedUploadFile
+                        ? "Add an optional caption for your file..."
+                        : chatSenderMode === "customer"
                         ? `Ask anything as ${currentCustomer?.name || "Customer"} (Auto-reply triggers instantly)...`
                         : "Type a message as Store..."
                     }
@@ -5967,13 +6178,36 @@ export default function PrajnaaMasterCrmApp() {
                       className={`p-2 rounded-xl transition cursor-pointer ${
                         showAttachmentMenu ? "bg-emerald-100 text-emerald-800" : "text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100"
                       }`}
-                      title="Attach Quick Items"
+                      title="Attach Media & Quick Items"
                     >
                       <Paperclip className="h-5 w-5" />
                     </button>
 
                     {showAttachmentMenu && (
-                      <div className="absolute bottom-full right-0 mb-2 w-60 bg-white dark:bg-slate-900 border border-neutral-200 dark:border-slate-800 rounded-2xl shadow-xl p-1.5 z-50 text-xs space-y-1">
+                      <div className="absolute bottom-full right-0 mb-2 w-64 bg-white dark:bg-slate-900 border border-neutral-200 dark:border-slate-800 rounded-2xl shadow-xl p-1.5 z-50 text-xs space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            mediaFileInputRef.current?.click();
+                            setShowAttachmentMenu(false);
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-xl hover:bg-emerald-50 text-neutral-900 font-semibold flex items-center gap-2.5 cursor-pointer transition"
+                        >
+                          <span className="text-base">📷</span>
+                          <span>Send Photo or Video</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            docFileInputRef.current?.click();
+                            setShowAttachmentMenu(false);
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-xl hover:bg-emerald-50 text-neutral-900 font-semibold flex items-center gap-2.5 cursor-pointer transition"
+                        >
+                          <span className="text-base">📄</span>
+                          <span>Send Document / PDF</span>
+                        </button>
+                        <div className="border-t border-neutral-100 my-1" />
                         <button
                           type="button"
                           onClick={() => {
@@ -6013,16 +6247,50 @@ export default function PrajnaaMasterCrmApp() {
                   </div>
                   <button
                     type="submit"
-                    className={`h-9 w-9 rounded-full flex items-center justify-center shadow-md transition cursor-pointer shrink-0 ${
+                    disabled={isUploadingMedia || (!inputMessage.trim() && !selectedUploadFile)}
+                    className={`h-9 w-9 rounded-full flex items-center justify-center shadow-md transition cursor-pointer shrink-0 disabled:opacity-40 ${
                       chatSenderMode === "customer"
                         ? "bg-amber-600 hover:bg-amber-700 text-white"
                         : "bg-[#0A2E22] hover:bg-[#0E3D2E] text-[#E8A317]"
                     }`}
-                    title={chatSenderMode === "customer" ? "Send customer question" : "Send message"}
+                    title={selectedUploadFile ? "Send file to WhatsApp" : chatSenderMode === "customer" ? "Send customer question" : "Send message"}
                   >
-                    <Send className="h-4 w-4 ml-0.5 text-white" />
+                    {isUploadingMedia ? (
+                      <RefreshCw className="h-4 w-4 animate-spin text-white" />
+                    ) : (
+                      <Send className="h-4 w-4 ml-0.5 text-white" />
+                    )}
                   </button>
                 </form>
+
+                {/* Lightbox Modal for Photo / Video Preview */}
+                {selectedLightboxMedia && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+                    onClick={() => setSelectedLightboxMedia(null)}
+                  >
+                    <div className="relative max-w-4xl max-h-[92vh] flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedLightboxMedia(null)}
+                        className="absolute -top-10 right-0 text-white/80 hover:text-white p-1.5 rounded-full hover:bg-white/10 transition cursor-pointer"
+                        title="Close preview"
+                      >
+                        <X className="h-6 w-6" />
+                      </button>
+                      <img
+                        src={selectedLightboxMedia.url}
+                        alt="WhatsApp Media Preview"
+                        className="max-h-[82vh] w-auto rounded-2xl object-contain shadow-2xl border border-white/10 bg-neutral-900"
+                      />
+                      {selectedLightboxMedia.title && selectedLightboxMedia.title !== "Photo" && (
+                        <p className="text-white text-xs text-center mt-3 bg-black/60 backdrop-blur-xs px-4 py-1.5 rounded-full max-w-lg">
+                          {selectedLightboxMedia.title}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* COLUMN 3: Customer Details & Order Context */}

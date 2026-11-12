@@ -25,6 +25,9 @@ import {
   Info,
   RefreshCw,
   TrendingUp,
+  Paperclip,
+  Download,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -45,8 +48,56 @@ export default function WhatsAppCrmInboxPage() {
   const [filterTab, setFilterTab] = useState<"all" | "unread" | "pending_payment" | "packed">("all");
   const [copiedTracking, setCopiedTracking] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [selectedLightboxMedia, setSelectedLightboxMedia] = useState<{ url: string; type?: string; title?: string } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedConv || isSending) return;
+    setIsSending(true);
+    const toastId = toast.loading(`Uploading ${file.name} to WhatsApp...`);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("to", selectedConv.customerPhone);
+      formData.append("customerId", selectedConv.id);
+      formData.append("orderNumber", selectedConv.orderNumber || "");
+
+      const res = await fetch("/api/crm/messages/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (data.success && data.messageRecord) {
+        toast.success(`${file.name} sent to WhatsApp!`, { id: toastId });
+        const newMsg: WhatsAppMessage = {
+          id: data.messageRecord.id,
+          conversationId: selectedConv.id,
+          sender: "agent",
+          text: data.messageRecord.text,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          status: "sent",
+          mediaId: data.messageRecord.mediaId,
+          mediaUrl: data.messageRecord.mediaUrl,
+          mediaType: data.messageRecord.type,
+          filename: file.name,
+        };
+        setMessages((prev) => [...prev, newMsg]);
+        setConversations(whatsappCrmService.getConversations());
+      } else {
+        toast.error(data.error || "Failed to send media", { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Network error", { id: toastId });
+    } finally {
+      setIsSending(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   // Load conversations on mount
   useEffect(() => {
@@ -379,19 +430,78 @@ export default function WhatsAppCrmInboxPage() {
                 );
               }
 
+              const isImage = msg.mediaType === "image" || (msg.mimeType && msg.mimeType.startsWith("image/"));
+              const isVideo = msg.mediaType === "video" || (msg.mimeType && msg.mimeType.startsWith("video/"));
+              const isAudio = msg.mediaType === "audio" || (msg.mimeType && msg.mimeType.startsWith("audio/"));
+              const isDoc = msg.mediaType === "document" || (msg.mimeType && (msg.mimeType.includes("pdf") || msg.mimeType.includes("document") || msg.mimeType.includes("sheet") || msg.mimeType.includes("text")));
+              const mediaSrc = msg.mediaUrl || (msg.mediaId ? `/api/whatsapp/media/${msg.mediaId}` : "");
+
               return (
                 <div
                   key={msg.id}
                   className={`flex ${isAgent ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[82%] rounded-2xl p-3 text-xs shadow-2xs space-y-1 ${
+                    className={`max-w-[82%] rounded-2xl p-3 text-xs shadow-2xs space-y-1.5 ${
                       isAgent
                         ? "bg-[#0F3D2E] text-white rounded-br-xs"
                         : "bg-card border border-border text-foreground rounded-bl-xs"
                     }`}
                   >
-                    <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+                    {/* Image Attachment Preview */}
+                    {isImage && mediaSrc && (
+                      <div className="rounded-xl overflow-hidden mb-1 border border-black/10 dark:border-white/10 shadow-xs max-w-[280px]">
+                        <img
+                          src={mediaSrc}
+                          alt={msg.text || "WhatsApp Image"}
+                          className="w-full h-auto max-h-72 object-cover cursor-pointer hover:opacity-95 transition bg-neutral-900/5"
+                          onClick={() => setSelectedLightboxMedia({ url: mediaSrc, type: "image", title: msg.text || "Photo" })}
+                        />
+                      </div>
+                    )}
+
+                    {/* Video Attachment Preview */}
+                    {isVideo && mediaSrc && (
+                      <div className="rounded-xl overflow-hidden mb-1 border border-black/10 dark:border-white/10 max-w-[280px]">
+                        <video
+                          src={mediaSrc}
+                          controls
+                          className="w-full h-auto max-h-72 rounded-lg bg-black"
+                        />
+                      </div>
+                    )}
+
+                    {/* Audio / Voice Note */}
+                    {isAudio && mediaSrc && (
+                      <div className="mb-1 max-w-[280px]">
+                        <audio src={mediaSrc} controls className="w-full h-9" />
+                      </div>
+                    )}
+
+                    {/* Document Preview */}
+                    {isDoc && mediaSrc && (
+                      <a
+                        href={mediaSrc}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download
+                        className={`flex items-center gap-2.5 p-2 rounded-xl transition mb-1 text-xs ${
+                          isAgent ? "bg-white/10 hover:bg-white/15 text-white" : "bg-secondary hover:bg-secondary/80 text-foreground"
+                        }`}
+                      >
+                        <FileText className="h-5 w-5 text-emerald-500 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold truncate">{msg.filename || msg.text || "Document Attachment"}</p>
+                          <span className="text-[10px] opacity-70">Click to view / download</span>
+                        </div>
+                        <Download className="h-4 w-4 opacity-70 shrink-0" />
+                      </a>
+                    )}
+
+                    {(!isImage && !isVideo && !isDoc) || (msg.text && !msg.text.startsWith("[Image Attachment]") && !msg.text.startsWith("[Video Attachment]")) ? (
+                      <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+                    ) : null}
+
                     <div
                       className={`flex items-center justify-end gap-1 text-[10px] ${
                         isAgent ? "text-emerald-200/80" : "text-muted-foreground"
@@ -455,6 +565,22 @@ export default function WhatsAppCrmInboxPage() {
           {/* Message Input Form */}
           <form onSubmit={handleSendMessage} className="p-3 border-t border-border bg-card flex items-center gap-2">
             <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleUploadFile}
+              className="hidden"
+              accept="image/*,video/*,audio/*,application/pdf"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isSending}
+              title="Attach photo, video or document"
+              className="h-8 w-8 rounded-full border border-border bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground grid place-items-center transition cursor-pointer shrink-0"
+            >
+              <Paperclip className="h-4 w-4" />
+            </button>
+            <input
               type="text"
               placeholder="Type WhatsApp reply to customer..."
               value={inputMessage}
@@ -463,7 +589,7 @@ export default function WhatsAppCrmInboxPage() {
             />
             <button
               type="submit"
-              disabled={!inputMessage.trim()}
+              disabled={!inputMessage.trim() || isSending}
               className="h-8 w-8 rounded-full bg-primary text-primary-foreground grid place-items-center transition hover:opacity-90 disabled:opacity-40 cursor-pointer shrink-0"
             >
               <Send className="h-3.5 w-3.5" />
@@ -615,6 +741,35 @@ export default function WhatsAppCrmInboxPage() {
           )}
         </div>
       </div>
+
+      {/* Lightbox Modal for Photo / Video Preview */}
+      {selectedLightboxMedia && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+          onClick={() => setSelectedLightboxMedia(null)}
+        >
+          <div className="relative max-w-4xl max-h-[92vh] flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setSelectedLightboxMedia(null)}
+              className="absolute -top-10 right-0 text-white/80 hover:text-white p-1.5 rounded-full hover:bg-white/10 transition cursor-pointer"
+              title="Close preview"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <img
+              src={selectedLightboxMedia.url}
+              alt="WhatsApp Media Preview"
+              className="max-h-[82vh] w-auto rounded-2xl object-contain shadow-2xl border border-white/10 bg-neutral-900"
+            />
+            {selectedLightboxMedia.title && selectedLightboxMedia.title !== "Photo" && selectedLightboxMedia.title !== "WhatsApp Image" && (
+              <p className="text-white text-xs text-center mt-3 bg-black/60 backdrop-blur-xs px-4 py-1.5 rounded-full max-w-lg">
+                {selectedLightboxMedia.title}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
