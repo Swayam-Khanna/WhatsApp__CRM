@@ -57,7 +57,23 @@ export async function GET(req: NextRequest) {
     };
 
     const allMsgs = [...(globalThis.__globalWhatsAppFeed || []), ...(dbMessages || [])];
-    const uniqueMsgs = allMsgs.filter((m, idx, arr) => idx === arr.findIndex((o) => isDuplicateMessage(m, o)));
+    let uniqueMsgs = allMsgs.filter((m, idx, arr) => idx === arr.findIndex((o) => isDuplicateMessage(m, o)));
+
+    // Exclude any messages from permanently deleted contacts
+    try {
+      const db = await getDatabase();
+      if (db) {
+        const deletedDocs = await db.collection("crm_deleted_contacts").find({}).toArray();
+        if (deletedDocs && deletedDocs.length > 0) {
+          const deletedPhoneSet = new Set<string>(deletedDocs.map((d: any) => (d.phone || "").replace(/\D/g, "").slice(-10)).filter(Boolean));
+          uniqueMsgs = uniqueMsgs.filter((m: any) => {
+            const mFrom = (m.from || "").replace(/\D/g, "").slice(-10);
+            const mTo = (m.to || "").replace(/\D/g, "").slice(-10);
+            return !deletedPhoneSet.has(mFrom) && !deletedPhoneSet.has(mTo);
+          });
+        }
+      }
+    } catch {}
 
     return NextResponse.json({
       success: true,
@@ -373,12 +389,51 @@ export async function DELETE(req: NextRequest) {
           deletedCount = res.deletedCount;
           if (cleanPhone) {
             await db.collection("crm_conversations").deleteMany({ phone: cleanPhone });
+            // Remove draft/inquiry orders for this phone so order sync won't recreate the customer
+            await db.collection("crm_orders").deleteMany({
+              $and: [
+                { customerPhone: { $regex: cleanPhone } },
+                { $or: [{ orderNumber: /INQUIRY/i }, { id: /inq_/i }, { totalPaise: 0 }] }
+              ]
+            });
+            // Record in crm_deleted_contacts so it is permanently excluded
+            await db.collection("crm_deleted_contacts").updateOne(
+              { phone: cleanPhone },
+              { $set: { phone: cleanPhone, customerId: customerId || null, deletedAt: new Date() } },
+              { upsert: true }
+            );
           }
         }
       }
     } catch (dbErr) {
       console.warn("[MongoDB] Delete error:", dbErr);
     }
+
+    // Also delete permanently from PostgreSQL if available
+    try {
+      const { db: pgDb } = await import("../../../../backend/db.ts");
+      const { crmMessages } = await import("../../../../backend/schema/crm.ts");
+      const { or, ilike, eq } = await import("drizzle-orm");
+      if (cleanPhone && customerId) {
+        await pgDb
+          .delete(crmMessages)
+          .where(
+            or(
+              ilike(crmMessages.from, `%${cleanPhone}%`),
+              ilike(crmMessages.to, `%${cleanPhone}%`),
+              eq(crmMessages.customerId, customerId)
+            )
+          );
+      } else if (cleanPhone) {
+        await pgDb
+          .delete(crmMessages)
+          .where(
+            or(ilike(crmMessages.from, `%${cleanPhone}%`), ilike(crmMessages.to, `%${cleanPhone}%`))
+          );
+      } else if (customerId) {
+        await pgDb.delete(crmMessages).where(eq(crmMessages.customerId, customerId));
+      }
+    } catch (pgErr) {}
 
     return NextResponse.json({
       success: true,

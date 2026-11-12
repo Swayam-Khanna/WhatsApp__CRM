@@ -27,6 +27,8 @@ import {
   TrendingUp,
   Paperclip,
   Download,
+  Trash2,
+  UserX,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -266,6 +268,27 @@ export default function WhatsAppCrmInboxPage() {
     toast.success("Tracking number copied to clipboard");
   };
 
+  const handleDeleteConversation = async () => {
+    if (!selectedConv) return;
+    const confirmDelete = window.confirm(
+      `Permanently delete contact "${selectedConv.customerName}" and all WhatsApp chat history?`
+    );
+    if (!confirmDelete) return;
+
+    const targetId = selectedConv.id;
+    const targetName = selectedConv.customerName;
+    const success = await whatsappCrmService.deleteConversation(targetId);
+    if (success) {
+      const remaining = conversations.filter((c) => c.id !== targetId);
+      setConversations(remaining);
+      setSelectedConvId(remaining.length > 0 ? remaining[0].id : "");
+      setMessages([]);
+      toast.success(`Deleted contact "${targetName}" and chat history permanently.`);
+    } else {
+      toast.error("Failed to delete contact");
+    }
+  };
+
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col bg-background">
       {/* Top Banner Notice */}
@@ -308,8 +331,8 @@ export default function WhatsAppCrmInboxPage() {
             </div>
             <div className="flex gap-1 overflow-x-auto pb-0.5">
               {[
-                { id: "all", label: "All" },
-                { id: "unread", label: "Unread" },
+                { id: "all", label: `All (${conversations.length})` },
+                { id: "unread", label: `Unread (${conversations.filter((c) => (c.unreadCount || 0) > 0).length})` },
                 { id: "pending_payment", label: "Payment Due" },
                 { id: "packed", label: "Packing" },
               ].map((tab) => (
@@ -629,6 +652,16 @@ export default function WhatsAppCrmInboxPage() {
                     </p>
                   </div>
                 )}
+
+                <div className="pt-2 border-t border-border">
+                  <button
+                    onClick={handleDeleteConversation}
+                    className="w-full py-1.5 px-3 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50/70 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                    <span>Delete Contact & Chat History</span>
+                  </button>
+                </div>
               </div>
 
               {/* Convert to Wholesale / Retail Lead */}

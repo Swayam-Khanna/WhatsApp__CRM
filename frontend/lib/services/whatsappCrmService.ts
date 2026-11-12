@@ -681,8 +681,20 @@ class WhatsAppCrmService {
   getConversations(): WhatsAppConversation[] {
     if (typeof window === "undefined") return INITIAL_CONVERSATIONS;
     try {
+      const deletedPhones: string[] = JSON.parse(
+        localStorage.getItem(this.getStorageKey("deleted_phones")) || "[]"
+      );
+      const globalDeleted: string[] = JSON.parse(
+        localStorage.getItem("prajnaa_deleted_phones") || "[]"
+      );
+      const allDeleted = new Set([...deletedPhones, ...globalDeleted]);
+
       const data = localStorage.getItem(this.getStorageKey("conversations"));
-      return data ? JSON.parse(data) : INITIAL_CONVERSATIONS;
+      const list: WhatsAppConversation[] = data ? JSON.parse(data) : INITIAL_CONVERSATIONS;
+      return list.filter((c) => {
+        const clean = (c.customerPhone || "").replace(/\D/g, "").slice(-10);
+        return !allDeleted.has(clean);
+      });
     } catch {
       return INITIAL_CONVERSATIONS;
     }
@@ -691,6 +703,52 @@ class WhatsAppCrmService {
   saveConversations(conversations: WhatsAppConversation[]) {
     if (typeof window === "undefined") return;
     localStorage.setItem(this.getStorageKey("conversations"), JSON.stringify(conversations));
+  }
+
+  async deleteConversation(conversationId: string): Promise<boolean> {
+    if (typeof window === "undefined") return false;
+    try {
+      const conversations = this.getConversations();
+      const target = conversations.find((c) => c.id === conversationId);
+      const updated = conversations.filter((c) => c.id !== conversationId);
+      this.saveConversations(updated);
+
+      localStorage.removeItem(this.getStorageKey(`messages_${conversationId}`));
+
+      const targetPhone = target?.customerPhone || "";
+      const cleanPhone = targetPhone.replace(/\D/g, "").slice(-10);
+
+      if (cleanPhone) {
+        const deletedPhones: string[] = JSON.parse(
+          localStorage.getItem(this.getStorageKey("deleted_phones")) || "[]"
+        );
+        if (!deletedPhones.includes(cleanPhone)) {
+          deletedPhones.push(cleanPhone);
+          localStorage.setItem(this.getStorageKey("deleted_phones"), JSON.stringify(deletedPhones));
+        }
+
+        const globalDeleted: string[] = JSON.parse(
+          localStorage.getItem("prajnaa_deleted_phones") || "[]"
+        );
+        if (!globalDeleted.includes(cleanPhone)) {
+          globalDeleted.push(cleanPhone);
+          localStorage.setItem("prajnaa_deleted_phones", JSON.stringify(globalDeleted));
+        }
+
+        try {
+          await fetch(
+            `/api/crm/messages?phone=${encodeURIComponent(cleanPhone)}&customerId=${encodeURIComponent(conversationId)}`,
+            { method: "DELETE" }
+          );
+        } catch (err) {
+          console.warn("[CRM Service] Backend delete error:", err);
+        }
+      }
+      return true;
+    } catch (err) {
+      console.error("[CRM Service] Delete conversation failed:", err);
+      return false;
+    }
   }
 
   // 2. Messages
@@ -823,12 +881,20 @@ class WhatsAppCrmService {
       let updatedCount = 0;
       const conversations = this.getConversations();
 
+      const deletedPhones: string[] = JSON.parse(
+        localStorage.getItem(this.getStorageKey("deleted_phones")) || "[]"
+      );
+      const globalDeleted: string[] = JSON.parse(
+        localStorage.getItem("prajnaa_deleted_phones") || "[]"
+      );
+      const allDeleted = new Set([...deletedPhones, ...globalDeleted]);
+
       for (const msg of data.messages) {
         const isInbound = msg.direction === "inbound" || msg.sender === "customer";
         const customerRawPhone = isInbound ? msg.from : msg.to;
         const cleanMsgPhone = (customerRawPhone || "").replace(/\D/g, "").slice(-10);
         const businessPhoneClean = PRAJNAA_WHATSAPP_CONFIG.businessNumberClean.slice(-10);
-        if (!cleanMsgPhone || cleanMsgPhone === businessPhoneClean) continue;
+        if (!cleanMsgPhone || cleanMsgPhone === businessPhoneClean || allDeleted.has(cleanMsgPhone)) continue;
 
         let conv = conversations.find((c) => c.customerPhone.replace(/\D/g, "").slice(-10) === cleanMsgPhone);
         const timeStr = new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });

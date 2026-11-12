@@ -794,6 +794,18 @@ export default function PrajnaaMasterCrmApp() {
   const isInitialSyncRef = useRef<boolean>(true);
   const deletedCustomerIdsRef = useRef<Set<string>>(new Set());
 
+  // Persistent deleted customers tracking across browser refreshes
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const p1: string[] = JSON.parse(localStorage.getItem("prajnaa_deleted_phones") || "[]");
+        const p2: string[] = JSON.parse(localStorage.getItem("prajnaa_deleted_customer_ids") || "[]");
+        p1.forEach((id) => deletedCustomerIdsRef.current.add(id));
+        p2.forEach((id) => deletedCustomerIdsRef.current.add(id));
+      } catch {}
+    }
+  }, []);
+
   // Suppress all notifications on the login page
   useEffect(() => {
     isAuthRef.current = isAuthenticated;
@@ -1250,6 +1262,14 @@ export default function PrajnaaMasterCrmApp() {
 
               setCustomers((prevCusts) => {
                 const cleanPhone = (ord.customerPhone || "").replace(/\D/g, "");
+                const cleanPhone10 = cleanPhone.slice(-10);
+                if (
+                  (cleanPhone10 && deletedCustomerIdsRef.current.has(cleanPhone10)) ||
+                  (cleanPhone && deletedCustomerIdsRef.current.has(cleanPhone)) ||
+                  (ord.id && deletedCustomerIdsRef.current.has(ord.id))
+                ) {
+                  return prevCusts;
+                }
                 const existingIdx = prevCusts.findIndex(
                   (c) =>
                     (cleanPhone.length >= 10 && c.phone.replace(/\D/g, "").endsWith(cleanPhone.slice(-10))) ||
@@ -2836,6 +2856,22 @@ export default function PrajnaaMasterCrmApp() {
       deletedCustomerIdsRef.current.add(cleanPhone);
     }
 
+    // Persist to localStorage across refreshes
+    if (typeof window !== "undefined") {
+      try {
+        const deletedPhones: string[] = JSON.parse(localStorage.getItem("prajnaa_deleted_phones") || "[]");
+        if (cleanPhone && !deletedPhones.includes(cleanPhone)) {
+          deletedPhones.push(cleanPhone);
+          localStorage.setItem("prajnaa_deleted_phones", JSON.stringify(deletedPhones));
+        }
+        const deletedCustIds: string[] = JSON.parse(localStorage.getItem("prajnaa_deleted_customer_ids") || "[]");
+        if (targetCust.id && !deletedCustIds.includes(targetCust.id)) {
+          deletedCustIds.push(targetCust.id);
+          localStorage.setItem("prajnaa_deleted_customer_ids", JSON.stringify(deletedCustIds));
+        }
+      } catch {}
+    }
+
     try {
       const res = await fetch(
         `/api/crm/messages?phone=${encodeURIComponent(cleanPhone)}&customerId=${encodeURIComponent(targetCust.id)}`,
@@ -2847,12 +2883,21 @@ export default function PrajnaaMasterCrmApp() {
       console.error("[Delete Contact] Error:", err);
     }
 
-    // Remove from UI state
+    // Remove from UI state and update ref immediately
     setCustomers((prev) => {
       const remaining = prev.filter((c) => c.id !== targetCust.id);
+      customersRef.current = remaining;
       setSelectedCustomerId(remaining.length > 0 ? remaining[0].id : "");
       return remaining;
     });
+
+    // Remove any inquiry orders for this contact from crmOrders state
+    setCrmOrders((prev) =>
+      prev.filter((o: any) => {
+        const oPhone = (o.customerPhone || "").replace(/\D/g, "").slice(-10);
+        return oPhone !== cleanPhone;
+      })
+    );
 
     setMessagesMap((prev: any) => {
       const updated = { ...prev };
@@ -4184,9 +4229,11 @@ export default function PrajnaaMasterCrmApp() {
                   <MessageSquare className="h-4 w-4 text-emerald-400" />
                   <span>WhatsApp Inbox</span>
                 </div>
-                <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                  12
-                </span>
+                {totalUnreadCount > 0 && (
+                  <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                    {totalUnreadCount}
+                  </span>
+                )}
               </button>
             )}
 
@@ -5226,7 +5273,9 @@ export default function PrajnaaMasterCrmApp() {
                   <QrCode className="h-4 w-4" />
                 </div>
                 <div>
-                  <h4 className="text-base font-extrabold text-neutral-900 leading-none">32</h4>
+                  <h4 className="text-base font-extrabold text-neutral-900 leading-none">
+                    {unifiedOrders.filter((o) => (o.paymentStatus || "").toLowerCase() === "pending").length}
+                  </h4>
                   <p className="text-[10px] font-medium text-neutral-500 mt-1">Pending UPI</p>
                 </div>
               </div>
@@ -5237,7 +5286,9 @@ export default function PrajnaaMasterCrmApp() {
                   <Package className="h-4 w-4" />
                 </div>
                 <div>
-                  <h4 className="text-base font-extrabold text-neutral-900 leading-none">18</h4>
+                  <h4 className="text-base font-extrabold text-neutral-900 leading-none">
+                    {unifiedOrders.filter((o) => String(o.orderStatus || "").toLowerCase() === "processing").length}
+                  </h4>
                   <p className="text-[10px] font-medium text-neutral-500 mt-1">Processing</p>
                 </div>
               </div>
@@ -5248,7 +5299,9 @@ export default function PrajnaaMasterCrmApp() {
                   <Truck className="h-4 w-4" />
                 </div>
                 <div>
-                  <h4 className="text-base font-extrabold text-neutral-900 leading-none">21</h4>
+                  <h4 className="text-base font-extrabold text-neutral-900 leading-none">
+                    {unifiedOrders.filter((o) => String(o.orderStatus || "").toLowerCase() === "shipped").length}
+                  </h4>
                   <p className="text-[10px] font-medium text-neutral-500 mt-1">Shipped</p>
                 </div>
               </div>
@@ -5259,7 +5312,9 @@ export default function PrajnaaMasterCrmApp() {
                   <MessageSquare className="h-4 w-4" />
                 </div>
                 <div>
-                  <h4 className="text-base font-extrabold text-neutral-900 leading-none">12</h4>
+                  <h4 className="text-base font-extrabold text-neutral-900 leading-none">
+                    {totalUnreadCount}
+                  </h4>
                   <p className="text-[10px] font-medium text-neutral-500 mt-1">Unread WhatsApp</p>
                 </div>
               </div>
@@ -5272,7 +5327,12 @@ export default function PrajnaaMasterCrmApp() {
                 <div className="p-3.5 border-b border-neutral-100 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <h3 className="font-bold text-sm text-neutral-900 flex items-center gap-1.5">
-                      <span className="text-emerald-600 font-bold">💬</span> WhatsApp Inbox (12)
+                      <span className="text-emerald-600 font-bold">💬</span> WhatsApp Inbox ({customers.length})
+                      {totalUnreadCount > 0 && (
+                        <span className="ml-1 px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold">
+                          {totalUnreadCount} unread
+                        </span>
+                      )}
                     </h3>
                   </div>
 
@@ -5283,7 +5343,7 @@ export default function PrajnaaMasterCrmApp() {
                         inboxTab === "all" ? "bg-emerald-600 text-white font-bold" : "text-neutral-500 hover:bg-neutral-100"
                       }`}
                     >
-                      All <span className="text-[10px] opacity-90">12</span>
+                      All <span className="text-[10px] opacity-90">{customers.length}</span>
                     </button>
                     <button
                       onClick={() => setInboxTab("unread")}
@@ -5291,7 +5351,7 @@ export default function PrajnaaMasterCrmApp() {
                         inboxTab === "unread" ? "bg-rose-500 text-white font-bold" : "text-neutral-500 hover:bg-neutral-100"
                       }`}
                     >
-                      Unread <span className="text-[10px] opacity-90">12</span>
+                      Unread <span className="text-[10px] opacity-90">{totalUnreadCount}</span>
                     </button>
                     <button
                       onClick={() => setInboxTab("assigned")}
@@ -7787,7 +7847,7 @@ export default function PrajnaaMasterCrmApp() {
                           {c.isVip ? "VIP" : "Regular"}
                         </span>
                       </td>
-                      <td className="p-3.5 text-right">
+                      <td className="p-3.5 text-right space-x-1.5">
                         <button
                           onClick={() => {
                             setSelectedCustomerId(c.id);
@@ -7797,6 +7857,16 @@ export default function PrajnaaMasterCrmApp() {
                           className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg font-semibold text-[11px] border border-emerald-200 transition cursor-pointer"
                         >
                           Chat on WhatsApp
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedCustomerId(c.id);
+                            setShowDeleteContactModal(true);
+                          }}
+                          title="Delete contact"
+                          className="p-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 transition cursor-pointer inline-flex items-center justify-center align-middle"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </td>
                     </tr>
