@@ -316,6 +316,7 @@ export async function sendWhatsAppMediaMessage(params: {
 
 /**
  * Builds standard Prajnaa Market Order Confirmation Message.
+ * Short, crisp, natural Hinglish.
  */
 export function buildOfficialOrderConfirmationMessage(order: {
   orderNumber: string;
@@ -330,97 +331,53 @@ export function buildOfficialOrderConfirmationMessage(order: {
   shippingAddressSnapshot: any;
 }): string {
   const formatInr = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
-
-  const itemLines = order.items.map(
-    (it) =>
-      `• *${it.productName}*${it.variantName ? ` (${it.variantName})` : ""} × ${it.quantity} — ${formatInr(
-        it.unitPricePaise * it.quantity
-      )}`
-  );
-
-  const snap = order.shippingAddressSnapshot || {};
-  const addressLine = [snap.line1 || snap.addressLine1, snap.city, snap.state, snap.postalCode]
-    .filter(Boolean)
+  const itemsSummary = order.items
+    .map((it) => `${it.productName}${it.variantName ? ` (${it.variantName})` : ""} × ${it.quantity}`)
     .join(", ");
 
-  const lines = [
-    `Namaste ${order.customerName} ji! 🙏`,
-    `Thank you for ordering with *Prajnaa Market*.`,
-    ``,
-    `🌾 *Order #${order.orderNumber}*`,
-    `--------------------------------`,
-    ...itemLines,
-    `--------------------------------`,
-    `*Subtotal:* ${formatInr(order.subtotalPaise)}`,
-    order.discountPaise > 0 ? `*Discount:* -${formatInr(order.discountPaise)}` : null,
-    `*India Post Delivery:* ${formatInr(order.shippingPaise)}`,
-    `*Total Payable:* ${formatInr(order.totalPaise)}`,
-    ``,
-    `*Payment Status:* Awaiting Payment Confirmation`,
-    `*Delivery To:* ${addressLine}`,
-    ``,
-    `Ji, hum aapka order process kar rahe hain. Prajnaa Market mein pure natural produce packaging mein 2–3 din lagte hain. Packing complete hone par Speed Post tracking share ki jayegi.`,
-    ``,
-    `Aap payment screenshot aur order updates ke liye isi WhatsApp par reply kar sakte hain.`,
-    ``,
-    `Dhanyavaad ji! 🌿`,
-    `*Team Prajnaa Market*`,
-  ].filter((l): l is string => l !== null);
-
-  return lines.join("\n");
+  return [
+    `Namaste ${order.customerName} ji! Aapka order #${order.orderNumber} successfully receive ho gaya hai.`,
+    `Items: ${itemsSummary}`,
+    `Total: ${formatInr(order.totalPaise)}`,
+    `Status: Processing mein hai (2–3 din mein dispatch). Thank you!`,
+  ].join("\n");
 }
 
 /**
-  * Builds itemized WhatsApp confirmation for CRM order ingestion
-  * matching Prajnaa Market tone in Hindi/Hinglish.
-  */
- export function buildItemizedCrmOrderConfirmationMessage(order: {
-   customerName: string;
-   orderNumber: string;
-   items: Array<{
-     productName: string;
-     quantity: number;
-     unitPricePaise: number;
-     totalPaise?: number;
-     variantName?: string | null;
-   }>;
-   totalPaise: number;
-   paymentStatus: string;
- }): string {
-   const formatInr = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
-   const itemizedProductList = (order.items || [])
-     .map(
-       (it) =>
-         `• ${it.productName}${it.variantName ? ` (${it.variantName})` : ""} × ${it.quantity} — ${formatInr(
-           it.totalPaise ?? it.unitPricePaise * it.quantity
-         )}`
-     )
-     .join("\n");
+ * Builds itemized WhatsApp confirmation for CRM order ingestion.
+ * Short, crisp, natural Hinglish.
+ */
+export function buildItemizedCrmOrderConfirmationMessage(order: {
+  customerName: string;
+  orderNumber: string;
+  items: Array<{
+    productName: string;
+    quantity: number;
+    unitPricePaise: number;
+    totalPaise?: number;
+    variantName?: string | null;
+  }>;
+  totalPaise: number;
+  paymentStatus: string;
+}): string {
+  const formatInr = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
+  const itemsSummary = (order.items || [])
+    .map((it) => `${it.productName}${it.variantName ? ` (${it.variantName})` : ""} × ${it.quantity}`)
+    .join(", ");
+  const isPaid = order.paymentStatus === "collected" || order.paymentStatus === "paid";
+  const payStatus = isPaid ? "Confirmed" : "Pending";
 
-   const displayPaymentStatus =
-     order.paymentStatus === "collected" || order.paymentStatus === "paid"
-       ? "Paid"
-       : "Pending (Awaiting Payment Confirmation)";
-
-   return [
-     `Namaste ${order.customerName} ji! 🌿`,
-     `Aapne Prajnaa Market se jo order place kiya hai, uski details yeh hain:`,
-     `Order No.: #${order.orderNumber}`,
-     itemizedProductList,
-     `Order Total: ${formatInr(order.totalPaise)}`,
-     `Payment Status: ${displayPaymentStatus}`,
-     ``,
-     `Aapka order humein mil gaya hai. Prajnaa Market mein order processing aur dispatch mein aam taur par 2–3 din lagte hain. Dispatch hone par tracking details aapke saath share ki jayengi.`,
-     ``,
-     `Kisi bhi madad ke liye aap humein isi WhatsApp number par message kar sakte hain.`,
-     ``,
-     `Dhanyavaad ji! 🌿`,
-     `Team Prajnaa Market`,
-   ].join("\n");
- }
+  return [
+    `Namaste ${order.customerName} ji! Aapka order #${order.orderNumber} successfully receive ho gaya hai.`,
+    `Items: ${itemsSummary}`,
+    `Total: ${formatInr(order.totalPaise)} (Payment: ${payStatus})`,
+    `Dispatch mein 2–3 din lag sakte hain. Thank you!`,
+  ].join("\n");
+}
 
 /**
  * Builds official India Post Speed Post Dispatch notification.
+ * Short, crisp, natural Hinglish.
  */
 export function buildSpeedPostDispatchMessage(params: {
   customerName: string;
@@ -429,20 +386,9 @@ export function buildSpeedPostDispatchMessage(params: {
   deliveryCity: string;
 }): string {
   return [
-    `Namaste ${params.customerName} ji! 📦`,
-    ``,
-    `Aapka Prajnaa Market order *${params.orderNumber}* dispatch ho gaya hai!`,
-    ``,
-    `🚚 *Consignment Tracking:*`,
-    `• India Post Speed Post: *${params.trackingId}*`,
-    `• Destination Hub: ${params.deliveryCity}`,
-    `• Dispatch Center: Dehradun MDG, Uttarakhand`,
-    ``,
-    `Aap live tracking India Post ke official portal par dekh sakte hain:`,
-    `https://www.indiapost.gov.in/_layouts/15/dpt.cptc.va/trackconsignment.aspx`,
-    ``,
-    `Dhanyavaad ji! 🌿`,
-    `*Team Prajnaa Market*`,
+    `Good news ${params.customerName} ji! Aapka order #${params.orderNumber} dispatch ho gaya hai.`,
+    `Tracking: https://www.indiapost.gov.in (Speed Post: ${params.trackingId})`,
+    `Thank you!`,
   ].join("\n");
 }
 

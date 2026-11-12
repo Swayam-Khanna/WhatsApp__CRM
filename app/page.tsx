@@ -96,195 +96,133 @@ interface Message {
 }
 
 // Client-side automated reply generator with multi-step unknown sender greeting, name capture & Himalayan catalog recommendations
-function generateClientAutoReply(customerName?: string, queryText: string = ""): string {
+// Client-side smart automated reply generator matching the 15 intent specifications
+function generateClientAutoReply(customerName?: string, queryText: string = "", contextOrder?: any): string {
   const query = (queryText || "").toLowerCase().trim();
-  const isUnknown = !customerName || customerName === "Customer" || customerName === "Patron" || customerName.startsWith("Patron (") || customerName.startsWith("+91");
 
-  const clean = queryText.trim();
-  const introMatch = clean.match(/(?:mera\s+naam|my\s+name\s+is|this\s+is|i\s+am|iam|main|mai|naam|name\s*:?)\s+([A-Za-z\u0900-\u097F\s]{2,30})/i);
-  let extracted: string | null = null;
-  if (introMatch && introMatch[1]) {
-    extracted = introMatch[1].replace(/(?:hai|hu|hoon|ji|here|this side)\b.*$/i, "").trim();
-  } else if (isUnknown) {
-    const words = clean.split(/\s+/).filter(Boolean);
-    const disallowed = ["hi", "hello", "hey", "hlo", "namaste", "pranam", "almond", "badam", "honey", "order", "price", "bhav"];
-    if (words.length >= 1 && words.length <= 3 && clean.length >= 2 && clean.length <= 30 && !words.some(w => disallowed.includes(w.toLowerCase()))) {
-      extracted = clean;
+  // 1. Human handoff / outside knowledge
+  if (
+    query.includes("human") ||
+    query.includes("agent") ||
+    query.includes("owner") ||
+    query.includes("nishant") ||
+    query.includes("manager") ||
+    query.includes("call me") ||
+    query.includes("phone par baat")
+  ) {
+    return "Nishant ji abhi available nahi hain. Woh jald hi aapse connect karenge.";
+  }
+
+  // 2. Complaint / Issue
+  if (
+    query.includes("complaint") ||
+    query.includes("kharab") ||
+    query.includes("damaged") ||
+    query.includes("tuta") ||
+    query.includes("wrong product") ||
+    query.includes("problem") ||
+    query.includes("shikayat")
+  ) {
+    return "Ji, inconvenience ke liye maafi chahte hain. Hamari team jald aapse connect karegi.";
+  }
+
+  // 3. Greeting
+  if (
+    query === "hi" ||
+    query === "hello" ||
+    query === "namaste" ||
+    query === "hey" ||
+    query === "pranam" ||
+    query === "hlo" ||
+    query === "namaste ji"
+  ) {
+    return "Namaste ji! Aapki kya sahayata kar sakte hain?";
+  }
+
+  // 4. Catalogue Request (Explore products)
+  if (
+    query.includes("catalogue") ||
+    query.includes("catalog") ||
+    query.includes("list") ||
+    query.includes("menu") ||
+    query.includes("all products") ||
+    query.includes("kaun-kaun") ||
+    query.includes("kya-kya") ||
+    query.includes("saare products")
+  ) {
+    return "Bilkul ji! Hamara latest product catalogue yahan dekhein: /catalogue";
+  }
+
+  // 5. Order Placement
+  if (
+    query.includes("order karna") ||
+    query.includes("mujhe order") ||
+    query.includes("i want to order") ||
+    query.includes("kharidna") ||
+    query.includes("book karna")
+  ) {
+    return "Bilkul ji! Aap product ka naam aur quantity bata dijiye.";
+  }
+
+  // 6. Specific Product Enquiries
+  if (query.includes("honey") || query.includes("shehad") || query.includes("shahad")) {
+    return "Ji haan! Himalayan Raw Flora Honey 500g available hai. Price: ₹550. Details: /catalogue#himalayan-multiflora-honey";
+  }
+  if (query.includes("almond") || query.includes("badam") || query.includes("mamra")) {
+    return "Ji haan! Kashmiri Mamra Almonds 500g available hai. Price: ₹1,250. Details: /catalogue#kashmiri-mamra-almonds";
+  }
+  if (query.includes("walnut") || query.includes("akhrot")) {
+    return "Ji haan! Kashmiri Kagzi Walnuts (Kernels) 500g available hai. Price: ₹650. Details: /catalogue#kashmir-kagzi-walnuts";
+  }
+  if (query.includes("shilajit")) {
+    return "Ji haan! Pure Himalayan Shilajit Resin 20g available hai. Price: ₹1,450. Details: /catalogue#pure-himalayan-shilajit";
+  }
+  if (query.includes("ghee") || query.includes("badri")) {
+    return "Ji haan! A2 Badri Cow Bilona Ghee 1L available hai. Price: ₹2,100. Details: /catalogue#badri-cow-a2-ghee";
+  }
+  if (query.includes("saffron") || query.includes("kesar")) {
+    return "Ji haan! Pure Kashmiri Mongra Saffron 1g available hai. Price: ₹380. Details: /catalogue#kashmiri-mongra-saffron";
+  }
+
+  // 7. Order Status
+  if (
+    query.includes("order status") ||
+    query.includes("mera order") ||
+    query.includes("kahan tak pahuncha") ||
+    query.includes("kahan hai")
+  ) {
+    if (contextOrder?.orderNumber) {
+      return `Ji, aapka order #${contextOrder.orderNumber} abhi ${contextOrder.orderStatus || "Processing"} hai.`;
     }
+    return "Ji, apna order number share kar dijiye. Hum check karte hain.";
   }
 
-  const resolvedName = extracted || (!isUnknown ? customerName : undefined);
-  const name = resolvedName ? `${resolvedName} ji` : "ji";
-
-  // Product Intent: Almonds / Badam
-  if (query.includes("almond") || query.includes("badam") || query.includes("badaam") || query.includes("mamra") || query.includes("kagzi almond")) {
-    return [
-      `Namaste ${name}! 🌿 Prajnaa Market ke certified 100% pure Himalayan Organic Almonds (Badam) direct mountain orchards se harvest kiye jate hain:`,
-      "",
-      "🌰 *Himalayan Mamra Giri Almonds (High Natural Oil)*:",
-      "• 500g Pack: ₹1,250",
-      "• 1kg Pack: ₹2,400 *(Best Value & Free Shipping)*",
-      "",
-      "🌰 *Kashmir Sweet Organic Almonds (Giri)*:",
-      "• 500g Pack: ₹720",
-      "• 1kg Pack: ₹1,400",
-      "",
-      "✨ *Prajnaa Farm Guarantee*:",
-      "✔ 100% Chemical-free, unpolished single-origin harvest",
-      "✔ Insured India Post Speed Post delivery (2–3 din mein dispatch from Solan hub)",
-      "✔ Free delivery on orders above ₹999",
-      "✔ Official UPI: prajnaa@upi",
-      "",
-      "Kripya batayein aap kaun sa pack aur kitni quantity lena chahte hain? Saath hi apna delivery address aur pincode share kar dijiye, hum turant order book kar denge! 🙏",
-    ].join("\n");
-  }
-
-  // Product Intent: Honey / Shehad
-  if (query.includes("honey") || query.includes("shehad") || query.includes("shahad") || query.includes("flora honey") || query.includes("madhu")) {
-    return [
-      `Namaste ${name}! 🍯 Hamara Himalayan Raw Flora Honey 100% raw, unheated aur multi-flora forest harvest hai:`,
-      "",
-      "• 500g Glass Jar: ₹550",
-      "• 1kg Pack: ₹950",
-      "• 5kg Bulk Saver: ₹3,950",
-      "",
-      "Kripya batayein aap kitni quantity order karna chahte hain aur apna delivery pincode share karein! 🌿",
-    ].join("\n");
-  }
-
-  // Product Intent: Walnuts / Akhrot
-  if (query.includes("walnut") || query.includes("akhrot") || query.includes("kagzi") || query.includes("walnuts")) {
-    return [
-      `Namaste ${name}! 🌰 Direct Kashmir & Himachal valley ke certified fresh walnuts:`,
-      "",
-      "• Kashmir Kagzi Walnuts (In-Shell): 500g ₹450 | 1kg ₹850",
-      "• Pure Kashmiri Walnut Kernels (Giri): 500g ₹650 | 1kg ₹1,250",
-      "",
-      "Kripya apna delivery address share karein, hum turant dispatch note create kar denge! 🌿",
-    ].join("\n");
-  }
-
-  // Address acknowledgement
-  if (/\b\d{6}\b/.test(query) || query.includes("address") || query.includes("road") || query.includes("nagar") || query.includes("pata") || query.includes("pincode")) {
-    return [
-      `Bahut badhiya ${name}! 🙏 Aapka delivery address note kar liya gaya hai.`,
-      "",
-      "Himalayan farm fresh packaging Solan hub (Outer Solan Road, Solan, HP – 173212) se 2–3 din mein Speed Post dwara dispatch ho jayegi.",
-      "",
-      "Payment aap hamare official UPI desk *prajnaa@upi* par kar sakte hain. Payment ke baad screenshot yahan share kar dijiye taaki hum order confirm kar sakein! 🌿",
-    ].join("\n");
-  }
-
-  // 1. Order Cancellation
-  if (query.includes("cancel") || query.includes("radd")) {
-    return `Namaste ${name}! 🙏 Agar aapka parcel abhi dispatch nahi hua hai, toh order cancel ho sakta hai. Kripya apna Order ID confirm kar dijiye, hum turant cancellation update kar denge.`;
-  }
-
-  // 2. Address Change / Update
-  if (query.includes("address") || query.includes("pata") || query.includes("location") || query.includes("pincode change") || query.includes("galat address")) {
-    return `Namaste ${name}! 🙏 Ji bilkul, agar parcel dispatch nahi hua hai toh address update ho jayega. Kripya apna naya complete delivery address aur pincode yahan send kar dijiye.`;
-  }
-
-  // 3. Cash on Delivery (COD)
-  if (query.includes("cod") || query.includes("cash on delivery") || query.includes("pay on delivery") || query.includes("deliver hone par paise")) {
-    return `Namaste ${name}! 🙏 Selected pincodes par Cash on Delivery (COD) uplabdh hai. Aap apna delivery pincode share kar dijiye, hum turant check karke bata denge.`;
-  }
-
-  // 4. Refund / Return / Money Back
-  if (query.includes("refund") || query.includes("wapas") || query.includes("return") || query.includes("money back")) {
-    return `Namaste ${name}! 🙏 Refund approve hone ke baad 3–5 working days ke andar aapke original bank account ya UPI source me paise credit ho jate hain.`;
-  }
-
-  // 5. Payment, Screenshot, UPI confirmation
+  // 8. Payment Enquiry
   if (
     query.includes("payment") ||
-    query.includes("screenshot") ||
     query.includes("upi") ||
-    query.includes("qr") ||
-    query.includes("utr") ||
-    query.includes("pay") ||
     query.includes("paise") ||
-    query.includes("transferred")
+    query.includes("qr") ||
+    query.includes("pay")
   ) {
-    return `Namaste ${name}! 🙏 Agar aapne payment kar di hai, toh kripya payment ka screenshot ya transaction UTR number isi chat par share kar dijiye. Nishant ji verify karke turant confirm kar denge. (Official UPI: prajnaa@upi)`;
+    if (contextOrder?.paymentStatus === "Paid") {
+      return "Thank you ji! Aapka payment confirm ho gaya hai.";
+    }
+    return "Ji, aapka payment abhi pending hai. Official UPI: prajnaa@upi.";
   }
 
-  // 6. Delivery Timeline ("Kab aayega?" / "Kitne din lagenge?")
+  // 9. Delivery Enquiry
   if (
     query.includes("kab tak") ||
-    query.includes("when will") ||
     query.includes("kab aayega") ||
-    query.includes("aayega") ||
     query.includes("deliver") ||
-    query.includes("reach") ||
-    query.includes("kitne din") ||
-    query.includes("delivery time")
+    query.includes("kitne din")
   ) {
-    return `Namaste ${name}! 🙏 Prajnaa organic products ki fresh artisan packing me 2–3 din lagte hain, aur dispatch hone ke baad 3–5 working days me Speed Post se parcel aapke address par deliver ho jata hai.`;
+    return "Ji, aapka order processing mein hai. Dispatch mein lagbhag 2–3 din lag sakte hain.";
   }
 
-  // 7. Dispatch Status & Tracking ("Dispatch hua kya?" / "Tracking number")
-  if (
-    query.includes("dispatch") ||
-    query.includes("track") ||
-    query.includes("tracking") ||
-    query.includes("speed post") ||
-    query.includes("consignment") ||
-    query.includes("courier")
-  ) {
-    return `Namaste ${name}! 🙏 Jaise hi parcel dispatch hota hai, India Post Speed Post tracking number (ED...IN) automatically aapko isi WhatsApp par mil jayega, jise aap indiapost.gov.in par live track kar sakte hain.`;
-  }
-
-  // 8. Product Purity, Organic Quality, Farm Origin
-  if (
-    query.includes("organic") ||
-    query.includes("pure") ||
-    query.includes("asli") ||
-    query.includes("chemical") ||
-    query.includes("quality") ||
-    query.includes("shilajit") ||
-    query.includes("ghee") ||
-    query.includes("apricot") ||
-    query.includes("saffron")
-  ) {
-    return `Namaste ${name}! 🙏 Prajnaa Market ke sabhi products 100% certified organic aur natural hain, jo direct Himalayan mountain farmers se aate hain. Inme koi chemical ya preservatives nahi milaye jate aur har batch lab-tested hota hai.`;
-  }
-
-  // 9. Customer Care / Call / Phone Contact
-  if (query.includes("contact") || query.includes("number") || query.includes("call") || query.includes("phone") || query.includes("helpline") || query.includes("baat")) {
-    return `Namaste ${name}! 🙏 Hamara official customer support number +91 80912 65690 hai. Store Concierge Nishant ji isi number par directly available hain.`;
-  }
-
-  // 10. Thank You / Appreciation
-  if (query.includes("thank") || query.includes("dhanyawad") || query.includes("shukriya") || query.includes("thanks")) {
-    return `Aapka bahut-bahut dhanyavaad ${name}! 🙏 Prajnaa Market ke sath judne ke liye shukriya. Agar koi aur sawal ho toh batayein.`;
-  }
-
-  // If customer provided their name and no product matched:
-  if (extracted) {
-    return [
-      `Bahut-bahut dhanyawad, ${extracted} ji! 🙏`,
-      "",
-      "Aapka contact Prajnaa CRM inbox mein save kar liya gaya hai.",
-      "",
-      `Bataiye ${extracted} ji, aaj hum aapki kya sahayata kar sakte hain? Kya aap hamare pure Himalayan Organic Almonds (Badam), Raw Flora Honey, Walnuts (Kagzi Akhrot), ya Pahadi Spices explore karna chahte hain? 🌿`,
-    ].join("\n");
-  }
-
-  // 11. Greeting
-  if (query === "hi" || query === "hello" || query === "namaste" || query === "hey" || query === "pranam" || query === "hlo") {
-    if (isUnknown && !resolvedName) {
-      return [
-        "Namaste ji! 🙏 Prajnaa Market (Pure Himalayan Farm Harvest) mein aapka swagat hai.",
-        "",
-        "Kripya humein apna shubh naam bata dijiye taaki hum aapka contact save kar sakein aur aapki behtar sahayata kar sakein? (Please reply with your name) 🌿",
-      ].join("\n");
-    }
-    return `Namaste ${name}! 🙏 Prajnaa Market me aapka swagat hai. Batayein ${name}, aaj hum aapki kya sahayata kar sakte hain? Kya aap hamare Himalayan Almonds (Badam), Raw Flora Honey, ya Walnuts explore karna chahte hain? 🌿`;
-  }
-
-  // 12. Fallback: Concise & Direct
-  return `Namaste ${name}! 🙏 Aapka sandesh Prajnaa support team ko mil gaya hai. Store Concierge Nishant ji (+91 80912 65690) ise review karke jald hi aapse direct connect karenge. Agar aap koi product order karna chahte hain, toh kripya product ka naam aur quantity batayein! 🌿`;
+  // 10. Default / Unclear intent -> Short polite handoff
+  return "Nishant ji abhi available nahi hain. Woh jald hi aapse connect karenge.";
 }
 
 interface OrderItem {
@@ -706,44 +644,56 @@ const INITIAL_TEMPLATES = [
   {
     id: "tpl_1",
     category: "Order Updates",
-    name: "Official Order Confirmation",
-    message: "Namaste {{customer_name}} ji! 🙏\n\nThank you for placing your order with Prajnaa Market.\n\nOrder ID: {{order_id}}\nTotal Amount: ₹{{amount}}\nPayment Status: Awaiting Payment Confirmation\n\nJi, hum aapke order ko process kar rahe hain. Prajnaa Market mein order processing mein aam taur par 2–3 din lagte hain. Processing complete hone aur parcel dispatch hone ke baad hum aapko tracking details share kar denge.\n\nDhanyavaad ji! 🌿\nTeam Prajnaa Market",
+    name: "Order Confirmation",
+    message: "Namaste {{customer_name}} ji! Aapka order #{{order_id}} successfully receive ho gaya hai.",
   },
   {
     id: "tpl_2",
     category: "Payment",
-    name: "Payment QR & Instructions",
-    message: "Namaste {{customer_name}} ji! 🙏\n\nYeh raha aapke order {{order_id}} ka official Prajnaa Market payment QR. Total Amount: ₹{{amount}}.\n\nKripya kisi bhi UPI app (Google Pay, PhonePe, Paytm) se scan karke payment complete karein aur screenshot share kar dijiye. Verification ke baad order dispatch queue me chala jayega.\n\nUPI ID: 8091265690@okbizaxis\nDhanyavaad! 🌾",
+    name: "Payment Pending",
+    message: "Ji, aapka payment abhi pending hai. Official UPI ID: prajnaa@upi. Total: ₹{{amount}}.",
   },
   {
     id: "tpl_3",
-    category: "Order Updates",
-    name: "2-3 Days Artisan Packing Update",
-    message: "Namaste {{customer_name}} ji! 🙏\n\nAapke Prajnaa Market order {{order_id}} ki artisan packing complete ho gayi hai. Hamare organic Himalayan produce ko eco-friendly packaging me seal kar diya gaya hai. Hum aapke parcel ko dispatch karne ki taiyari kar rahe hain. Dispatch hote hi aapko tracking details share kar di jayengi.\n\nDhanyavaad ji! 📦",
+    category: "Payment",
+    name: "Payment Confirmed",
+    message: "Thank you {{customer_name}} ji! Aapka payment confirm ho gaya hai.",
   },
   {
     id: "tpl_4",
-    category: "Shipping",
-    name: "India Post Speed Post Dispatch",
-    message: "Namaste {{customer_name}} ji! 🙏\n\nAapka Prajnaa Market order {{order_id}} Dehradun MDG se dispatch ho gaya hai. 📦\n\nCarrier: India Post (Speed Post)\nTracking ID: {{tracking_id}}\n\nAap apne parcel ka live status India Post ki official tracking service par check kar sakte hain:\nhttps://www.indiapost.gov.in\n\nDhanyavaad ji! 🌿",
+    category: "Order Updates",
+    name: "Order Processing",
+    message: "Ji, aapka order processing mein hai. Dispatch mein lagbhag 2–3 din lag sakte hain.",
   },
   {
     id: "tpl_5",
     category: "Shipping",
-    name: "Out for Delivery Alert",
-    message: "Namaste {{customer_name}} ji! 🙏\n\nAapka Prajnaa Market parcel (Consignment: {{tracking_id}}) aaj aapke delivery address ke liye out for delivery nikal chuka hai. Kripya apna phone available rakhein.\n\nDhanyavaad ji! 🌿\nTeam Prajnaa Market",
+    name: "Order Dispatched",
+    message: "Good news {{customer_name}} ji! Aapka order dispatch ho gaya hai. Tracking: https://www.indiapost.gov.in (Tracking ID: {{tracking_id}})",
   },
   {
     id: "tpl_6",
-    category: "Order Updates",
-    name: "Delivery Confirmation & Feedback",
-    message: "Namaste {{customer_name}} ji! 🙏\n\nAapke Prajnaa Market order {{order_id}} ki delivery successfully confirm ho gayi hai. Humein ummeed hai ki aapko hamare Himalayan natural products pasand aayenge. Prajnaa Market par bharosa karne ke liye dil se dhanyavaad!\n\nAgar aapka koi feedback ya review hai, toh isi chat par humse share kar sakte hain. 🌿",
+    category: "Shipping",
+    name: "Order Delivered",
+    message: "Ji, aapka order successfully deliver ho gaya hai. Thank you!",
   },
   {
     id: "tpl_7",
-    category: "Inquiry",
-    name: "Himalayan Harvest Inquiry Quote",
-    message: "Namaste {{customer_name}} ji! 🌿\n\nPrajnaa Market par swagat hai. Hamare sabhi Himalayan produce (Badri Cow A2 Ghee, Ladakh Apricots, Kashmir Mamra Almonds, Raw Forest Honey, Lakadong Turmeric) 100% natural, ethical aur traditional tarike se taiyar kiye jaate hain. Aap kis product ki jankari lena chahenge?",
+    category: "Catalogue",
+    name: "Live Product Catalogue",
+    message: "Bilkul ji! Hamara latest product catalogue yahan dekhein: /catalogue",
+  },
+  {
+    id: "tpl_8",
+    category: "Support",
+    name: "Human Support Handoff",
+    message: "Nishant ji abhi available nahi hain. Woh jald hi aapse connect karenge.",
+  },
+  {
+    id: "tpl_9",
+    category: "Support",
+    name: "Customer Complaint",
+    message: "Ji, inconvenience ke liye maafi chahte hain. Hamari team jald aapse connect karegi.",
   },
 ];
 
@@ -1023,7 +973,8 @@ export default function PrajnaaMasterCrmApp() {
   const [selectedShipment, setSelectedShipment] = useState<any>(null);
 
   // State: Templates
-  const [selectedTemplateCategory, setSelectedTemplateCategory] = useState("Order Updates");
+  const [selectedTemplateCategory, setSelectedTemplateCategory] = useState("all");
+  const [templatesSearchQuery, setTemplatesSearchQuery] = useState("");
   const [templatesList, setTemplatesList] = useState(INITIAL_TEMPLATES);
 
   // State: Modal for Status Update / Order
@@ -8610,42 +8561,156 @@ export default function PrajnaaMasterCrmApp() {
           </div>
         )}
 
-        {/* SCREEN 9: TEMPLATES */}
+        {/* SCREEN 9: TEMPLATES & SMART ASSISTANT INTENTS */}
         {activeNav === "templates" && userPermissions.allowedTabs.includes("templates") && (
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            <div>
-              <h2 className="text-xl font-bold text-neutral-900">WhatsApp Message Templates</h2>
-              <p className="text-xs text-neutral-500 mt-0.5">
-                Pre-approved templates for rapid order confirmations, QR codes, and tracking links.
-              </p>
+            {/* Header & Quick Action */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-neutral-900">WhatsApp Templates & Smart Intent Bot</h2>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    Hinglish Short Messages
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  Pre-approved short, polite Hinglish messages with respectful &ldquo;...ji&rdquo;, automated intent detection, and live catalogue links.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <a
+                  href="/catalogue"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3.5 py-2 rounded-xl bg-[#0F3D2E] hover:bg-[#16503d] text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs"
+                >
+                  <ShoppingBag className="h-3.5 w-3.5 text-[#E8A317]" />
+                  <span>View Live Catalogue</span>
+                  <ExternalLink className="h-3 w-3 text-white/70" />
+                </a>
+              </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-neutral-200/80 shadow-2xs divide-y divide-neutral-100 overflow-hidden">
-              {templatesList.map((tpl) => (
-                <div key={tpl.id} className="p-4 flex items-start justify-between gap-4 hover:bg-neutral-50 transition">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-xs text-neutral-900">{tpl.name}</h4>
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                        {tpl.category}
-                      </span>
-                    </div>
-                    <p className="text-xs text-neutral-600 leading-relaxed max-w-2xl">{tpl.message}</p>
+            {/* Smart Intent Engine Highlights Banner */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 to-amber-50/50 border border-emerald-200/80 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-[#0F3D2E] text-white flex items-center justify-center font-bold text-xs">
+                    ⚡
                   </div>
-
-                  <button
-                    onClick={() => {
-                      const personalized = interpolateCustomerTemplate(tpl.message, currentCustomer);
-                      setInputMessage(personalized);
-                      setActiveNav("inbox");
-                      toast.success(`Applied "${tpl.name}" personalized for ${currentCustomer.name}!`);
-                    }}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shrink-0 transition shadow-2xs cursor-pointer"
-                  >
-                    Use in Chat
-                  </button>
+                  <div>
+                    <h3 className="font-bold text-xs text-neutral-900">Smart Customer Intent Detection Engine</h3>
+                    <p className="text-[11px] text-neutral-600">
+                      Understands 15 customer intents: Greetings, Live Catalogue, Product Availability, Price, Orders, Tracking, Complaints, and Human Handoff.
+                    </p>
+                  </div>
                 </div>
-              ))}
+                <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-600 text-white shadow-2xs">
+                  <CheckCircle2 className="w-3 h-3" /> 100% Active
+                </span>
+              </div>
+            </div>
+
+            {/* Filter Tabs and Search Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
+                {[
+                  { id: "all", label: "All Templates" },
+                  { id: "Order Updates", label: "Order Updates" },
+                  { id: "Payment", label: "Payment" },
+                  { id: "Shipping", label: "Shipping" },
+                  { id: "Catalogue", label: "Catalogue" },
+                  { id: "Support", label: "Support & Handoff" },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setSelectedTemplateCategory(tab.id)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                      selectedTemplateCategory === tab.id
+                        ? "bg-[#0F3D2E] text-white shadow-xs"
+                        : "bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-50"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" />
+                <input
+                  type="text"
+                  value={templatesSearchQuery}
+                  onChange={(e) => setTemplatesSearchQuery(e.target.value)}
+                  placeholder="Filter templates..."
+                  className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-neutral-200 bg-white text-xs text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-[#0F3D2E]"
+                />
+              </div>
+            </div>
+
+            {/* Template List Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {templatesList
+                .filter((tpl) => {
+                  const matchCat =
+                    selectedTemplateCategory === "all" || tpl.category.toLowerCase() === selectedTemplateCategory.toLowerCase();
+                  const matchSearch =
+                    !templatesSearchQuery.trim() ||
+                    tpl.name.toLowerCase().includes(templatesSearchQuery.toLowerCase()) ||
+                    tpl.message.toLowerCase().includes(templatesSearchQuery.toLowerCase());
+                  return matchCat && matchSearch;
+                })
+                .map((tpl) => (
+                  <div
+                    key={tpl.id}
+                    className="p-4 rounded-2xl bg-white border border-neutral-200/90 shadow-2xs flex flex-col justify-between space-y-3 hover:border-emerald-300 transition"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-xs text-neutral-900">{tpl.name}</h4>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700 border border-neutral-200">
+                            {tpl.category}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                          Short Hinglish
+                        </span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-neutral-50/80 border border-neutral-100 text-xs text-neutral-800 font-mono leading-relaxed select-all">
+                        {tpl.message}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(tpl.message);
+                          toast.success(`Copied "${tpl.name}" to clipboard!`);
+                        }}
+                        className="px-3 py-1.5 rounded-xl border border-neutral-200 text-neutral-700 hover:bg-neutral-50 text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
+                      >
+                        <Copy className="h-3 w-3" />
+                        <span>Copy</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const personalized = interpolateCustomerTemplate(tpl.message, currentCustomer);
+                          setInputMessage(personalized);
+                          setActiveNav("inbox");
+                          toast.success(`Applied "${tpl.name}" personalized for ${currentCustomer.name}!`);
+                        }}
+                        className="px-3 py-1.5 bg-[#0F3D2E] hover:bg-[#16503d] text-white rounded-xl text-xs font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                      >
+                        <Send className="h-3 w-3" />
+                        <span>Use in Chat</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
             </div>
           </div>
         )}

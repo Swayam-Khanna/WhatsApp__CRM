@@ -173,16 +173,17 @@ export async function POST(req: NextRequest) {
     // SCENARIO A: Inbound Customer Message (Triggers Instant Automated Reply)
     if (sender === "customer") {
       const fromClean = (to || "").replace(/\D/g, "").slice(-10);
-      const { processConversationalBotReply } = await import("../../../../backend/lib/whatsapp.server.ts");
+      const { processSmartCustomerReply } = await import("../../../../backend/lib/smart-assistant.server.ts");
+      const host = req.headers.get("host") || undefined;
 
-      const botResult = processConversationalBotReply({
-        senderPhone: to,
-        senderText: text,
-        existingCustomerName: customerName,
-        orderNumber,
+      const botResult = await processSmartCustomerReply({
+        customerPhone: to,
+        customerText: text,
+        customerName,
+        reqHost: host,
       });
 
-      const resolvedName = botResult.updatedCustomerName || customerName || "Customer";
+      const resolvedName = (botResult as any)?.updatedCustomerName || customerName || "Customer";
 
       // If updated customer name found, propagate to past messages in feed & DB
       if (botResult.updatedCustomerName && fromClean) {
@@ -231,33 +232,36 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const autoReplyText = botResult.replyText;
-      const replyResult = await sendWhatsAppTextMessage({ to, text: autoReplyText });
+      let autoReplyRecord: any = null;
+      if (botResult && botResult.shouldSend && botResult.replyText) {
+        const autoReplyText = botResult.replyText;
+        const replyResult = await sendWhatsAppTextMessage({ to, text: autoReplyText });
 
-      const autoReplyRecord = {
-        id: replyResult.messageId || `msg_auto_${Date.now()}`,
-        direction: "outbound",
-        sender: "business",
-        from: process.env.ADMIN_WHATSAPP_NUMBER || "918091265690",
-        to,
-        customerName: resolvedName,
-        text: autoReplyText,
-        timestamp: new Date().toISOString(),
-        status: "sent",
-        isAutomated: true,
-        customerId,
-        orderNumber,
-        mode: replyResult.mode,
-        whatsappUrl: replyResult.whatsappUrl || null,
-        createdAt: new Date(),
-      };
+        autoReplyRecord = {
+          id: replyResult.messageId || `msg_auto_${Date.now()}`,
+          direction: "outbound",
+          sender: "business",
+          from: process.env.ADMIN_WHATSAPP_NUMBER || "918091265690",
+          to,
+          customerName: resolvedName,
+          text: autoReplyText,
+          timestamp: new Date().toISOString(),
+          status: "sent",
+          isAutomated: true,
+          customerId,
+          orderNumber,
+          mode: replyResult.mode,
+          whatsappUrl: replyResult.whatsappUrl || null,
+          createdAt: new Date(),
+        };
 
-      globalThis.__globalWhatsAppFeed.unshift(autoReplyRecord);
-      if (db) {
-        try {
-          await db.collection("crm_messages").insertOne(autoReplyRecord);
-        } catch (e) {
-          console.warn("[MongoDB] Note: Failed to persist auto reply msg:", e);
+        globalThis.__globalWhatsAppFeed.unshift(autoReplyRecord);
+        if (db) {
+          try {
+            await db.collection("crm_messages").insertOne(autoReplyRecord);
+          } catch (e) {
+            console.warn("[MongoDB] Note: Failed to persist auto reply msg:", e);
+          }
         }
       }
 
@@ -271,6 +275,12 @@ export async function POST(req: NextRequest) {
 
     // SCENARIO B: Outbound Staff / Business Message
     const cleanTo = (to || "").replace(/\D/g, "");
+
+    // Human takeover safeguard: pause conflicting automated bot replies for this customer
+    try {
+      const { setHumanAgentHandoff } = await import("../../../../backend/lib/smart-assistant.server.ts");
+      setHumanAgentHandoff(cleanTo, "CRM Staff Desk");
+    } catch {}
     const recentDuplicate = (globalThis.__globalWhatsAppFeed || []).find(
       (m: any) =>
         m.direction === "outbound" &&

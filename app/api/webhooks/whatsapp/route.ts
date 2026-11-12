@@ -6,6 +6,7 @@ import {
   sendWhatsAppTextMessage,
   processConversationalBotReply,
 } from "../../../../backend/lib/whatsapp.server.ts";
+import { processSmartCustomerReply } from "../../../../backend/lib/smart-assistant.server.ts";
 import { getDatabase } from "../../../../lib/mongodb.ts";
 import { db as pgDb } from "../../../../backend/db.ts";
 import { crmMessages } from "../../../../backend/schema/crm.ts";
@@ -88,7 +89,8 @@ export async function POST(req: NextRequest) {
     const { messages, statuses } = parseInboundWebhookPayload(payload);
 
     // 3. Process and persist synchronously so Serverless function commits to MongoDB Atlas before terminating
-    await handleWebhookProcessing(messages, statuses);
+    const reqHost = req.headers.get("host") || undefined;
+    await handleWebhookProcessing(messages, statuses, reqHost);
 
     if (isInternalTest || req.headers.get("accept")?.includes("application/json")) {
       return NextResponse.json({
@@ -106,7 +108,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function handleWebhookProcessing(messages: any[], statuses: any[]) {
+async function handleWebhookProcessing(messages: any[], statuses: any[], reqHost?: string) {
   if (!globalThis.__globalWhatsAppFeed) {
     globalThis.__globalWhatsAppFeed = [];
   }
@@ -148,16 +150,20 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
     const fromClean = (msg.fromPhone || "").replace(/\D/g, "").slice(-10);
     const isAdminSender = fromClean === adminPhone;
 
-    // Conversational bot engine: detects name, answers questions on Almonds, Honey, Walnuts, etc.
+    // Smart assistant engine: understands intent, queries live catalogue, answers with short Hinglish
     const botResult = !isAdminSender
-      ? processConversationalBotReply({
-          senderPhone: msg.fromPhone,
-          senderText: msg.text,
-          existingCustomerName: msg.customerName,
+      ? await processSmartCustomerReply({
+          customerPhone: msg.fromPhone,
+          customerText: msg.text,
+          customerName: msg.customerName,
+          reqHost,
         })
       : null;
 
     const resolvedCustomerName =
+      (botResult as any)?.updatedCustomerName ||
+      msg.customerName ||
+      (isAdminSender ? "Store Admin" : "Customer");
       botResult?.updatedCustomerName ||
       msg.customerName ||
       (isAdminSender ? "Store Admin" : "Customer");
@@ -276,7 +282,7 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
     }
 
     // Automated customer bot reply if message is NOT from the store admin
-    if (!isAdminSender && botResult) {
+    if (!isAdminSender && botResult && botResult.shouldSend && botResult.replyText) {
       const autoReplyText = botResult.replyText;
 
       const autoReplyRecord = {
