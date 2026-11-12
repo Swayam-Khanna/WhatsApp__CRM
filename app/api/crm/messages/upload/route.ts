@@ -87,7 +87,35 @@ export async function POST(req: NextRequest) {
     }
     globalThis.__globalWhatsAppFeed.unshift(messageRecord);
 
-    // 4. Persist to MongoDB
+    // 4. Persist to PostgreSQL (Primary)
+    try {
+      const { db: pgDb } = await import("../../../../../backend/db.ts");
+      const { crmMessages } = await import("../../../../../backend/schema/crm.ts");
+      await pgDb
+        .insert(crmMessages)
+        .values({
+          id: messageRecord.id,
+          direction: "outbound",
+          sender: "business",
+          from: messageRecord.from,
+          to: messageRecord.to,
+          text: messageRecord.text,
+          type: messageRecord.type,
+          mediaId: messageRecord.mediaId,
+          mimeType: messageRecord.mimeType,
+          status: "sent",
+          customerId: customerId || null,
+          orderNumber: orderNumber || null,
+          mode: sendRes.mode,
+          whatsappUrl: sendRes.whatsappUrl || null,
+          createdAt: messageRecord.createdAt,
+        })
+        .onConflictDoNothing();
+    } catch (pgErr) {
+      console.warn("[CRM Media Upload] PostgreSQL write warning:", pgErr);
+    }
+
+    // 5. Persist to MongoDB (Fallback)
     try {
       const db = await getDatabase();
       if (db) {

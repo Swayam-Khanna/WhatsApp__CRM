@@ -4,14 +4,16 @@ import {
   sendWhatsAppMediaMessage,
   getWhatsAppIntegrationStatus,
 } from "../../../../backend/lib/whatsapp.server.ts";
-
+import { db } from "../../../../backend/db.ts";
+import { crmMessages } from "../../../../backend/schema/crm.ts";
+import { desc, or, ilike, eq } from "drizzle-orm";
 import { getDatabase } from "../../../../lib/mongodb.ts";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/crm/messages
- * Retrieves live WhatsApp messages feed from MongoDB Atlas and integration health.
+ * Retrieves live WhatsApp messages feed from PostgreSQL (primary) & MongoDB (fallback) and integration health.
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -19,32 +21,62 @@ export async function GET(req: NextRequest) {
   const health = getWhatsAppIntegrationStatus();
 
   try {
-    const fetchWithTimeout = async () => {
-      const db = await getDatabase();
-      const query = phone
-        ? {
-            $or: [
-              { to: { $regex: phone.replace(/\D/g, "").slice(-10) } },
-              { from: { $regex: phone.replace(/\D/g, "").slice(-10) } },
-            ],
-          }
-        : {};
+    const cleanPhone = phone ? phone.replace(/\D/g, "").slice(-10) : "";
+    let pgMessages: any[] = [];
 
-      return await db
-        .collection("crm_messages")
-        .find(query)
-        .sort({ createdAt: -1, timestamp: -1 }).limit(500)
-        .toArray();
-    };
+    // 1. Primary storage: PostgreSQL via Drizzle ORM
+    try {
+      if (cleanPhone) {
+        pgMessages = await db
+          .select()
+          .from(crmMessages)
+          .where(or(ilike(crmMessages.from, `%${cleanPhone}%`), ilike(crmMessages.to, `%${cleanPhone}%`)))
+          .orderBy(desc(crmMessages.createdAt))
+          .limit(500);
+      } else {
+        pgMessages = await db
+          .select()
+          .from(crmMessages)
+          .orderBy(desc(crmMessages.createdAt))
+          .limit(500);
+      }
+    } catch (pgErr: any) {
+      console.warn("[PostgreSQL] Messages query note:", pgErr?.message || pgErr);
+    }
 
-    const dbMessages = await Promise.race([
-      fetchWithTimeout(),
-      new Promise<any[]>((_, reject) =>
-        setTimeout(() => reject(new Error("MongoDB query timeout")), 8000)
-      ),
-    ]);
+    // 2. Secondary fallback storage: MongoDB Atlas
+    let dbMessages: any[] = [];
+    try {
+      const fetchWithTimeout = async () => {
+        const mongoDb = await getDatabase();
+        const query = cleanPhone
+          ? {
+              $or: [
+                { to: { $regex: cleanPhone } },
+                { from: { $regex: cleanPhone } },
+              ],
+            }
+          : {};
 
-        const isDuplicateMessage = (m: any, o: any) => {
+        return await mongoDb
+          .collection("crm_messages")
+          .find(query)
+          .sort({ createdAt: -1, timestamp: -1 })
+          .limit(500)
+          .toArray();
+      };
+
+      dbMessages = await Promise.race([
+        fetchWithTimeout(),
+        new Promise<any[]>((_, reject) =>
+          setTimeout(() => reject(new Error("MongoDB query timeout")), 4000)
+        ),
+      ]);
+    } catch (mongoErr) {
+      // In PostgreSQL-first deployments, MongoDB timeout/skip is expected
+    }
+
+    const isDuplicateMessage = (m: any, o: any) => {
       if (m.id && o.id && m.id === o.id) return true;
       const sameFrom = (m.from || "").replace(/\D/g, "").slice(-10) === (o.from || "").replace(/\D/g, "").slice(-10);
       const sameTo = (m.to || "").replace(/\D/g, "").slice(-10) === (o.to || "").replace(/\D/g, "").slice(-10);
@@ -56,7 +88,7 @@ export async function GET(req: NextRequest) {
       return sameFrom && sameTo && sameText && sameDir && timeDiff < 4000;
     };
 
-    const allMsgs = [...(globalThis.__globalWhatsAppFeed || []), ...(dbMessages || [])];
+    const allMsgs = [...(globalThis.__globalWhatsAppFeed || []), ...(pgMessages || []), ...(dbMessages || [])];
     let uniqueMsgs = allMsgs.filter((m, idx, arr) => idx === arr.findIndex((o) => isDuplicateMessage(m, o)));
 
     // Exclude any messages from permanently deleted contacts
@@ -293,7 +325,37 @@ export async function POST(req: NextRequest) {
 
     globalThis.__globalWhatsAppFeed.unshift(messageRecord);
 
-    // Save permanently to MongoDB Atlas & update conversation state
+    // 1. Save permanently to PostgreSQL (Primary)
+    let persistedInPg = false;
+    try {
+      await db
+        .insert(crmMessages)
+        .values({
+          id: messageRecord.id,
+          direction: "outbound",
+          sender: "business",
+          from: messageRecord.from,
+          to: messageRecord.to,
+          customerName: customerName || null,
+          text: messageRecord.text,
+          type: messageRecord.type || "text",
+          mediaId: messageRecord.mediaId || null,
+          mimeType: messageRecord.mimeType || null,
+          timestamp: new Date(messageRecord.timestamp),
+          status: "sent",
+          customerId: customerId || null,
+          orderNumber: orderNumber || null,
+          mode: result.mode,
+          whatsappUrl: result.whatsappUrl || null,
+          createdAt: messageRecord.createdAt,
+        })
+        .onConflictDoNothing();
+      persistedInPg = true;
+    } catch (pgErr: any) {
+      console.warn("[PostgreSQL] Note: Failed to persist outbound message:", pgErr?.message || pgErr);
+    }
+
+    // 2. Save permanently to MongoDB Atlas (Fallback) & update conversation state
     if (db) {
       try {
         await db.collection("crm_messages").insertOne(messageRecord);

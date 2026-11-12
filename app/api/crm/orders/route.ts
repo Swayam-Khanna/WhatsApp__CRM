@@ -106,9 +106,25 @@ import {
 
 /**
  * GET /api/crm/orders
- * Returns authoritative CRM orders from MongoDB Atlas with in-memory fallback.
+ * Returns authoritative CRM orders from PostgreSQL (primary) & MongoDB Atlas (fallback).
  */
 export async function GET() {
+  // 1. Primary storage: PostgreSQL via Drizzle ORM
+  try {
+    const pgOrders = await db
+      .select()
+      .from(crmOrders)
+      .orderBy(desc(crmOrders.createdAt))
+      .limit(100);
+
+    if (pgOrders && pgOrders.length > 0) {
+      return Response.json({ success: true, source: "postgresql", orders: pgOrders });
+    }
+  } catch (err: any) {
+    console.warn("[PostgreSQL] CRM orders query note:", err?.message || err);
+  }
+
+  // 2. Secondary fallback storage: MongoDB Atlas
   try {
     const mongoDb = await getDatabase();
     const mongoOrders = await mongoDb
@@ -125,7 +141,7 @@ export async function GET() {
     console.warn("[MongoDB] Orders query note:", err);
   }
 
-  // Fallback to in-memory store
+  // 3. Fallback to in-memory store
   return Response.json({
     success: true,
     source: "memory_sync",
