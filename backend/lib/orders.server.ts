@@ -17,6 +17,7 @@ import {
   farmerProfiles,
 } from "../schema/index.ts";
 import { isOnlinePaymentsEnabled } from "./features.ts";
+import { syncOrderToWhatsAppCrm } from "./crm-sync.server.ts";
 
 export interface CreateOrderItemInput {
   productId: string;
@@ -52,6 +53,7 @@ export interface CalculatedOrder {
   invoiceDate?: Date | null;
   items: Array<{
     productId: string;
+    sku?: string | null;
     variantId?: string | null;
     variantName?: string | null;
     farmerId: string;
@@ -323,6 +325,57 @@ export async function calculateOrderServerTotals(
           product = {
             id: (staticProd as any).id || staticProd.slug,
             slug: staticProd.slug,
+            sku: staticProd.sku || null,
+            name: staticProd.name,
+            farmerId: null,
+            price: staticProd.price,
+            weightGrams: typeof (staticProd as any).weight_gm === "number" ? (staticProd as any).weight_gm : 500,
+            gstApplicable: true,
+            gstRate: 5,
+            hsnCode: (staticProd as any).hsnCode || null,
+            images: Array.isArray(staticProd.images) ? staticProd.images : [staticProd.image].filter(Boolean),
+          };
+        }
+      }
+    }
+
+    // 3. Resolve by SKU across DB variants and static catalog
+    const itemSku = (item as any).sku || (item as any).productSku || (!itemSlug && item.productId ? item.productId : null);
+    if (!product && itemSku) {
+      try {
+        const { productVariants } = await import("../schema/inventory.ts");
+        const [variant] = await db
+          .select()
+          .from(productVariants)
+          .where(eq(productVariants.sku, itemSku))
+          .limit(1);
+        if (variant) {
+          const [parentProd] = await db
+            .select()
+            .from(farmerProducts)
+            .where(eq(farmerProducts.id, variant.productId))
+            .limit(1);
+          if (parentProd) {
+            product = {
+              ...parentProd,
+              sku: variant.sku,
+              variantId: variant.id,
+              variantName: variant.variantName,
+              price: variant.pricePaise / 100,
+              weightGrams: variant.weightGrams,
+            };
+          }
+        }
+      } catch {}
+
+      if (!product) {
+        const { allProducts } = await import("../../frontend/lib/mock/products.ts");
+        const staticProd = allProducts.find((p: any) => p.sku === itemSku || (p as any).id === itemSku || p.slug === itemSku);
+        if (staticProd) {
+          product = {
+            id: (staticProd as any).id || staticProd.slug,
+            slug: staticProd.slug,
+            sku: staticProd.sku || itemSku,
             name: staticProd.name,
             farmerId: null,
             price: staticProd.price,
@@ -360,8 +413,9 @@ export async function calculateOrderServerTotals(
 
     processedItems.push({
       productId: product.id,
+      sku: product.sku || (item as any).sku || null,
       variantId: item.variantId || null,
-      variantName: null,
+      variantName: (product as any).variantName || null,
       farmerId: product.farmerId,
       productName: product.name,
       productSlug: product.slug,
@@ -511,25 +565,57 @@ export async function checkOrderAbuseGuards(
  */
 export async function decrementStockAtomicTx(
   tx: any,
-  items: Array<{ productId: string; productSlug?: string; slug?: string; variantId?: string | null; variantName?: string | null; productName: string; weightGrams: number }>,
+  items: Array<{ productId: string; productSlug?: string; slug?: string; sku?: string | null; variantId?: string | null; variantName?: string | null; productName: string; weightGrams: number; quantity?: number }>,
   orderId: string
 ) {
   for (const item of items) {
     const gramsToDeduct = item.weightGrams;
     const itemSlug = (item as any).slug || (item as any).productSlug;
+    const itemSku = (item as any).sku || (item as any).productSku;
 
-    // Resolve effective product ID if item has a slug that matches farmer_products
+    // Resolve effective product ID if item has a slug or sku that matches farmer_products
     let effectiveProductId = item.productId;
     if (itemSlug) {
-      const [p] = await tx
-        .select({ id: farmerProducts.id })
-        .from(farmerProducts)
-        .where(eq(farmerProducts.slug, itemSlug))
-        .limit(1);
-      if (p?.id) effectiveProductId = p.id;
+      try {
+        const [p] = await tx
+          .select({ id: farmerProducts.id })
+          .from(farmerProducts)
+          .where(eq(farmerProducts.slug, itemSlug))
+          .limit(1);
+        if (p?.id) effectiveProductId = p.id;
+      } catch (err) {
+        console.warn("[Stock Decrement] Slug lookup warning:", err);
+      }
+    }
+    if ((!effectiveProductId || effectiveProductId === itemSlug) && itemSku) {
+      try {
+        const [p] = await tx
+          .select({ id: farmerProducts.id })
+          .from(farmerProducts)
+          .where(sql`${farmerProducts.slug} = ${itemSku} OR ${farmerProducts.id} = ${itemSku}`)
+          .limit(1);
+        if (p?.id) effectiveProductId = p.id;
+      } catch {}
     }
 
-    // Single source of truth for stock writes: product_inventory
+    // 1. Decrement farmer_products unit and gram stock if present in DB
+    try {
+      const unitsToDeduct = Math.max(1, Number(item.quantity || (item as any).qty || 1));
+      await tx
+        .update(farmerProducts)
+        .set({
+          stock: sql`GREATEST(0, ${farmerProducts.stock} - ${unitsToDeduct})`,
+          stockGrams: sql`GREATEST(0, ${farmerProducts.stockGrams} - ${gramsToDeduct})`,
+          updatedAt: new Date(),
+        })
+        .where(
+          sql`${farmerProducts.id} = ${effectiveProductId} OR ${itemSlug ? sql`${farmerProducts.slug} = ${itemSlug}` : sql`false`}`
+        );
+    } catch (fpErr: any) {
+      console.warn("[Stock Decrement] Note updating farmer_products stock:", fpErr?.message || fpErr);
+    }
+
+    // 2. Single source of truth for stock writes: product_inventory
     const [inv] = await tx
       .select({ productId: productInventory.productId, stockGrams: productInventory.stockGrams })
       .from(productInventory)
@@ -542,12 +628,15 @@ export async function decrementStockAtomicTx(
     // If product has no inventory row in product_inventory, a missing inventory row means UNLIMITED!
     // No error is thrown. Stock is unlimited.
     if (!inv) {
+      console.log(`[Stock Sync Note] Order #${orderId}: Product "${item.productName}" (ID: ${effectiveProductId}) has no custom inventory row; stock treated as unconstrained.`);
       continue;
     }
 
     if (inv.stockGrams < gramsToDeduct) {
+      const errorMsg = `Insufficient stock for "${item.productName}". Available: ${inv.stockGrams}g, Requested: ${gramsToDeduct}g`;
+      console.error(`[Stock Sync Failure] Order #${orderId}:`, { item, error: errorMsg });
       throw new OrderError(
-        `Insufficient stock for "${item.productName}". Available: ${inv.stockGrams}g, Requested: ${gramsToDeduct}g`,
+        errorMsg,
         409,
         "INSUFFICIENT_STOCK"
       );
@@ -580,6 +669,25 @@ export async function decrementStockAtomicTx(
       orderId,
       createdAt: new Date(),
     });
+
+    console.log(`[Stock Decrement Success] Order #${orderId}: Decremented ${gramsToDeduct}g for "${item.productName}". Remaining: ${inv.stockGrams - gramsToDeduct}g`);
+  }
+}
+
+/**
+ * Public helper to decrement order stock atomically from API routes (Razorpay, Cashfree, CRM).
+ */
+export async function decrementOrderStockAtomic(
+  items: Array<{ productId: string; productSlug?: string; slug?: string; sku?: string | null; variantId?: string | null; variantName?: string | null; productName: string; weightGrams: number; quantity?: number }>,
+  orderId: string
+) {
+  try {
+    return await db.transaction(async (tx) => {
+      return await decrementStockAtomicTx(tx, items, orderId);
+    });
+  } catch (err: any) {
+    console.error(`[Stock Sync Failure] Order #${orderId} atomic stock decrement error:`, err?.message || err);
+    throw err;
   }
 }
 
@@ -781,6 +889,13 @@ export async function createOrderAtomic(params: CreateOrderParams) {
       shippingAddressSnapshot: params.shippingAddressSnapshot,
     });
     whatsappUrl = generateWhatsAppLink(adminWhatsAppPhone, message);
+  }
+
+  // 3G. Auto-sync order into WhatsApp CRM
+  try {
+    await syncOrderToWhatsAppCrm(finalOrder, calc.items);
+  } catch (crmSyncErr) {
+    console.warn("[OrderService] Auto-sync to WhatsApp CRM warning:", crmSyncErr);
   }
 
   return {

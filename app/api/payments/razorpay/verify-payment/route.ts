@@ -124,8 +124,64 @@ export async function POST(req: Request) {
           updatedAt: new Date(),
         })
         .where(or(eq(orders.id, order_id), eq(orders.orderNumber, order_id)));
-    } catch (dbErr) {
-      console.warn("[Razorpay Verify] Neon order update warning:", dbErr);
+    } catch (dbErr: any) {
+      console.error("[Razorpay Verify] Neon order update error:", dbErr?.message || dbErr);
+    }
+
+    // 3B. Atomically decrement stock for purchased items
+    try {
+      const { decrementOrderStockAtomic } = await import("../../../../../backend/lib/orders.server.ts");
+      const normalizedItemsForStock = (items || []).map((it: any) => ({
+        productId: it.productId || it.id || it.slug || primarySku,
+        productSlug: it.slug || it.productSlug,
+        slug: it.slug,
+        sku: it.sku || primarySku,
+        productName: it.name || it.productName || primaryProductName,
+        quantity: Math.max(1, Number(it.quantity || it.qty || 1)),
+        weightGrams: Number(it.weightGrams || it.weight_gm || 500) * Math.max(1, Number(it.quantity || it.qty || 1)),
+      }));
+
+      if (normalizedItemsForStock.length > 0) {
+        await decrementOrderStockAtomic(normalizedItemsForStock, String(order_id));
+        console.log(`[Stock Decrement Success] Razorpay Order #${order_id}: inventory updated automatically.`);
+      }
+    } catch (stockErr: any) {
+      console.error(`[Stock Sync Failure] Razorpay Order #${order_id} stock decrement error:`, stockErr?.message || stockErr);
+    }
+
+    // 4. Update WhatsApp CRM order & sync to CRM outbox
+    try {
+      const { syncOrderToWhatsAppCrm } = await import("../../../../../backend/lib/crm-sync.server.ts");
+      const cleanOrderId = String(order_id).replace(/^#+/, "");
+
+      const crmSyncResult = await syncOrderToWhatsAppCrm({
+        id: cleanOrderId,
+        orderNumber: cleanOrderId,
+        customerName: contact?.name || "Customer",
+        customerPhone: contact?.phone || "",
+        customerEmail: contact?.email || "",
+        totalPaise: Math.round(Number(amount) * 100),
+        status: "Processing",
+        paymentStatus: "paid",
+        paymentMethod: payment_method || "razorpay",
+        shippingAddressSnapshot: {
+          fullName: contact?.name || "",
+          line1: shipping_address || "",
+          postalCode: shipping_pincode || "",
+        },
+        items: (items || []).map((it: any) => ({
+          productId: it.productId || it.id || it.slug || primarySku,
+          sku: it.sku || primarySku,
+          productName: it.name || it.productName || primaryProductName,
+          quantity: Math.max(1, Number(it.quantity || it.qty || 1)),
+          unitPricePaise: Math.round(Number(it.price || (it.unitPricePaise ? it.unitPricePaise / 100 : 0)) * 100),
+          totalPaise: Math.round(Number(it.total || (it.totalPaise ? it.totalPaise / 100 : 0) || Number(it.price || 0) * Math.max(1, Number(it.quantity || it.qty || 1))) * 100),
+        })),
+      });
+
+      console.log(`[Order Sync] Razorpay Order #${order_id} synced to CRM:`, crmSyncResult);
+    } catch (crmErr: any) {
+      console.error(`[Order Sync Failure] Razorpay Order #${order_id} failed to sync to CRM:`, crmErr?.message || crmErr);
     }
 
     // 5. Send confirmation notification email to admin/team

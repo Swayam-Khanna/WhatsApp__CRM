@@ -477,3 +477,12 @@ div[data-nextjs-dialog-overlay] {
     break-inside: avoid !important;
   }
 }
+
+/* Custom utility: hide native scrollbar while retaining scrollability across all devices */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}

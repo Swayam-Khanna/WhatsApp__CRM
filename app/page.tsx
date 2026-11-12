@@ -846,6 +846,11 @@ export default function PrajnaaMasterCrmApp() {
   const [inboxTab, setInboxTab] = useState<"all" | "unread" | "assigned" | "resolved">("all");
   const [inboxSearch, setInboxSearch] = useState("");
 
+  // Shared single source of truth for all unread counters and notification badges
+  const totalUnreadCount = useMemo(() => {
+    return customers.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+  }, [customers]);
+
   // State: Messages
   const [messagesMap, setMessagesMap] = useState<Record<string, Message[]>>(INITIAL_MESSAGES_MAP);
 
@@ -6313,7 +6318,7 @@ export default function PrajnaaMasterCrmApp() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-1 p-1 bg-white border border-neutral-200/80 rounded-xl text-xs font-semibold shadow-2xs self-start sm:self-auto overflow-x-auto">
+              <div className="flex items-center gap-1 p-1 bg-white border border-neutral-200/80 rounded-xl text-xs font-semibold shadow-2xs self-start sm:self-auto overflow-x-auto no-scrollbar">
                 {(["7d", "30d", "quarter"] as const).map((t) => (
                   <button
                     key={t}
@@ -6813,7 +6818,7 @@ export default function PrajnaaMasterCrmApp() {
             {/* Search and Quick Filters Bar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               {/* Status Tabs with Counters */}
-              <div className="flex items-center gap-1.5 border-b border-neutral-200 pb-2 overflow-x-auto w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 border-b border-neutral-200 pb-2 overflow-x-auto w-full sm:w-auto no-scrollbar">
                 {[
                   { id: "all", label: "All Orders", count: orderTabCounts.all },
                   { id: "pending", label: "Pending", count: orderTabCounts.pending },
@@ -7594,7 +7599,7 @@ export default function PrajnaaMasterCrmApp() {
               <span className="text-xs font-bold text-emerald-950 dark:text-emerald-300 shrink-0 flex items-center gap-1.5">
                 <Sparkles className="h-3.5 w-3.5 text-emerald-600" /> Quick Harvest Presets:
               </span>
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar">
                 {BROADCAST_PRESETS.map((preset, idx) => (
                   <button
                     key={idx}
@@ -7937,7 +7942,7 @@ export default function PrajnaaMasterCrmApp() {
 
             {/* Filter and Search Bar */}
             <div className={`p-4 rounded-2xl border shadow-2xs flex items-center justify-between gap-4 ${themeStyles.cardBg}`}>
-              <div className="flex items-center gap-1.5 overflow-x-auto">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
                 {(["all", "In Stock", "Low Stock", "Out of Stock", "Pre-Order"] as const).map((st) => (
                   <button
                     key={st}
@@ -9132,9 +9137,11 @@ export default function PrajnaaMasterCrmApp() {
           >
             <div className="relative">
               <MessageSquare className="h-4 w-4" />
-              <span className="absolute -top-1 -right-2 bg-rose-500 text-white text-[8px] font-bold px-1 rounded-full">
-                12
-              </span>
+              {totalUnreadCount > 0 && (
+                <span className="absolute -top-1 -right-2 bg-rose-500 text-white text-[8px] font-bold px-1 rounded-full">
+                  {totalUnreadCount}
+                </span>
+              )}
             </div>
             <span>Inbox</span>
           </button>
@@ -10064,14 +10071,23 @@ export default function PrajnaaMasterCrmApp() {
                         : c
                     )
                   );
-                  setCrmOrders((prev) =>
-                    prev.map((o) =>
+                  setCrmOrders((prev) => {
+                    const updated = prev.map((o) =>
                       `#${o.orderNumber || o.id}` === selectedOrderForView.orderNumber ||
-                      String(o.orderNumber || o.id) === selectedOrderForView.orderNumber
+                      String(o.orderNumber || o.id) === selectedOrderForView.orderNumber ||
+                      String(o.orderNumber || o.id).replace(/^#+/, "") === selectedOrderForView.orderNumber.replace(/^#+/, "")
                         ? { ...o, status: statusUpdateChoice }
                         : o
-                    )
-                  );
+                    );
+                    try {
+                      localStorage.setItem("prajnaa_crm_orders", JSON.stringify(updated));
+                    } catch {}
+                    return updated;
+                  });
+                  if (typeof window !== "undefined") {
+                    window.dispatchEvent(new Event("storage"));
+                    window.dispatchEvent(new CustomEvent("prajnaa_order_placed"));
+                  }
                   setShowStatusModal(false);
                   toast.success(`Order status updated to ${statusUpdateChoice}! Customer notified on WhatsApp.`);
                 }}

@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { db } from "../db.ts";
 import { orderCrmSync } from "../schema/orders.ts";
+import { crmOrders } from "../schema/crm.ts";
 import { eq } from "drizzle-orm";
 import { getDatabase } from "../../lib/mongodb.ts";
 
@@ -17,6 +18,7 @@ export interface CrmShippingAddress {
 
 export interface CrmOrderItem {
   productId?: string;
+  sku?: string;
   productName: string;
   quantity: number;
   unitPricePaise: number;
@@ -128,6 +130,7 @@ export function buildCrmOrderPayload(order: any, fallbackItems: any[] = []): Crm
 
     return {
       productId: it.productId || it.productSlug || it.slug,
+      sku: it.sku || it.productSku || undefined,
       productName: it.productName || it.name || "Prajnaa Himalayan Produce",
       quantity: qty,
       unitPricePaise,
@@ -290,6 +293,7 @@ export async function syncOrderToWhatsAppCrm(
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "X-Correlation-Id": `corr_${orderNumber}_${Date.now()}`,
+      "x-crm-client": "prajnaa-crm-sync",
     };
 
     if (apiKey) {

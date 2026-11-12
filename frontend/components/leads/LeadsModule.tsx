@@ -352,15 +352,15 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
       {/* 1. Module Placement & Workspace Header (Page 2 of PDF) */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-neutral-200/80 dark:border-slate-800 pb-4">
         <div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-xl sm:text-2xl font-extrabold text-neutral-900 dark:text-white tracking-tight">
               Leads & Sales Management
             </h2>
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700 flex items-center gap-1 shadow-2xs">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700 flex items-center gap-1 shadow-2xs whitespace-nowrap shrink-0">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
               Meta Status: Pending Review
             </span>
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 whitespace-nowrap shrink-0">
               Pipelines Active
             </span>
           </div>
@@ -370,11 +370,11 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2 self-start md:self-auto">
+        <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
           <button
             type="button"
             onClick={() => setIsImportModalOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-neutral-200 dark:border-slate-700 hover:bg-neutral-50 dark:hover:bg-slate-700/50 text-neutral-700 dark:text-slate-200 font-bold text-xs shadow-2xs transition flex items-center gap-1.5 cursor-pointer"
+            className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-neutral-200 dark:border-slate-700 hover:bg-neutral-50 dark:hover:bg-slate-700/50 text-neutral-700 dark:text-slate-200 font-bold text-xs shadow-2xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
           >
             <Upload className="h-3.5 w-3.5 text-neutral-500" /> Import Leads
           </button>
@@ -382,7 +382,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
           <button
             type="button"
             onClick={() => setIsNewLeadModalOpen(true)}
-            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
           >
             <Plus className="h-4 w-4" /> + New Lead
           </button>
@@ -390,14 +390,14 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
       </div>
 
       {/* 2. Workspace Filter Bar (Page 2 of PDF) */}
-      <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-neutral-200/80 dark:border-slate-800 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[280px]">
+      <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-neutral-200/80 dark:border-slate-800 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap items-center gap-2 flex-1 w-full min-w-0">
           {/* Business Model Filter */}
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <select
               value={businessFilter}
               onChange={(e) => setBusinessFilter(e.target.value as any)}
-              className="p-2 pr-7 rounded-xl border border-neutral-200 dark:border-slate-700 bg-neutral-50 dark:bg-slate-800 font-semibold text-xs cursor-pointer appearance-none"
+              className="w-full sm:w-auto p-2 pr-7 rounded-xl border border-neutral-200 dark:border-slate-700 bg-neutral-50 dark:bg-slate-800 font-semibold text-xs cursor-pointer appearance-none"
             >
               <option value="all">🏢 All Businesses (B2B & B2C)</option>
               <option value="b2b_wholesale">🏪 B2B Wholesale Only</option>
@@ -407,11 +407,11 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
           </div>
 
           {/* Owner Filter */}
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <select
               value={ownerFilter}
               onChange={(e) => setOwnerFilter(e.target.value)}
-              className="p-2 pr-7 rounded-xl border border-neutral-200 dark:border-slate-700 bg-neutral-50 dark:bg-slate-800 font-semibold text-xs cursor-pointer appearance-none"
+              className="w-full sm:w-auto p-2 pr-7 rounded-xl border border-neutral-200 dark:border-slate-700 bg-neutral-50 dark:bg-slate-800 font-semibold text-xs cursor-pointer appearance-none"
             >
               <option value="all">👤 All Owners</option>
               <option value="unassigned">⏳ Unassigned Queue</option>
@@ -425,11 +425,11 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
           </div>
 
           {/* Source Filter */}
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <select
               value={sourceFilter}
               onChange={(e) => setSourceFilter(e.target.value)}
-              className="p-2 pr-7 rounded-xl border border-neutral-200 dark:border-slate-700 bg-neutral-50 dark:bg-slate-800 font-semibold text-xs cursor-pointer appearance-none capitalize"
+              className="w-full sm:w-auto p-2 pr-7 rounded-xl border border-neutral-200 dark:border-slate-700 bg-neutral-50 dark:bg-slate-800 font-semibold text-xs cursor-pointer appearance-none capitalize"
             >
               <option value="all">🌐 All Sources</option>
               <option value="whatsapp">WhatsApp Inbound</option>
@@ -443,7 +443,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
           </div>
 
           {/* Search Box */}
-          <div className="relative flex-1 min-w-[160px]">
+          <div className="relative flex-1 w-full sm:w-auto min-w-[160px]">
             <Search className="h-3.5 w-3.5 text-neutral-400 absolute left-3 top-2.5" />
             <input
               type="text"
@@ -458,14 +458,14 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
         <button
           onClick={loadData}
           title="Refresh Data"
-          className="p-2 rounded-xl text-neutral-500 hover:text-neutral-800 dark:hover:text-slate-200 hover:bg-neutral-100 dark:hover:bg-slate-800 transition cursor-pointer"
+          className="self-end sm:self-auto p-2 rounded-xl text-neutral-500 hover:text-neutral-800 dark:hover:text-slate-200 hover:bg-neutral-100 dark:hover:bg-slate-800 transition cursor-pointer shrink-0"
         >
           <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin text-emerald-600" : ""}`} />
         </button>
       </div>
 
       {/* 3. Sub-Navigation Tabs (Page 1 & 2 of PDF) */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs border-b border-neutral-200/80 dark:border-slate-800">
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs border-b border-neutral-200/80 dark:border-slate-800 no-scrollbar">
         {[
           { id: "overview", label: "Overview", icon: TrendingUp },
           { id: "pipeline", label: "Pipeline (Kanban)", icon: Kanban },
@@ -833,7 +833,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
           </div>
 
           {/* Kanban Columns with Drag-and-Drop */}
-          <div className="flex gap-3 overflow-x-auto pb-4">
+          <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
             {(pipelineMode === "retail" ? RETAIL_STAGES : WHOLESALE_STAGES).map((stg) => {
               const stageLeads = filteredLeads.filter((l) => {
                 if (pipelineMode === "retail") {
@@ -1132,7 +1132,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
           {/* Sub-tab Toolbar: Filters & Quick Search */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-neutral-50 dark:bg-slate-800/50 rounded-2xl border border-neutral-200/80 dark:border-slate-800">
             {/* Filter Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto text-xs pb-1 sm:pb-0">
+            <div className="flex items-center gap-1.5 overflow-x-auto text-xs pb-1 sm:pb-0 no-scrollbar">
               {[
                 {
                   id: "pending",

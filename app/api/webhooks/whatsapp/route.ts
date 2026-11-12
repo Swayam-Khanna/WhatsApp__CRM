@@ -7,6 +7,9 @@ import {
   processConversationalBotReply,
 } from "../../../../backend/lib/whatsapp.server.ts";
 import { getDatabase } from "../../../../lib/mongodb.ts";
+import { db as pgDb } from "../../../../backend/db.ts";
+import { crmMessages } from "../../../../backend/schema/crm.ts";
+import { eq, or, ilike } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -69,11 +72,17 @@ export async function POST(req: NextRequest) {
 
     // 1. Verify Meta signature (or permit authenticated internal dashboard webhook tests)
     if (!isInternalTest && !verifyWebhookSignature(rawBody, signature)) {
-      console.warn("[WhatsApp Webhook] Invalid signature rejected.");
+      console.error("[WhatsApp Webhook Security Alert] Invalid Meta signature rejected. Signature header:", signature, "Payload length:", rawBody?.length);
       return new Response("Invalid signature", { status: 401 });
     }
 
-    const payload = JSON.parse(rawBody);
+    let payload: any;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch (parseErr: any) {
+      console.error("[WhatsApp Webhook Malformed JSON Error]:", parseErr?.message || parseErr, "Body:", rawBody?.slice(0, 200));
+      return NextResponse.json({ error: "Malformed JSON payload" }, { status: 400 });
+    }
 
     // 2. Parse inbound messages and delivery receipts
     const { messages, statuses } = parseInboundWebhookPayload(payload);
@@ -186,6 +195,40 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
     // Unshift to memory feed immediately
     globalThis.__globalWhatsAppFeed.unshift(inboundRecord);
 
+        // Persist inbound record to PostgreSQL if available
+    try {
+      await pgDb
+        .insert(crmMessages)
+        .values({
+          id: inboundRecord.id,
+          direction: "inbound",
+          sender: "customer",
+          from: inboundRecord.from,
+          to: inboundRecord.to,
+          customerName: resolvedCustomerName,
+          text: inboundRecord.text,
+          type: inboundRecord.type,
+          mediaId: inboundRecord.mediaId,
+          mimeType: inboundRecord.mimeType,
+          businessPhoneNumberId: inboundRecord.businessPhoneNumberId,
+          status: "delivered",
+          timestamp: new Date(inboundRecord.timestamp),
+          createdAt: inboundRecord.createdAt,
+        })
+        .onConflictDoNothing();
+
+      if (botResult?.updatedCustomerName && fromClean) {
+        await pgDb
+          .update(crmMessages)
+          .set({ customerName: botResult.updatedCustomerName })
+          .where(
+            or(ilike(crmMessages.from, `%${fromClean}%`), ilike(crmMessages.to, `%${fromClean}%`))
+          );
+      }
+    } catch (pgErr: any) {
+      // PostgreSQL might not be configured in MongoDB-first deployments
+    }
+
     // Persist inbound record to MongoDB Atlas
     if (db) {
       try {
@@ -262,6 +305,26 @@ async function handleWebhookProcessing(messages: any[], statuses: any[]) {
         autoReplyRecord.id = sendResult.messageId || autoReplyRecord.id;
         autoReplyRecord.status = sendResult.success ? "sent" : "failed";
         autoReplyRecord.mode = sendResult.mode;
+
+                try {
+          await pgDb
+            .insert(crmMessages)
+            .values({
+              id: autoReplyRecord.id,
+              direction: "outbound",
+              sender: "business",
+              from: autoReplyRecord.from,
+              to: autoReplyRecord.to,
+              customerName: resolvedCustomerName,
+              text: autoReplyText,
+              timestamp: new Date(autoReplyRecord.timestamp),
+              status: autoReplyRecord.status,
+              isAutomated: true,
+              mode: autoReplyRecord.mode,
+              createdAt: autoReplyRecord.createdAt,
+            })
+            .onConflictDoNothing();
+        } catch (pgSendErr) {}
 
         if (db) {
           await db.collection("crm_messages").insertOne(autoReplyRecord);

@@ -1,5 +1,6 @@
 import { db } from "../../../../backend/db.ts";
 import { orders, orderItems } from "../../../../backend/schema/orders.ts";
+import { crmOrders } from "../../../../backend/schema/crm.ts";
 import { desc } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -300,7 +301,51 @@ export async function POST(req: Request) {
         if (!globalThis.__globalWhatsAppFeed) globalThis.__globalWhatsAppFeed = [];
         globalThis.__globalWhatsAppFeed.unshift(msgRecord);
 
-        if (mongoDb) {
+            // Also persist to PostgreSQL if available
+    try {
+      await db
+        .insert(crmOrders)
+        .values({
+          id: orderNum,
+          orderNumber: orderNum,
+          customerName: persistedOrder.customerName || null,
+          customerPhone: persistedOrder.customerPhone,
+          customerEmail: persistedOrder.customerEmail || null,
+          totalPaise: persistedOrder.totalPaise,
+          subtotalPaise: persistedOrder.subtotalPaise || 0,
+          shippingPaise: persistedOrder.shippingPaise || 0,
+          discountPaise: persistedOrder.discountPaise || 0,
+          status: persistedOrder.status || "Processing",
+          paymentStatus: persistedOrder.paymentStatus || "pending",
+          paymentMethod: persistedOrder.paymentMethod || "whatsapp",
+          shippingAddressSnapshot: persistedOrder.shippingAddressSnapshot || null,
+          items: persistedOrder.items || [],
+          whatsappConfirmation: persistedOrder.whatsappConfirmation || null,
+          createdAt: new Date(persistedOrder.createdAt),
+          updatedAt: new Date(persistedOrder.updatedAt),
+        })
+        .onConflictDoUpdate({
+          target: crmOrders.orderNumber,
+          set: {
+            customerName: persistedOrder.customerName || null,
+            customerPhone: persistedOrder.customerPhone,
+            customerEmail: persistedOrder.customerEmail || null,
+            totalPaise: persistedOrder.totalPaise,
+            subtotalPaise: persistedOrder.subtotalPaise || 0,
+            shippingPaise: persistedOrder.shippingPaise || 0,
+            discountPaise: persistedOrder.discountPaise || 0,
+            status: persistedOrder.status || "Processing",
+            paymentStatus: persistedOrder.paymentStatus || "pending",
+            paymentMethod: persistedOrder.paymentMethod || "whatsapp",
+            shippingAddressSnapshot: persistedOrder.shippingAddressSnapshot || null,
+            items: persistedOrder.items || [],
+            whatsappConfirmation: persistedOrder.whatsappConfirmation || null,
+            updatedAt: new Date(),
+          },
+        });
+    } catch (pgErr) {}
+
+    if (mongoDb) {
           try {
             await mongoDb.collection("crm_messages").insertOne(msgRecord);
           } catch (msgErr) {
