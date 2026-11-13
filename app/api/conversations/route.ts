@@ -18,18 +18,35 @@ export async function GET(req: NextRequest) {
       .orderBy(desc(crmMessages.createdAt))
       .limit(500);
 
-    const merged = [...feed, ...pgMsgs];
-    const seen = new Set();
-    feed = merged.filter((m: any) => {
-      if (!m.id || seen.has(m.id)) return false;
-      seen.add(m.id);
-      return true;
-    });
+    if (pgMsgs && pgMsgs.length > 0) {
+      const mapped = pgMsgs.map((m: any) => ({
+        id: m.id,
+        direction: m.direction,
+        sender: m.sender,
+        from: m.from,
+        to: m.to,
+        customerName: m.customerName,
+        text: m.text,
+        type: m.type,
+        mediaId: m.mediaId,
+        mimeType: m.mimeType,
+        status: m.status,
+        timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : m.timestamp,
+        createdAt: m.createdAt instanceof Date ? m.createdAt.toISOString() : m.createdAt,
+      }));
+      const merged = [...feed, ...mapped];
+      const seen = new Set();
+      feed = merged.filter((m: any) => {
+        if (!m.id || seen.has(m.id)) return false;
+        seen.add(m.id);
+        return true;
+      });
+    }
   } catch (pgErr: any) {
     console.warn("[Conversations GET] PostgreSQL note:", pgErr?.message || pgErr);
   }
 
-  // 2. Fallback: MongoDB Atlas
+  // 2. Fallback: MongoDB Atlas (if configured)
   try {
     const mongoDb = await getDatabase();
     if (mongoDb) {

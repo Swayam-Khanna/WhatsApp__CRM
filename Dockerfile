@@ -17,8 +17,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Next.js telemetry disable & enable standalone build
-ENV NEXT_TELEMETRY_DISABLED 1
-ENV DOCKER_BUILD true
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV DOCKER_BUILD=true
 
 # Build arguments for client-side variables (injected by Coolify)
 ARG NEXT_PUBLIC_APP_URL
@@ -40,8 +40,8 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
 # Don't run production as root
 RUN addgroup --system --gid 1001 nodejs
@@ -60,8 +60,8 @@ USER nextjs
 
 EXPOSE 3000
 
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 # Coolify / Docker Container Healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
