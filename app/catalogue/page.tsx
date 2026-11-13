@@ -54,6 +54,8 @@ export default function PublicCataloguePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedVariants, setSelectedVariants] = useState<Record<string, number>>({});
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [orderingId, setOrderingId] = useState<string | null>(null);
   const [storePhone, setStorePhone] = useState("+91 80912 65690");
   const [highlightedSlug, setHighlightedSlug] = useState<string | null>(null);
 
@@ -175,7 +177,11 @@ export default function PublicCataloguePage() {
   }, []);
 
   const cleanStorePhone = useMemo(() => {
-    return storePhone.replace(/\D/g, "");
+    let raw = storePhone.replace(/\D/g, "");
+    if (raw.length === 10) {
+      raw = `91${raw}`;
+    }
+    return raw || "918091265690";
   }, [storePhone]);
 
   const filteredProducts = useMemo(() => {
@@ -198,6 +204,14 @@ export default function PublicCataloguePage() {
     });
   }, [products, searchQuery, selectedCategory]);
 
+  const handleUpdateQty = (productId: string, delta: number) => {
+    setQuantities((prev) => {
+      const current = prev[productId] || 1;
+      const next = Math.max(1, Math.min(20, current + delta));
+      return { ...prev, [productId]: next };
+    });
+  };
+
   const handleSelectVariant = (productId: string, variantIndex: number) => {
     setSelectedVariants((prev) => ({
       ...prev,
@@ -208,8 +222,52 @@ export default function PublicCataloguePage() {
   const buildWhatsAppOrderUrl = (product: CatalogueProduct) => {
     const vIndex = selectedVariants[product.id] || 0;
     const variant = product.variants?.[vIndex] || { name: "Standard Pack", price: product.price };
-    const text = `Namaste ji! Mujhe ${product.name} (${variant.name} - ₹${variant.price}) order karna hai. Kripya process bata dijiye.`;
+    const qty = quantities[product.id] || 1;
+    const totalAmount = variant.price * qty;
+
+    let text: string;
+    if (product.stockStatus === "out_of_stock") {
+      text = `Namaste ji! Mujhe ${product.name} (${variant.name}) ke baare mein enquiry karni hai. Kya iska fresh batch available ya pre-order ho sakta hai?`;
+    } else if (qty > 1) {
+      text = `Namaste ji! Mujhe ${product.name} (${variant.name}) ke ${qty} packs order karne hain. Total: ₹${totalAmount.toLocaleString("en-IN")}. Kripya delivery process bata dijiye.`;
+    } else {
+      text = `Namaste ji! Mujhe ${product.name} (${variant.name} - ₹${variant.price.toLocaleString("en-IN")}) order karna hai. Kripya process bata dijiye.`;
+    }
+
     return `https://wa.me/${cleanStorePhone}?text=${encodeURIComponent(text)}`;
+  };
+
+  const handleOrderClick = (product: CatalogueProduct) => {
+    setOrderingId(product.id);
+    setTimeout(() => setOrderingId(null), 2500);
+
+    // If running in local test environment, simulate incoming order message to CRM inbox
+    if (typeof window !== "undefined") {
+      const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      if (isLocal) {
+        try {
+          const vIndex = selectedVariants[product.id] || 0;
+          const variant = product.variants?.[vIndex] || { name: "Standard Pack", price: product.price };
+          const qty = quantities[product.id] || 1;
+          const totalAmount = variant.price * qty;
+          const orderMsg = qty > 1
+            ? `Namaste ji! Mujhe ${product.name} (${variant.name}) ke ${qty} packs order karne hain. Total: ₹${totalAmount.toLocaleString("en-IN")}. Kripya delivery process bata dijiye.`
+            : `Namaste ji! Mujhe ${product.name} (${variant.name} - ₹${variant.price.toLocaleString("en-IN")}) order karna hai. Kripya process bata dijiye.`;
+
+          fetch("/api/crm/messages", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sender: "customer",
+              from: "919876543210",
+              to: cleanStorePhone,
+              customerName: "Website Customer",
+              text: orderMsg,
+            }),
+          }).catch(() => {});
+        } catch {}
+      }
+    }
   };
 
   return (
@@ -431,38 +489,72 @@ export default function PublicCataloguePage() {
                     </div>
                   </div>
 
-                  {/* Card Bottom / Price & CTA */}
+                  {/* Card Bottom / Price, Quantity & CTA */}
                   <div className="p-5 pt-0 mt-2 border-t border-neutral-100/80">
-                    <div className="flex items-center justify-between pt-3 mb-3">
+                    <div className="flex items-center justify-between pt-3 mb-3 gap-2">
                       <div>
                         <span className="text-[10px] text-neutral-500 block uppercase font-semibold">
                           Live Price ({activeVariant.name}):
                         </span>
                         <div className="flex items-baseline gap-1.5">
                           <span className="text-xl font-extrabold text-[#0F3D2E]">
-                            ₹{activeVariant.price.toLocaleString("en-IN")}
+                            ₹{(activeVariant.price * (quantities[item.id] || 1)).toLocaleString("en-IN")}
                           </span>
                           {item.compareAtPrice && item.compareAtPrice > activeVariant.price && (
                             <span className="text-xs text-neutral-400 line-through">
-                              ₹{item.compareAtPrice.toLocaleString("en-IN")}
+                              ₹{(item.compareAtPrice * (quantities[item.id] || 1)).toLocaleString("en-IN")}
                             </span>
                           )}
                         </div>
                       </div>
 
-                      <span className="text-[11px] text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded-md">
-                        Tax Included
-                      </span>
+                      {/* Quantity Selector */}
+                      <div className="flex items-center gap-1.5 bg-neutral-100 p-1 rounded-xl shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateQty(item.id, -1)}
+                          disabled={(quantities[item.id] || 1) <= 1}
+                          className="w-6 h-6 rounded-lg bg-white text-neutral-700 flex items-center justify-center font-bold text-xs hover:bg-neutral-200 transition disabled:opacity-40 cursor-pointer shadow-2xs"
+                          title="Decrease Quantity"
+                        >
+                          -
+                        </button>
+                        <span className="text-xs font-bold text-neutral-800 px-1.5 min-w-[20px] text-center font-mono">
+                          {quantities[item.id] || 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateQty(item.id, 1)}
+                          disabled={(quantities[item.id] || 1) >= 20}
+                          className="w-6 h-6 rounded-lg bg-white text-neutral-700 flex items-center justify-center font-bold text-xs hover:bg-neutral-200 transition disabled:opacity-40 cursor-pointer shadow-2xs"
+                          title="Increase Quantity"
+                        >
+                          +
+                        </button>
+                      </div>
                     </div>
 
                     <a
                       href={buildWhatsAppOrderUrl(item)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-full flex items-center justify-center gap-2 bg-[#0F3D2E] hover:bg-[#16503d] text-white py-2.5 px-4 rounded-2xl font-semibold text-xs transition-all shadow-xs"
+                      onClick={() => handleOrderClick(item)}
+                      className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl font-semibold text-xs transition-all shadow-xs cursor-pointer ${
+                        item.stockStatus === "out_of_stock"
+                          ? "bg-amber-600 hover:bg-amber-700 text-white"
+                          : orderingId === item.id
+                          ? "bg-emerald-700 text-white ring-2 ring-emerald-400"
+                          : "bg-[#0F3D2E] hover:bg-[#16503d] text-white"
+                      }`}
                     >
                       <ShoppingBag className="w-3.5 h-3.5 text-[#E8A317]" />
-                      <span>Order on WhatsApp</span>
+                      <span>
+                        {orderingId === item.id
+                          ? "Opening WhatsApp..."
+                          : item.stockStatus === "out_of_stock"
+                          ? "Enquire / Pre-Order on WhatsApp"
+                          : `Order on WhatsApp • ₹${(activeVariant.price * (quantities[item.id] || 1)).toLocaleString("en-IN")}`}
+                      </span>
                       <ChevronRight className="w-3.5 h-3.5 ml-auto text-white/70" />
                     </a>
                   </div>

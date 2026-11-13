@@ -910,6 +910,15 @@ export async function processSmartCustomerReply(params: {
     // 4. Order Placement
     case "order_placement": {
       if (matchedProduct) {
+        const hasQtyOrVariant = /(pack|kg|gm|g|ml|l|jar|₹|\d+\s*bottle)/i.test(text);
+        if (hasQtyOrVariant) {
+          return {
+            replyText: `Bilkul ji! Delivery ke liye apna naam, poora address aur pincode share kar dijiye, hum aapka order turant confirm kar dete hain.`,
+            intent,
+            shouldSend: true,
+            updatedCustomerName,
+          };
+        }
         return {
           replyText: `Bilkul ji! ${matchedProduct.name} ke liye aap kitni quantity aur delivery address batayein, hum turant book kar denge.`,
           intent,
