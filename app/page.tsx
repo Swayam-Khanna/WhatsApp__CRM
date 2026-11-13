@@ -4106,13 +4106,8 @@ export default function PrajnaaMasterCrmApp() {
       "Packaging Weight",
       "Selling Price (INR)",
       "Units In Stock",
-      "Stock Status",
-      "Direct Catalogue Link",
-      "WhatsApp Direct Order URL"
+      "Stock Status"
     ];
-
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://crm.prajnaa.in";
-    const storePhone = "918091265690";
 
     let inStock = 0;
     let lowStock = 0;
@@ -4120,11 +4115,6 @@ export default function PrajnaaMasterCrmApp() {
     let totalInventoryUnits = 0;
 
     const rows = productsList.map((p) => {
-      const slug = (p.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
-      const catUrl = `${origin}/catalogue#${slug}`;
-      const waText = encodeURIComponent(`Namaste ji! Mujhe ${p.name} (${p.weight || "500g"} - ₹${p.price}) order karna hai.`);
-      const waUrl = `https://wa.me/${storePhone}?text=${waText}`;
-
       const units = Number(p.unitsLeft) || 0;
       totalInventoryUnits += units;
 
@@ -4141,9 +4131,7 @@ export default function PrajnaaMasterCrmApp() {
         p.weight || "500g",
         p.price || 0,
         units,
-        p.stock || "In Stock",
-        catUrl,
-        waUrl
+        p.stock || "In Stock"
       ];
     });
 
@@ -4157,12 +4145,12 @@ export default function PrajnaaMasterCrmApp() {
     downloadStyledExcelSheet({
       filename: "Prajnaa_Products_Catalog",
       sheetTitle: "Prajnaa Market — Himalayan Products & Live Inventory Catalogue",
-      subtitle: "Live Storefront SKUs, Variant Pack Sizes, Stock Thresholds & Direct WhatsApp Links",
+      subtitle: "Live Storefront SKUs, Variant Pack Sizes, Stock Thresholds & Inventory Levels",
       headers,
       rows,
       summaryCards
     });
-    toast.success(`Exported ${productsList.length} products to styled Excel spreadsheet!`);
+    toast.success(`Exported ${productsList.length} products successfully!`);
   };
 
   // Helper: Import Products from CSV
@@ -7720,10 +7708,10 @@ export default function PrajnaaMasterCrmApp() {
                   type="button"
                   onClick={handleExportOrdersCsv}
                   className="px-3.5 sm:px-4 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-50 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
-                  title="Export Orders to styled Excel spreadsheet (.xls)"
+                  title="Export Orders to CSV / Excel spreadsheet"
                 >
                   <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>Export Excel</span>
+                  <span>Export CSV</span>
                 </button>
 
                 <button
@@ -8406,10 +8394,10 @@ export default function PrajnaaMasterCrmApp() {
                 type="button"
                 onClick={handleExportCustomersCsv}
                 className="px-3.5 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-50 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs"
-                title="Export Customers to styled Excel spreadsheet (.xls)"
+                title="Export Customers to CSV / Excel spreadsheet"
               >
                 <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
-                <span>Export Excel</span>
+                <span>Export CSV</span>
               </button>
             </div>
 
@@ -8849,10 +8837,10 @@ export default function PrajnaaMasterCrmApp() {
                   type="button"
                   onClick={handleExportProductsCsv}
                   className="px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-50 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs"
-                  title="Export Products Catalog to styled Excel spreadsheet (.xls)"
+                  title="Export Products Catalog to CSV / Excel spreadsheet"
                 >
                   <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>Export Excel</span>
+                  <span>Export CSV</span>
                 </button>
 
                 <label
@@ -9082,10 +9070,10 @@ export default function PrajnaaMasterCrmApp() {
                 type="button"
                 onClick={handleExportShipmentsCsv}
                 className="px-3.5 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-50 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs"
-                title="Export Shipments to styled Excel spreadsheet (.xls)"
+                title="Export Shipments to CSV / Excel spreadsheet"
               >
                 <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
-                <span>Export Excel</span>
+                <span>Export CSV</span>
               </button>
             </div>
 
@@ -9392,10 +9380,10 @@ export default function PrajnaaMasterCrmApp() {
                   type="button"
                   onClick={handleExportAnalyticsCsv}
                   className="px-3.5 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-50 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  title="Export Business Analytics to styled Excel spreadsheet (.xls)"
+                  title="Export Business Analytics to CSV / Excel spreadsheet"
                 >
                   <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>Export Excel</span>
+                  <span>Export CSV</span>
                 </button>
               </div>
             </div>
