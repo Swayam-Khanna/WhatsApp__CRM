@@ -1772,7 +1772,7 @@ export default function PrajnaaMasterCrmApp() {
 
   // Stock Status Update Handler
   // Manage & Save Product (Add / Edit)
-  const handleSaveProduct = (prod: ProductItem) => {
+  const handleSaveProduct = async (prod: ProductItem) => {
     if (!prod.name.trim()) {
       toast.error("Product name cannot be empty");
       return;
@@ -1782,46 +1782,69 @@ export default function PrajnaaMasterCrmApp() {
       return;
     }
 
+    const isExisting = productsList.some((p) => p.id === prod.id);
+    const targetProduct: ProductItem = {
+      ...prod,
+      id: prod.id || `prod_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      sku: prod.sku || `PM-${Math.floor(1000 + Math.random() * 9000)}`,
+    };
+
+    // 1. Optimistic local update
     setProductsList((prev) => {
-      const exists = prev.some((p) => p.id === prod.id);
-      let updated: ProductItem[];
-      if (exists) {
-        updated = prev.map((p) => (p.id === prod.id ? prod : p));
-        toast.success(`Product "${prod.name}" updated successfully!`);
-      } else {
-        const newProduct: ProductItem = {
-          ...prod,
-          id: prod.id || `prod_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          sku: prod.sku || `PM-${Math.floor(1000 + Math.random() * 9000)}`,
-        };
-        updated = [newProduct, ...prev];
-        toast.success(`Product "${newProduct.name}" added to catalog!`);
-      }
+      const updated = isExisting
+        ? prev.map((p) => (p.id === targetProduct.id ? targetProduct : p))
+        : [targetProduct, ...prev];
       if (typeof window !== "undefined") {
         localStorage.setItem("prajnaa_crm_products", JSON.stringify(updated));
       }
       return updated;
     });
 
+    toast.success(
+      isExisting
+        ? `Product "${targetProduct.name}" updated & live across catalogue!`
+        : `Product "${targetProduct.name}" added & live across catalogue!`
+    );
     setShowManageProductModal(false);
+
+    // 2. Persist to API and live catalogue backend
+    try {
+      await fetch("/api/crm/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(targetProduct),
+      });
+    } catch (e) {
+      console.warn("Failed to sync product to server:", e);
+    }
   };
 
   // Remove / Delete Product from Catalog
-  const handleDeleteProduct = (productId: string) => {
+  const handleDeleteProduct = async (productId: string) => {
+    const target = productsList.find((p) => p.id === productId);
     setProductsList((prev) => {
-      const target = prev.find((p) => p.id === productId);
       const updated = prev.filter((p) => p.id !== productId);
       if (typeof window !== "undefined") {
         localStorage.setItem("prajnaa_crm_products", JSON.stringify(updated));
       }
-      toast.success(`Product "${target?.name || "Item"}" removed from catalog`);
       return updated;
     });
     setShowDeleteProductConfirm(false);
     setProductToDelete(null);
+    toast.success(`Product "${target?.name || "Item"}" removed from live catalog`);
+
+    try {
+      await fetch("/api/crm/products", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: productId }),
+      });
+    } catch (e) {
+      console.warn("Failed to delete product from server:", e);
+    }
   };
 
-  const handleUpdateProductStock = (productId: string, newStock: StockStatus, newUnits?: number, newPrice?: number) => {
+  const handleUpdateProductStock = async (productId: string, newStock: StockStatus, newUnits?: number, newPrice?: number) => {
     setProductsList((prev) => {
       const updated = prev.map((p) =>
         p.id === productId
@@ -1838,7 +1861,17 @@ export default function PrajnaaMasterCrmApp() {
       }
       return updated;
     });
-    toast.success(`Updated stock status to "${newStock}"`);
+    toast.success(`Updated stock status to "${newStock}" across live catalog`);
+
+    try {
+      await fetch("/api/crm/products", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: productId, stock: newStock, unitsLeft: newUnits, price: newPrice }),
+      });
+    } catch (e) {
+      console.warn("Failed to sync stock change to server:", e);
+    }
   };
 
   // Save team changes

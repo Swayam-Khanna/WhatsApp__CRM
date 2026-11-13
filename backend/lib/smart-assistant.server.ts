@@ -339,7 +339,89 @@ export async function getLiveProductCatalogue(baseUrl?: string): Promise<LiveCat
     }
   }
 
-  return [...dbProducts, ...staticItems];
+  // Live CRM Products & Overrides: check in-memory cache and MongoDB crm_products
+  const crmLiveProducts: LiveCatalogueItem[] = [];
+  const deletedSet: Set<string> = (globalThis as any).__crmDeletedProductIds || new Set<string>();
+
+  if ((globalThis as any).__crmLiveProducts) {
+    const seenCrm = new Set<string>();
+    for (const prod of (globalThis as any).__crmLiveProducts.values()) {
+      if (!prod || !prod.id || deletedSet.has(prod.id) || (prod.slug && deletedSet.has(prod.slug))) continue;
+      if (seenCrm.has(prod.id) || (prod.slug && seenCrm.has(prod.slug))) continue;
+      seenCrm.add(prod.id);
+      if (prod.slug) seenCrm.add(prod.slug);
+
+      const basePrice = Math.round(prod.price || 0);
+      const variants = deriveProductVariants(prod.name, basePrice, prod.weight || "500g");
+      let stockStatus: LiveCatalogueItem["stockStatus"] = "in_stock";
+      if (prod.stock === "Out of Stock" || prod.unitsLeft === 0) stockStatus = "out_of_stock";
+      else if (prod.stock === "Pre-Order") stockStatus = "pre_order";
+      else if (prod.stock === "Low Stock" || (typeof prod.unitsLeft === "number" && prod.unitsLeft < 5)) stockStatus = "few_left";
+
+      crmLiveProducts.push({
+        id: prod.id,
+        name: prod.name,
+        slug: prod.slug || prod.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+        category: prod.category || "Himalayan Harvest",
+        description: prod.origin ? `100% authentic mountain harvest from ${prod.origin}.` : "Direct from certified Himalayan partner farms.",
+        price: basePrice,
+        compareAtPrice: Math.round(basePrice * 1.15),
+        variants,
+        image: prod.image || "/assets/cat-honey.jpg",
+        stockStatus,
+        url: `${catalogueUrl}#${prod.slug || prod.id}`,
+      });
+    }
+  }
+
+  // Also query MongoDB crm_products if available
+  try {
+    const mongo = await getDatabase();
+    if (mongo) {
+      const mongoDocs = await mongo.collection("crm_products").find({}).toArray();
+      if (mongoDocs && mongoDocs.length > 0) {
+        mongoDocs.forEach((prod: any) => {
+          const id = prod.id || prod._id?.toString();
+          if (deletedSet.has(id) || (prod.slug && deletedSet.has(prod.slug))) return;
+          if (crmLiveProducts.some((p) => p.id === id || p.slug === prod.slug)) return;
+
+          const basePrice = Math.round(prod.price || 0);
+          const variants = deriveProductVariants(prod.name, basePrice, prod.weight || "500g");
+          let stockStatus: LiveCatalogueItem["stockStatus"] = "in_stock";
+          if (prod.stock === "Out of Stock" || prod.unitsLeft === 0) stockStatus = "out_of_stock";
+          else if (prod.stock === "Pre-Order") stockStatus = "pre_order";
+          else if (prod.stock === "Low Stock" || prod.unitsLeft < 5) stockStatus = "few_left";
+
+          crmLiveProducts.push({
+            id,
+            name: prod.name,
+            slug: prod.slug || prod.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+            category: prod.category || "Himalayan Harvest",
+            description: prod.origin ? `100% authentic mountain harvest from ${prod.origin}.` : "Direct from certified Himalayan partner farms.",
+            price: basePrice,
+            compareAtPrice: Math.round(basePrice * 1.15),
+            variants,
+            image: prod.image || "/assets/cat-honey.jpg",
+            stockStatus,
+            url: `${catalogueUrl}#${prod.slug || id}`,
+          });
+        });
+      }
+    }
+  } catch {}
+
+  // Filter out any deleted products
+  const filteredDb = dbProducts.filter((p) => !deletedSet.has(p.id) && !deletedSet.has(p.slug));
+  const filteredStatic = staticItems.filter((p) => !deletedSet.has(p.id) && !deletedSet.has(p.slug));
+
+  // Merge: CRM live products override any duplicates by ID or slug
+  const crmSlugs = new Set(crmLiveProducts.map((p) => p.slug.toLowerCase()));
+  const crmIds = new Set(crmLiveProducts.map((p) => p.id.toLowerCase()));
+
+  const finalDb = filteredDb.filter((p) => !crmSlugs.has(p.slug.toLowerCase()) && !crmIds.has(p.id.toLowerCase()));
+  const finalStatic = filteredStatic.filter((p) => !crmSlugs.has(p.slug.toLowerCase()) && !crmIds.has(p.id.toLowerCase()));
+
+  return [...crmLiveProducts, ...finalDb, ...finalStatic];
 }
 
 /**

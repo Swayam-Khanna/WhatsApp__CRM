@@ -60,11 +60,83 @@ export default function PublicCataloguePage() {
   useEffect(() => {
     async function loadCatalogue() {
       try {
-        const res = await fetch("/api/catalogue");
+        const res = await fetch(`/api/catalogue?_t=${Date.now()}`);
         if (res.ok) {
           const data = await res.json();
           if (data.products && Array.isArray(data.products)) {
-            setProducts(data.products);
+            let apiProducts: CatalogueProduct[] = data.products;
+
+            // Merge local CRM products for instant optimistic feedback
+            if (typeof window !== "undefined") {
+              try {
+                const localStr = localStorage.getItem("prajnaa_crm_products");
+                if (localStr) {
+                  const localList = JSON.parse(localStr);
+                  if (Array.isArray(localList)) {
+                    const localMap = new Map<string, any>();
+                    localList.forEach((lp: any) => {
+                      if (lp.id) localMap.set(lp.id, lp);
+                      if (lp.name) {
+                        const slug = lp.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+                        localMap.set(slug, lp);
+                      }
+                    });
+
+                    // Update existing or append new
+                    apiProducts = apiProducts.map((p) => {
+                      const match = localMap.get(p.id) || localMap.get(p.slug);
+                      if (!match) return p;
+                      const basePrice = Math.round(match.price || p.price);
+                      let sStatus = p.stockStatus;
+                      if (match.stock === "Out of Stock" || match.unitsLeft === 0) sStatus = "out_of_stock";
+                      else if (match.stock === "Pre-Order") sStatus = "pre_order";
+                      else if (match.stock === "Low Stock" || match.unitsLeft < 5) sStatus = "few_left";
+                      else sStatus = "in_stock";
+
+                      return {
+                        ...p,
+                        name: match.name || p.name,
+                        price: basePrice,
+                        stockStatus: sStatus,
+                        image: match.image || p.image,
+                        category: match.category || p.category,
+                      };
+                    });
+
+                    // Add any completely new products from local CRM that aren't in API yet
+                    localList.forEach((lp: any) => {
+                      const slug = (lp.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+                      const exists = apiProducts.some((p) => p.id === lp.id || p.slug === slug);
+                      if (!exists && lp.name) {
+                        const basePrice = Math.round(lp.price || 450);
+                        let sStatus: CatalogueProduct["stockStatus"] = "in_stock";
+                        if (lp.stock === "Out of Stock" || lp.unitsLeft === 0) sStatus = "out_of_stock";
+                        else if (lp.stock === "Pre-Order") sStatus = "pre_order";
+                        else if (lp.stock === "Low Stock" || lp.unitsLeft < 5) sStatus = "few_left";
+
+                        apiProducts.unshift({
+                          id: lp.id || `prod_${Date.now()}`,
+                          name: lp.name,
+                          slug,
+                          category: lp.category || "Produce",
+                          description: `100% authentic mountain harvest from ${lp.origin || "Himalayan farms"}.`,
+                          price: basePrice,
+                          compareAtPrice: Math.round(basePrice * 1.15),
+                          variants: [
+                            { name: lp.weight || "500g", weightGrams: 500, price: basePrice, stockStatus: sStatus },
+                          ],
+                          image: lp.image || "/assets/cat-honey.jpg",
+                          stockStatus: sStatus,
+                          url: `/catalogue#${slug}`,
+                        });
+                      }
+                    });
+                  }
+                }
+              } catch {}
+            }
+
+            setProducts(apiProducts);
           }
           if (data.storePhone) {
             setStorePhone(data.storePhone);
@@ -76,7 +148,12 @@ export default function PublicCataloguePage() {
         setLoading(false);
       }
     }
+
     loadCatalogue();
+
+    // Auto-refresh when tab gains focus so edits in CRM tab appear immediately
+    const handleFocus = () => loadCatalogue();
+    window.addEventListener("focus", handleFocus);
 
     // Check hash anchor on load
     if (typeof window !== "undefined") {
@@ -91,6 +168,10 @@ export default function PublicCataloguePage() {
         }, 500);
       }
     }
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
 
   const cleanStorePhone = useMemo(() => {
