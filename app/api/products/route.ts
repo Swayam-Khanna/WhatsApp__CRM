@@ -9,6 +9,7 @@ import {
 import { eq, desc, and } from "drizzle-orm";
 import { allProducts as staticCatalog } from "../../../frontend/lib/mock/products.ts";
 import { adminDb } from "../../../frontend/lib/firebase-admin.ts";
+import { getAuthoritativeCrmProducts } from "../../../backend/lib/product-registry.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -130,6 +131,42 @@ export async function GET(req: NextRequest) {
         }));
 
       let all = [...dbProducts, ...staticItems];
+
+      // Merge authoritative CRM products
+      try {
+        const crmProds = await getAuthoritativeCrmProducts();
+        const existingIds = new Set(all.map((p) => (p.id || "").toLowerCase()));
+        const existingSlugsAll = new Set(all.map((p) => (p.slug || "").toLowerCase()));
+        for (const cp of crmProds) {
+          if (!existingIds.has((cp.id || "").toLowerCase()) && !existingSlugsAll.has((cp.slug || "").toLowerCase())) {
+            all.push({
+              id: cp.id,
+              name: cp.name,
+              slug: cp.slug,
+              description: cp.description,
+              price: cp.price,
+              compare_at_price: cp.compareAtPrice,
+              price_per_kg: cp.price,
+              category: cp.category,
+              stock: cp.unitsLeft,
+              stock_grams: cp.unitsLeft * 500,
+              low_stock_threshold_grams: 1000,
+              unit: cp.weight || "500g",
+              weight_grams: 500,
+              images: [cp.image],
+              featured: Boolean(cp.featured),
+              status: "published",
+              hsn_code: null,
+              gst_applicable: true,
+              gst_rate: 5,
+              farmer_id: null,
+              farmer_profiles: null,
+              inventory: null,
+              _source: "crm_registry",
+            });
+          }
+        }
+      } catch {}
 
       // Apply query filters
       if (slug) {

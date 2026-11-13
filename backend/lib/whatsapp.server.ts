@@ -126,6 +126,8 @@ export async function sendWhatsAppTextMessage(params: {
         payload.text = { preview_url: false, body: params.text || "" };
       }
 
+      const controller = new AbortController();
+      const fetchTimer = setTimeout(() => controller.abort(), 3000);
       const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
         method: "POST",
         headers: {
@@ -133,7 +135,9 @@ export async function sendWhatsAppTextMessage(params: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
+      clearTimeout(fetchTimer);
 
       const data = await res.json();
       if (!res.ok) {
@@ -266,6 +270,8 @@ export async function sendWhatsAppMediaMessage(params: {
         [params.type]: mediaObject,
       };
 
+      const controller = new AbortController();
+      const fetchTimer = setTimeout(() => controller.abort(), 3000);
       const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
         method: "POST",
         headers: {
@@ -273,7 +279,9 @@ export async function sendWhatsAppMediaMessage(params: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
+      clearTimeout(fetchTimer);
 
       const data = await res.json();
       if (!res.ok) {
@@ -392,22 +400,61 @@ export function buildItemizedCrmOrderConfirmationMessage(order: {
 }
 
 /**
- * Builds official India Post Speed Post Dispatch notification.
- * Short, crisp, natural Hinglish.
+ * Builds automated Order Shipped notification without third-party links or tracking IDs.
+ */
+export function buildOrderShippedMessage(params: {
+  customerName: string;
+  orderNumber: string;
+  deliveryCity?: string;
+}): string {
+  return [
+    `Namaste ${params.customerName} ji! 📦`,
+    `Aapka Prajnaa Market order #${params.orderNumber} ship ho gaya hai.`,
+    `Hum aapko har transit location ki live update isi WhatsApp par bhejte rahenge.`,
+    `*Team Prajnaa Market* 🌿`,
+  ].join("\n");
+}
+
+/**
+ * Builds automated Transit Location notification informing customer that parcel reached a specific place.
+ */
+export function buildOrderTransitLocationMessage(params: {
+  customerName: string;
+  orderNumber: string;
+  location: string;
+}): string {
+  return [
+    `Namaste ${params.customerName} ji! 📍`,
+    `Aapka Prajnaa Market order #${params.orderNumber} abhi *${params.location}* pahunch chuka hai aur aage transit mein hai.`,
+    `*Team Prajnaa Market* 🌿`,
+  ].join("\n");
+}
+
+/**
+ * Builds automated notification sent one day before delivery informing customer that parcel will arrive tomorrow.
+ */
+export function buildOrderDeliveringTomorrowMessage(params: {
+  customerName: string;
+  orderNumber: string;
+}): string {
+  return [
+    `Namaste ${params.customerName} ji! 🚚`,
+    `Aapke liye zaroori update: Aapka Prajnaa Market order #${params.orderNumber} *kal deliver ho jayega*.`,
+    `Kripya parcel receive karne ke liye apna phone available rakhein.`,
+    `*Team Prajnaa Market* 🌿`,
+  ].join("\n");
+}
+
+/**
+ * Dispatch notification helper (maintained for backward compatibility, with no tracking link or id)
  */
 export function buildSpeedPostDispatchMessage(params: {
   customerName: string;
   orderNumber: string;
-  trackingId: string;
-  deliveryCity: string;
+  trackingId?: string;
+  deliveryCity?: string;
 }): string {
-  return [
-    `Namaste ${params.customerName} ji! 📦`,
-    `Aapka Prajnaa Market order #${params.orderNumber} Dehradun MDG se dispatch ho gaya hai.`,
-    `Speed Post Consignment ID: ${params.trackingId}`,
-    `Live Tracking: https://www.indiapost.gov.in`,
-    `*Team Prajnaa Market* 🌿`,
-  ].join("\n");
+  return buildOrderShippedMessage(params);
 }
 
 declare global {
@@ -704,7 +751,7 @@ export function processConversationalBotReply(params: {
   ) {
     return {
       updatedCustomerName: currentName,
-      replyText: `Namaste ${nameLabel}! 🙏 Jaise hi parcel dispatch hota hai, India Post Speed Post tracking number (ED...IN) automatically aapko isi WhatsApp par mil jayega, jise aap indiapost.gov.in par live track kar sakte hain.`,
+      replyText: `Namaste ${nameLabel}! 🙏 Jaise hi aapka parcel dispatch hota hai, hum aapko WhatsApp par order shipped ka automated update bhejte hain. Iske baad parcel jis bhi location ya city pahunchta hai, uski live location update aur delivery se ek din pehle "delivering tomorrow" ka alert automatically aapko isi chat par mil jayega.`,
     };
   }
 
