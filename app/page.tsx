@@ -231,21 +231,42 @@ function generateClientAutoReply(customerName?: string, queryText: string = "", 
   return "Nishant ji abhi available nahi hain. Woh jald hi aapse connect karenge.";
 }
 
+// Sanitizes any text that contains duplicated origin schemes (e.g., http://...http://...)
+function sanitizeTextContent(text?: string): string {
+  if (!text) return "";
+  const origin = typeof window !== "undefined" && window.location.origin ? window.location.origin : "http://127.0.0.1:3000";
+  return text
+    .replace(/https?:\/\/[^\s]+https?:\/\/[^\s]*\/(?:catalogue|customer|catalog)([^\s]*)/gi, `${origin}/catalogue$1`)
+    .replace(/https?:\/\/[^\s]+http\/[^\s]*\/(?:catalogue|customer|catalog)([^\s]*)/gi, `${origin}/catalogue$1`);
+}
+
 // Normalizes any catalogue/customer URL to open reliably on the current environment
 function normalizeLinkTarget(raw: string): string {
   if (typeof window === "undefined") return raw;
   const origin = window.location.origin;
-  let target = raw.replace(/[.,!?)]+$/, "");
+  let target = (raw || "").trim().replace(/[.,!?)]+$/, "");
 
-  // If viewing on localhost or 127.0.0.1, rewrite remote domain catalogue links to current local origin
+  // 1. If target points to catalogue, customer, or catalog (even if malformed or with duplicated schemes)
+  const catMatch = target.match(/\/(?:catalogue|customer|catalog)(#[a-zA-Z0-9_-]+)?/i);
+  if (catMatch) {
+    const anchor = catMatch[1] || "";
+    return `${origin}/catalogue${anchor}`;
+  }
+
+  // 2. Fix duplicated http(s) schemes on external URLs
+  if (/https?:\/\/.+https?:\/\//i.test(target) || /https?:\/\/.+http\/\//i.test(target)) {
+    const lastHttp = target.lastIndexOf("http");
+    if (lastHttp > 0) {
+      target = target.substring(lastHttp).replace(/^http\/\//i, "http://");
+    }
+  }
+
+  // 3. If viewing on localhost or 127.0.0.1, rewrite remote domain catalogue links to current local origin
   if (origin.includes("localhost") || origin.includes("127.0.0.1")) {
     target = target.replace(/https?:\/\/(?:crm|market)\.prajnaa\.in/i, origin);
   }
 
-  // Redirect any /customer or /catalog typo to /catalogue
-  target = target.replace(/\/(?:customer|catalog)\b/i, "/catalogue");
-
-  // Ensure relative path gets full protocol & host
+  // 4. Ensure relative path gets full protocol & host
   if (target.startsWith("/")) {
     target = `${origin}${target}`;
   }
@@ -254,8 +275,9 @@ function normalizeLinkTarget(raw: string): string {
 }
 
 // Resolves and renders clickable hyperlinks and interactive catalogue cards for chat messages
-function renderMessageContentWithLinks(text?: string) {
-  if (!text) return null;
+function renderMessageContentWithLinks(rawText?: string) {
+  if (!rawText) return null;
+  const text = sanitizeTextContent(rawText);
 
   // Extract any catalogue/customer URL or relative path
   const catalogueUrlMatch = text.match(/https?:\/\/[^\s]+(?:catalogue|customer|catalog)[^\s]*|\/(?:catalogue|customer|catalog)[^\s]*/i);
@@ -1958,8 +1980,7 @@ export default function PrajnaaMasterCrmApp() {
       .replace(/{{catalogue_url}}/gi, catalogueUrl)
       .replace(/{{catalogue_link}}/gi, catalogueUrl)
       .replace(/{{catalogue}}/gi, catalogueUrl)
-      .replace(/\/catalogue\b/g, catalogueUrl)
-      .replace(/\/customer\b/g, catalogueUrl);
+      .replace(/(^|\s)\/(?:catalogue|customer|catalog)\b/gi, `$1${catalogueUrl}`);
   };
 
   // Launch Broadcast Campaign via Meta WhatsApp Cloud API endpoint

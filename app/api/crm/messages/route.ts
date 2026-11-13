@@ -107,9 +107,32 @@ export async function GET(req: NextRequest) {
       }
     } catch {}
 
+    // Sanitize any malformed duplicate origin URLs (e.g. from previously stored messages)
+    const hostHeader = req.headers.get("host") || "";
+    const isLocalEnv = !hostHeader || hostHeader.includes("localhost") || hostHeader.includes("127.0.0.1");
+    const cleanOrigin = isLocalEnv ? `http://${hostHeader || "127.0.0.1:3000"}` : `https://${hostHeader || "crm.prajnaa.in"}`;
+
+    const cleanedMsgs = uniqueMsgs.map((m: any) => {
+      if (typeof m.text === "string" && (m.text.includes("/catalogue") || m.text.includes("/customer") || m.text.includes("/catalog"))) {
+        const cleanedText = m.text
+          .replace(/https?:\/\/[^\s]+https?:\/\/[^\s]*\/(?:catalogue|customer|catalog)([^\s]*)/gi, `${cleanOrigin}/catalogue$1`)
+          .replace(/https?:\/\/[^\s]+http\/[^\s]*\/(?:catalogue|customer|catalog)([^\s]*)/gi, `${cleanOrigin}/catalogue$1`);
+        return { ...m, text: cleanedText };
+      }
+      return m;
+    });
+
+    (globalThis.__globalWhatsAppFeed || []).forEach((m: any) => {
+      if (typeof m.text === "string" && (m.text.includes("/catalogue") || m.text.includes("/customer") || m.text.includes("/catalog"))) {
+        m.text = m.text
+          .replace(/https?:\/\/[^\s]+https?:\/\/[^\s]*\/(?:catalogue|customer|catalog)([^\s]*)/gi, `${cleanOrigin}/catalogue$1`)
+          .replace(/https?:\/\/[^\s]+http\/[^\s]*\/(?:catalogue|customer|catalog)([^\s]*)/gi, `${cleanOrigin}/catalogue$1`);
+      }
+    });
+
     return NextResponse.json({
       success: true,
-      messages: uniqueMsgs,
+      messages: cleanedMsgs,
       health,
       storage: "hybrid",
     });

@@ -97,15 +97,18 @@ export function releaseHumanAgentHandoff(phone: string) {
  */
 export function getAppBaseUrl(reqHost?: string): string {
   if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "");
+    const raw = process.env.NEXT_PUBLIC_APP_URL.trim().replace(/\/+$/, "");
+    return raw.startsWith("http") ? raw : `https://${raw}`;
   }
   if (reqHost) {
-    const isLocal = reqHost.includes("localhost") || reqHost.includes("127.0.0.1");
+    const cleanHost = reqHost.trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+    const isLocal = cleanHost.includes("localhost") || cleanHost.includes("127.0.0.1");
     const protocol = isLocal ? "http" : "https";
-    return `${protocol}://${reqHost}`;
+    return `${protocol}://${cleanHost}`;
   }
   if (process.env.BETTER_AUTH_URL) {
-    return process.env.BETTER_AUTH_URL.replace(/\/+$/, "");
+    const raw = process.env.BETTER_AUTH_URL.trim().replace(/\/+$/, "");
+    return raw.startsWith("http") ? raw : `https://${raw}`;
   }
   return "https://crm.prajnaa.in";
 }
