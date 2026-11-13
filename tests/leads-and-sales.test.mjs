@@ -1,7 +1,6 @@
-import { test, describe, beforeEach, after } from "node:test";
+import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { LeadsService } from "../backend/lib/leads.server.ts";
-import { closeDatabase } from "../lib/mongodb.ts";
 import { POST as leadsPostRoute, GET as leadsGetRoute } from "../app/api/leads/route.ts";
 import { POST as transitionRoute } from "../app/api/leads/[id]/transitions/route.ts";
 import { POST as assignmentRoute } from "../app/api/leads/[id]/assignments/route.ts";
@@ -17,10 +16,6 @@ describe("PRAJANAA LEADS & SALES MANAGEMENT MODULE", () => {
     // Reset test memory store
     globalThis.__globalCrmLeads = [];
     globalThis.__globalCrmAccounts = [];
-  });
-
-  after(async () => {
-    await closeDatabase();
   });
 
   // 1. Contact Phone Normalization

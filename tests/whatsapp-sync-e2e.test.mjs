@@ -1,17 +1,12 @@
-import { describe, it, after } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "crypto";
-import { closeDatabase } from "../lib/mongodb.ts";
 
 // Test suite for complete WhatsApp CRM message synchronization
 describe("PRAJNAA WHATSAPP CRM — END-TO-END MESSAGE SYNCHRONIZATION", () => {
   const adminPhone = "918091265690";
   const testUnknownCustomerPhone = "919816099999";
   const testCustomerName = "Deepak Rawat";
-
-  after(async () => {
-    await closeDatabase();
-  });
 
   it("1. Webhook Signature Verification rejects invalid signatures", async () => {
     const { verifyWebhookSignature } = await import("../backend/lib/whatsapp.server.ts");
@@ -168,7 +163,7 @@ describe("PRAJNAA WHATSAPP CRM — END-TO-END MESSAGE SYNCHRONIZATION", () => {
     // Check automated reply
     const reply = feed.find((m) => (m.to || "").includes("9816055555") && m.direction === "outbound");
     assert.ok(reply, "Automated reply to customer must be generated");
-    assert.ok(reply.text.includes("Almonds") || reply.text.includes("Badam") || reply.text.includes("sahayata"), "Reply provides Almonds availability info");
+    assert.ok(reply.text.includes("Himalayan Organic Almonds (Badam)"), "Reply provides Almonds catalog info");
   });
 
   it("4. Webhook Idempotency: Duplicate incoming webhook does not duplicate message in feed", async () => {
