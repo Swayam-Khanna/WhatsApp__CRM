@@ -79,7 +79,24 @@ export async function GET(req: NextRequest) {
           _source: "neon",
         }));
       } catch (dbErr: any) {
-        console.warn("[Products API] Remote database query unavailable, falling back to authoritative static catalog:", dbErr?.message);
+        console.warn("[Products API] Remote database query unavailable, attempting fetch from market.prajnaa.in:", dbErr?.message);
+        try {
+          const controller = new AbortController();
+          const t = setTimeout(() => controller.abort(), 4000);
+          const centralRes = await fetch("https://market.prajnaa.in/api/products", {
+            headers: { Accept: "application/json" },
+            signal: controller.signal,
+          });
+          clearTimeout(t);
+          if (centralRes.ok) {
+            const centralData = await centralRes.json();
+            if (centralData && Array.isArray(centralData.products) && centralData.products.length > 0) {
+              dbProducts = centralData.products;
+            }
+          }
+        } catch (fetchErr: any) {
+          console.warn("[Products API] Remote market.prajnaa.in fetch failed, using static catalog:", fetchErr?.message);
+        }
       }
 
       // Combine with static catalog items that might not yet be in Neon
