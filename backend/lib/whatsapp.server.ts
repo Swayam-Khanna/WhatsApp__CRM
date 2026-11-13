@@ -446,7 +446,7 @@ export function buildOrderDeliveringTomorrowMessage(params: {
 }
 
 /**
- * Dispatch notification helper (maintained for backward compatibility, with no tracking link or id)
+ * Dispatch notification helper (supports both milestone-based tracking and Speed Post consignment)
  */
 export function buildSpeedPostDispatchMessage(params: {
   customerName: string;
@@ -454,6 +454,15 @@ export function buildSpeedPostDispatchMessage(params: {
   trackingId?: string;
   deliveryCity?: string;
 }): string {
+  if (params.trackingId) {
+    return [
+      `Namaste ${params.customerName} ji! 📦`,
+      `Aapka Prajnaa Market order #${params.orderNumber} Dehradun MDG se dispatch ho gaya hai.`,
+      `Speed Post Consignment ID: ${params.trackingId}`,
+      `Live Tracking: https://www.indiapost.gov.in`,
+      `*Team Prajnaa Market* 🌿`,
+    ].join("\n");
+  }
   return buildOrderShippedMessage(params);
 }
 
@@ -751,7 +760,7 @@ export function processConversationalBotReply(params: {
   ) {
     return {
       updatedCustomerName: currentName,
-      replyText: `Namaste ${nameLabel}! 🙏 Jaise hi aapka parcel dispatch hota hai, hum aapko WhatsApp par order shipped ka automated update bhejte hain. Iske baad parcel jis bhi location ya city pahunchta hai, uski live location update aur delivery se ek din pehle "delivering tomorrow" ka alert automatically aapko isi chat par mil jayega.`,
+      replyText: `Namaste ${nameLabel}! 🙏 Jaise hi aapka parcel dispatch hota hai, hum aapko WhatsApp par Speed Post order shipped ka automated update bhejte hain. Iske baad parcel jis bhi location ya city pahunchta hai, uski live location update aur delivery se ek din pehle "delivering tomorrow" ka alert automatically aapko isi chat par mil jayega.`,
     };
   }
 
