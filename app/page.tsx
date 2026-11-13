@@ -1718,11 +1718,17 @@ export default function PrajnaaMasterCrmApp() {
             // Skip messages between admin and admin
             if (!cleanPhone || cleanPhone === adminPhoneClean) return;
 
-            if (
-              deletedCustomerIdsRef.current.has(cleanPhone) ||
-              (m.customerId && deletedCustomerIdsRef.current.has(m.customerId))
-            ) {
-              return;
+            // Automatically resurrect contact if a live incoming or new message arrives
+            if (deletedCustomerIdsRef.current.has(cleanPhone)) {
+              deletedCustomerIdsRef.current.delete(cleanPhone);
+              try {
+                if (typeof window !== "undefined") {
+                  const p1 = JSON.parse(localStorage.getItem("prajnaa_deleted_phones") || "[]").filter((p: string) => p !== cleanPhone);
+                  localStorage.setItem("prajnaa_deleted_phones", JSON.stringify(p1));
+                  const p2 = JSON.parse(localStorage.getItem("prajnaa_deleted_customer_ids") || "[]").filter((id: string) => !id.includes(cleanPhone));
+                  localStorage.setItem("prajnaa_deleted_customer_ids", JSON.stringify(p2));
+                }
+              } catch {}
             }
 
             if (!msgsByCustomerPhone[cleanPhone]) {
@@ -10455,13 +10461,13 @@ export default function PrajnaaMasterCrmApp() {
                       <input
                         type="text"
                         disabled
-                        value="https://prajnaa-farm-8zam.vercel.app/api/webhooks/whatsapp"
+                        value="https://crm.prajnaa.in/api/webhooks/whatsapp"
                         className="flex-1 p-2 rounded-xl border border-neutral-200 dark:border-slate-800 text-xs font-mono bg-neutral-50 dark:bg-slate-800 text-neutral-700 dark:text-slate-300 truncate"
                       />
                       <button
                         type="button"
                         onClick={() => {
-                          navigator.clipboard.writeText("https://prajnaa-farm-8zam.vercel.app/api/webhooks/whatsapp");
+                          navigator.clipboard.writeText("https://crm.prajnaa.in/api/webhooks/whatsapp");
                           toast.success("Webhook URL copied to clipboard!");
                         }}
                         className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 dark:bg-slate-800 text-neutral-700 dark:text-slate-200 font-semibold rounded-xl text-xs transition cursor-pointer flex items-center gap-1 shrink-0"

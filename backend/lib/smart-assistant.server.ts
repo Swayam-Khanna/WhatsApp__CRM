@@ -1,4 +1,4 @@
-import { db } from "../db.ts";
+import { db, isPostgresConfigured } from "../db.ts";
 import { farmerProducts, productInventory } from "../schema/index.ts";
 import { crmOrders, crmMessages } from "../schema/crm.ts";
 import { eq, desc, or, ilike } from "drizzle-orm";
@@ -498,23 +498,25 @@ export async function getCustomerLatestOrder(phone: string): Promise<any | null>
   const cleanPhone = extractCleanPhone(phone);
   if (!cleanPhone) return null;
 
-  // 1. PostgreSQL crmOrders table
-  try {
-    const orders = await withTimeout(
-      db
-        .select()
-        .from(crmOrders)
-        .where(ilike(crmOrders.customerPhone, `%${cleanPhone}%`))
-        .orderBy(desc(crmOrders.createdAt))
-        .limit(1),
-      1000,
-      []
-    );
+  // 1. PostgreSQL crmOrders table (when configured)
+  if (isPostgresConfigured) {
+    try {
+      const orders = await withTimeout(
+        db
+          .select()
+          .from(crmOrders)
+          .where(ilike(crmOrders.customerPhone, `%${cleanPhone}%`))
+          .orderBy(desc(crmOrders.createdAt))
+          .limit(1),
+        1000,
+        []
+      );
 
-    if (orders && orders.length > 0) {
-      return orders[0];
-    }
-  } catch {}
+      if (orders && orders.length > 0) {
+        return orders[0];
+      }
+    } catch {}
+  }
 
   // 2. MongoDB Atlas fallback
   try {

@@ -4,7 +4,7 @@ import {
   sendWhatsAppMediaMessage,
   getWhatsAppIntegrationStatus,
 } from "../../../../backend/lib/whatsapp.server.ts";
-import { db } from "../../../../backend/db.ts";
+import { db, isPostgresConfigured } from "../../../../backend/db.ts";
 import { crmMessages } from "../../../../backend/schema/crm.ts";
 import { desc, or, ilike, eq } from "drizzle-orm";
 import { getDatabase } from "../../../../lib/mongodb.ts";
@@ -24,24 +24,26 @@ export async function GET(req: NextRequest) {
     const cleanPhone = phone ? phone.replace(/\D/g, "").slice(-10) : "";
     let pgMessages: any[] = [];
 
-    // 1. Primary storage: PostgreSQL via Drizzle ORM
-    try {
-      if (cleanPhone) {
-        pgMessages = await db
-          .select()
-          .from(crmMessages)
-          .where(or(ilike(crmMessages.from, `%${cleanPhone}%`), ilike(crmMessages.to, `%${cleanPhone}%`)))
-          .orderBy(desc(crmMessages.createdAt))
-          .limit(500);
-      } else {
-        pgMessages = await db
-          .select()
-          .from(crmMessages)
-          .orderBy(desc(crmMessages.createdAt))
-          .limit(500);
+    // 1. Primary storage: PostgreSQL via Drizzle ORM (when configured)
+    if (isPostgresConfigured) {
+      try {
+        if (cleanPhone) {
+          pgMessages = await db
+            .select()
+            .from(crmMessages)
+            .where(or(ilike(crmMessages.from, `%${cleanPhone}%`), ilike(crmMessages.to, `%${cleanPhone}%`)))
+            .orderBy(desc(crmMessages.createdAt))
+            .limit(500);
+        } else {
+          pgMessages = await db
+            .select()
+            .from(crmMessages)
+            .orderBy(desc(crmMessages.createdAt))
+            .limit(500);
+        }
+      } catch (pgErr: any) {
+        console.warn("[PostgreSQL] Messages query note:", pgErr?.message || pgErr);
       }
-    } catch (pgErr: any) {
-      console.warn("[PostgreSQL] Messages query note:", pgErr?.message || pgErr);
     }
 
     // 2. Secondary fallback storage: MongoDB Atlas

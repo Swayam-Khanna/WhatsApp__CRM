@@ -2,11 +2,15 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema/index.ts";
 
+export const isPostgresConfigured = Boolean(
+  (process.env.DATABASE_URL && process.env.DATABASE_URL.trim().length > 0) ||
+  (process.env.NEON_TEST_BRANCH_URL && process.env.NEON_TEST_BRANCH_URL.trim().length > 0)
+);
+
 const rawConnectionString =
   process.env.NEON_TEST_BRANCH_URL ||
   process.env.DATABASE_URL ||
   "postgresql://postgres:postgres@localhost:5432/prajna";
-
 
 function createPostgresClient(): postgres.Sql {
   let validUrl = "postgresql://postgres:postgres@localhost:5432/prajna";
@@ -37,12 +41,12 @@ function createPostgresClient(): postgres.Sql {
     return postgres(validUrl, {
       max: process.env.NODE_ENV === "production" ? 20 : 5,
       idle_timeout: 20,
-      connect_timeout: 10,
+      connect_timeout: isPostgresConfigured ? 5 : 1,
       ssl: isSsl ? "prefer" : undefined,
     });
   } catch (e: any) {
     console.warn("[Backend DB] Failed to initialize postgres client:", e.message);
-    return postgres("postgresql://postgres:postgres@localhost:5432/prajna", { max: 1 });
+    return postgres("postgresql://postgres:postgres@localhost:5432/prajna", { max: 1, connect_timeout: 1 });
   }
 }
 

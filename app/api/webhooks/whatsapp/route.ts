@@ -253,8 +253,14 @@ async function handleWebhookProcessing(messages: any[], statuses: any[], reqHost
           );
         }
 
-        // Upsert conversation record in crm_conversations
+        // Upsert conversation record in crm_conversations and remove any legacy deletion marks
         if (fromClean) {
+          try {
+            await db.collection("crm_deleted_contacts").deleteOne({
+              $or: [{ phone: fromClean }, { phone: msg.fromPhone }]
+            });
+          } catch {}
+
           await db.collection("crm_conversations").updateOne(
             { phone: fromClean },
             {
