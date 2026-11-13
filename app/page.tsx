@@ -32,6 +32,7 @@ import {
   Edit3,
   Filter,
   Download,
+  FileSpreadsheet,
   FileText,
   Plus,
   QrCode,
@@ -3730,7 +3731,222 @@ export default function PrajnaaMasterCrmApp() {
     URL.revokeObjectURL(url);
   };
 
-  // 1. Orders Section CSV Export
+  // Universal Helper: Export beautifully styled, branded Excel sheet (.xls) with custom themes, badges, KPI cards & currency formats
+  interface StyledExcelSheetOptions {
+    filename: string;
+    sheetTitle: string;
+    subtitle?: string;
+    headers: string[];
+    rows: (string | number | boolean | null | undefined)[][];
+    summaryCards?: { label: string; value: string | number }[];
+    totals?: (string | number | null | undefined)[];
+  }
+
+  const downloadStyledExcelSheet = ({
+    filename,
+    sheetTitle,
+    subtitle,
+    headers,
+    rows,
+    summaryCards = [],
+    totals,
+  }: StyledExcelSheetOptions) => {
+    const colCount = headers.length;
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    const timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+
+    const escapeHtml = (val: any): string => {
+      if (val === null || val === undefined) return "";
+      return String(val)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    };
+
+    const getBadgeStyle = (val: any): string | null => {
+      const s = String(val).trim().toLowerCase();
+      if (["delivered", "completed", "in stock", "paid", "yes", "vip customer", "active", "confirmed"].includes(s)) {
+        return "background-color: #DEF7EC; color: #03543F; font-weight: 700; border: 1px solid #BCF0DA; border-radius: 9999px; padding: 4px 10px; display: inline-block;";
+      }
+      if (["pending", "processing", "low stock", "partially paid", "in review"].includes(s)) {
+        return "background-color: #FEF3C7; color: #92400E; font-weight: 700; border: 1px solid #FDE68A; border-radius: 9999px; padding: 4px 10px; display: inline-block;";
+      }
+      if (["out of stock", "cancelled", "failed", "no", "returned", "rejected"].includes(s)) {
+        return "background-color: #FEE2E2; color: #991B1B; font-weight: 700; border: 1px solid #FECACA; border-radius: 9999px; padding: 4px 10px; display: inline-block;";
+      }
+      if (["shipped", "in transit", "dispatched", "packed", "regular customer"].includes(s)) {
+        return "background-color: #E0E7FF; color: #3730A3; font-weight: 700; border: 1px solid #C7D2FE; border-radius: 9999px; padding: 4px 10px; display: inline-block;";
+      }
+      return null;
+    };
+
+    let summaryCardsHtml = "";
+    if (summaryCards && summaryCards.length > 0) {
+      const cardsCols = Math.max(1, Math.floor(colCount / summaryCards.length));
+      const cardsHtml = summaryCards
+        .map((c, i) => {
+          const span = i === summaryCards.length - 1 ? colCount - cardsCols * (summaryCards.length - 1) : cardsCols;
+          return `<td colspan="${span}" style="background-color: #F0FDF4; border: 1px solid #BBF7D0; padding: 10px 14px; vertical-align: top;">
+          <div style="font-size: 8pt; color: #166534; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">${escapeHtml(c.label)}</div>
+          <div style="font-size: 13pt; color: #0F3D2E; font-weight: bold; margin-top: 2px;">${escapeHtml(c.value)}</div>
+        </td>`;
+        })
+        .join("");
+      summaryCardsHtml = `<tr>${cardsHtml}</tr>`;
+    }
+
+    const headerRowHtml = headers
+      .map(
+        (h) =>
+          `<th style="background-color: #0F3D2E; color: #FFFFFF; font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 10pt; font-weight: bold; border: 1px solid #144A38; padding: 10px 14px; text-align: left; vertical-align: middle; white-space: nowrap;">${escapeHtml(h)}</th>`
+      )
+      .join("");
+
+    const dataRowsHtml = rows
+      .map((row, rowIdx) => {
+        const isEven = rowIdx % 2 === 0;
+        const rowBg = isEven ? "#FFFFFF" : "#F8FAFC";
+        const cellsHtml = row
+          .map((cellVal, colIdx) => {
+            const headerName = headers[colIdx] || "";
+            const isCurrency = /(inr|price|amount|subtotal|discount|shipping|spent)/i.test(headerName);
+            const isQuantity = /(units|count|orders|qty|quantity)/i.test(headerName) && typeof cellVal === "number";
+            const isPhone =
+              /(phone|whatsapp|mobile|contact)/i.test(headerName) ||
+              String(cellVal).startsWith("'") ||
+              /^\+?\d{10,13}$/.test(String(cellVal).trim());
+            const isLink = String(cellVal).startsWith("http://") || String(cellVal).startsWith("https://");
+            const badgeStyle = getBadgeStyle(cellVal);
+
+            let cellStyle = `border: 1px solid #E2E8F0; padding: 8px 12px; font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 9.5pt; vertical-align: middle; background-color: ${rowBg};`;
+            let formattedVal = escapeHtml(cellVal);
+
+            if (badgeStyle) {
+              cellStyle += ` text-align: center;`;
+              formattedVal = `<span style="${badgeStyle}">${escapeHtml(cellVal)}</span>`;
+            } else if (isLink) {
+              cellStyle += ` text-align: left;`;
+              const rawUrl = String(cellVal);
+              const displayLabel = rawUrl.length > 50 ? rawUrl.substring(0, 47) + "..." : rawUrl;
+              formattedVal = `<a href="${escapeHtml(rawUrl)}" target="_blank" style="color: #1D4ED8; text-decoration: underline; font-weight: 500;">${escapeHtml(displayLabel)}</a>`;
+            } else if (isCurrency) {
+              cellStyle += ` text-align: right; mso-number-format: '"₹"#,##0.00';`;
+              const numVal =
+                typeof cellVal === "number" ? cellVal : parseFloat(String(cellVal).replace(/[^0-9.-]/g, "")) || 0;
+              formattedVal = `₹${numVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            } else if (isQuantity) {
+              cellStyle += ` text-align: right; mso-number-format: '#,##0';`;
+              formattedVal = typeof cellVal === "number" ? cellVal.toLocaleString("en-IN") : escapeHtml(cellVal);
+            } else if (isPhone) {
+              cellStyle += ` text-align: left; mso-number-format: '\\@';`;
+              const cleanPhone = String(cellVal).replace(/^'/, "");
+              formattedVal = escapeHtml(cleanPhone);
+            } else {
+              cellStyle += ` text-align: left; mso-number-format: '\\@';`;
+            }
+
+            return `<td style="${cellStyle}">${formattedVal}</td>`;
+          })
+          .join("");
+
+        return `<tr>${cellsHtml}</tr>`;
+      })
+      .join("");
+
+    let totalsHtml = "";
+    if (totals && totals.length > 0) {
+      const totalCells = totals
+        .map((t, idx) => {
+          const isFirst = idx === 0;
+          const isNum = typeof t === "number" || /^[0-9₹,.\s]+$/.test(String(t));
+          return `<td style="background-color: #0F3D2E; color: #FFFFFF; font-weight: bold; font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 10pt; border: 1px solid #0B2B20; padding: 10px 12px; ${
+            isFirst ? "text-align: left;" : isNum ? "text-align: right;" : "text-align: center;"
+          }">${escapeHtml(t)}</td>`;
+        })
+        .join("");
+      totalsHtml = `<tr>${totalCells}</tr>`;
+    }
+
+    const htmlContent = `
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <!--[if gte mso 9]>
+  <xml>
+    <x:ExcelWorkbook>
+      <x:ExcelWorksheets>
+        <x:ExcelWorksheet>
+          <x:Name>${escapeHtml(sheetTitle.slice(0, 31))}</x:Name>
+          <x:WorksheetOptions>
+            <x:DisplayGridlines/>
+            <x:Print>
+              <x:ValidPrinterInfo/>
+              <x:PaperSizeIndex>9</x:PaperSizeIndex>
+              <x:HorizontalResolution>600</x:HorizontalResolution>
+              <x:VerticalResolution>600</x:VerticalResolution>
+            </x:Print>
+          </x:WorksheetOptions>
+        </x:ExcelWorksheet>
+      </x:ExcelWorksheets>
+    </x:ExcelWorkbook>
+  </xml>
+  <![endif]-->
+</head>
+<body style="font-family: 'Segoe UI', Calibri, Arial, sans-serif; background-color: #FFFFFF; margin: 0; padding: 12px;">
+  <table border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%; table-layout: auto;">
+    <tr>
+      <td colspan="${colCount}" style="background-color: #0F3D2E; color: #FFFFFF; font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 15pt; font-weight: bold; padding: 14px 18px; border: 1px solid #0B2B20;">
+        🌿 ${escapeHtml(sheetTitle)}
+      </td>
+    </tr>
+    <tr>
+      <td colspan="${colCount}" style="background-color: #174E3C; color: #D1FAE5; font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 9.5pt; padding: 6px 18px; border: 1px solid #0F3D2E;">
+        ${escapeHtml(subtitle || "Prajnaa Market — Himalayan Pure & Natural Produce CRM Report")}
+      </td>
+    </tr>
+    <tr>
+      <td colspan="${colCount}" style="background-color: #F8FAFC; color: #475569; font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 9pt; font-weight: 600; padding: 8px 18px; border-bottom: 2px solid #CBD5E1; border-left: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0;">
+        📅 Generated: ${dateStr} at ${timeStr} &nbsp;&bull;&nbsp; 📊 Total Records: ${rows.length} &nbsp;&bull;&nbsp; 📞 WhatsApp Support: +91 80912 65690 &nbsp;&bull;&nbsp; 🌐 Store: crm.prajnaa.in
+      </td>
+    </tr>
+    <tr style="height: 10px;"><td colspan="${colCount}" style="border: none;"></td></tr>
+    ${summaryCardsHtml ? summaryCardsHtml + '<tr style="height: 10px;"><td colspan="' + colCount + '" style="border: none;"></td></tr>' : ""}
+    <thead>
+      <tr>${headerRowHtml}</tr>
+    </thead>
+    <tbody>
+      ${dataRowsHtml}
+      ${totalsHtml}
+    </tbody>
+  </table>
+  <div style="margin-top: 16px; font-size: 8.5pt; color: #94A3B8; font-family: 'Segoe UI', Calibri, Arial, sans-serif;">
+    &copy; ${now.getFullYear()} Prajnaa Market &bull; Confidential Business Intelligence Report &bull; Generated from Prajnaa WhatsApp CRM
+  </div>
+</body>
+</html>
+    `.trim();
+
+    const dateStamp = new Date().toISOString().split("T")[0];
+    const cleanFilename = `${filename.replace(/[^a-zA-Z0-9_-]/g, "_")}_${dateStamp}.xls`;
+
+    // Download formatted Excel workbook (.xls MIME application/vnd.ms-excel)
+    const blob = new Blob(["\uFEFF" + htmlContent], { type: "application/vnd.ms-excel;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", cleanFilename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // 1. Orders Section Export (Formatted Excel Sheet)
   const handleExportOrdersCsv = () => {
     const list = unifiedOrders.filter((o: any) => {
       if (ordersFilter !== "all" && String(o.orderStatus || "").toLowerCase() !== ordersFilter.toLowerCase()) {
@@ -3776,13 +3992,33 @@ export default function PrajnaaMasterCrmApp() {
       "WhatsApp Confirmation Sent"
     ];
 
+    let totalGrossRev = 0;
+    let deliveredCount = 0;
+    let pendingCount = 0;
+    let shippedCount = 0;
+
     const rows = list.map((o: any) => {
-      const itemsStr = Array.isArray(o.items) && o.items.length > 0
-        ? o.items.map((it: any) => `${it.name || "Item"} [${it.weight || "Pack"}] (Qty: ${it.qty || 1} @ ₹${it.price || 0})`).join(" | ")
-        : (o.productName ? `${o.productName} (Qty: ${o.quantity || 1})` : "Standard Consignment");
+      const itemsStr =
+        Array.isArray(o.items) && o.items.length > 0
+          ? o.items
+              .map((it: any) => `${it.name || "Item"} [${it.weight || "Pack"}] (Qty: ${it.qty || 1} @ ₹${it.price || 0})`)
+              .join(" | ")
+          : o.productName
+          ? `${o.productName} (Qty: ${o.quantity || 1})`
+          : "Standard Consignment";
 
       const trackingId = o.trackingNumber || o.trackingId || "";
-      const trackingUrl = trackingId ? `https://www.indiapost.gov.in/_layouts/15/dpt.cptc.va/trackconsignment.aspx` : "";
+      const trackingUrl = trackingId
+        ? `https://www.indiapost.gov.in/_layouts/15/dpt.cptc.va/trackconsignment.aspx`
+        : "";
+
+      const netAmt = Number(o.amount) || 0;
+      totalGrossRev += netAmt;
+
+      const st = String(o.orderStatus || "").toLowerCase();
+      if (st === "completed" || st === "delivered") deliveredCount++;
+      else if (st === "pending" || st === "processing") pendingCount++;
+      else if (st === "shipped" || st === "packed") shippedCount++;
 
       return [
         o.orderNumber || o.id || "",
@@ -3799,7 +4035,7 @@ export default function PrajnaaMasterCrmApp() {
         o.subtotal || o.amount || 0,
         o.shippingPaise ? o.shippingPaise / 100 : 0,
         o.discountPaise ? o.discountPaise / 100 : 0,
-        o.amount || 0,
+        netAmt,
         o.paymentStatus || "Pending",
         o.paymentMethod || "UPI",
         o.orderStatus || "Processing",
@@ -3810,11 +4046,51 @@ export default function PrajnaaMasterCrmApp() {
       ];
     });
 
-    downloadFormattedCsv("Prajnaa_CRM_Orders_Export", headers, rows);
-    toast.success(`Exported ${list.length} orders to CSV successfully!`);
+    const summaryCards = [
+      { label: "Total Orders", value: list.length },
+      { label: "Gross Revenue", value: `₹${totalGrossRev.toLocaleString("en-IN")}` },
+      { label: "Delivered Orders", value: deliveredCount },
+      { label: "In Transit / Pending", value: `${shippedCount + pendingCount}` }
+    ];
+
+    const totals = [
+      "Total Summary",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      `${list.length} Orders Recorded`,
+      "",
+      `₹${totalGrossRev.toLocaleString("en-IN")}`,
+      "",
+      "",
+      `₹${totalGrossRev.toLocaleString("en-IN")}`,
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ];
+
+    downloadStyledExcelSheet({
+      filename: "Prajnaa_CRM_Orders_Export",
+      sheetTitle: "Prajnaa Market — Customer Orders & Fulfillment Ledger",
+      subtitle: "Official Speed Post Consignment Log, Customer Addresses & Payment Tracking",
+      headers,
+      rows,
+      summaryCards,
+      totals
+    });
+    toast.success(`Exported ${list.length} orders to styled Excel spreadsheet!`);
   };
 
-  // 2. Products Catalog CSV Export
+  // 2. Products Catalog Export (Formatted Excel Sheet)
   const handleExportProductsCsv = () => {
     if (productsList.length === 0) {
       toast.error("No products available to export.");
@@ -3838,11 +4114,23 @@ export default function PrajnaaMasterCrmApp() {
     const origin = typeof window !== "undefined" ? window.location.origin : "https://crm.prajnaa.in";
     const storePhone = "918091265690";
 
+    let inStock = 0;
+    let lowStock = 0;
+    let outStock = 0;
+    let totalInventoryUnits = 0;
+
     const rows = productsList.map((p) => {
       const slug = (p.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
       const catUrl = `${origin}/catalogue#${slug}`;
       const waText = encodeURIComponent(`Namaste ji! Mujhe ${p.name} (${p.weight || "500g"} - ₹${p.price}) order karna hai.`);
       const waUrl = `https://wa.me/${storePhone}?text=${waText}`;
+
+      const units = Number(p.unitsLeft) || 0;
+      totalInventoryUnits += units;
+
+      if (p.stock === "In Stock") inStock++;
+      else if (p.stock === "Low Stock") lowStock++;
+      else if (p.stock === "Out of Stock") outStock++;
 
       return [
         p.id || "",
@@ -3852,15 +4140,29 @@ export default function PrajnaaMasterCrmApp() {
         p.origin || "Himalayan Farms",
         p.weight || "500g",
         p.price || 0,
-        p.unitsLeft || 0,
+        units,
         p.stock || "In Stock",
         catUrl,
         waUrl
       ];
     });
 
-    downloadFormattedCsv("Prajnaa_Products_Catalog", headers, rows);
-    toast.success(`Exported ${productsList.length} products to CSV!`);
+    const summaryCards = [
+      { label: "Active Live SKUs", value: productsList.length },
+      { label: "Units in Inventory", value: totalInventoryUnits.toLocaleString("en-IN") },
+      { label: "In Stock SKUs", value: inStock },
+      { label: "Low / Out of Stock", value: `${lowStock + outStock}` }
+    ];
+
+    downloadStyledExcelSheet({
+      filename: "Prajnaa_Products_Catalog",
+      sheetTitle: "Prajnaa Market — Himalayan Products & Live Inventory Catalogue",
+      subtitle: "Live Storefront SKUs, Variant Pack Sizes, Stock Thresholds & Direct WhatsApp Links",
+      headers,
+      rows,
+      summaryCards
+    });
+    toast.success(`Exported ${productsList.length} products to styled Excel spreadsheet!`);
   };
 
   // Helper: Import Products from CSV
@@ -3938,7 +4240,7 @@ export default function PrajnaaMasterCrmApp() {
     reader.readAsText(file);
   };
 
-  // 3. Customers Directory CSV Export
+  // 3. Customers Directory Export (Formatted Excel Sheet)
   const handleExportCustomersCsv = () => {
     if (customers.length === 0) {
       toast.error("No customers available to export.");
@@ -3962,11 +4264,16 @@ export default function PrajnaaMasterCrmApp() {
     ];
 
     const storePhone = "918091265690";
+    let vipCount = 0;
+    let totalSpentCumulative = 0;
 
     const rows = customers.map((c) => {
       const cleanPhone = (c.phone || "").replace(/\D/g, "");
       const waLink = cleanPhone ? `https://wa.me/${cleanPhone}` : `https://wa.me/${storePhone}`;
       const latestOrder: any = c.latestOrder || {};
+
+      if (c.isVip) vipCount++;
+      totalSpentCumulative += Number(c.totalSpent) || 0;
 
       return [
         c.id || "",
@@ -3985,11 +4292,26 @@ export default function PrajnaaMasterCrmApp() {
       ];
     });
 
-    downloadFormattedCsv("Prajnaa_Customers_Directory", headers, rows);
-    toast.success(`Exported ${customers.length} customer contacts to CSV!`);
+    const avgSpent = customers.length > 0 ? Math.round(totalSpentCumulative / customers.length) : 0;
+    const summaryCards = [
+      { label: "Verified Customers", value: customers.length },
+      { label: "VIP Loyal Clients", value: vipCount },
+      { label: "Lifetime Client Revenue", value: `₹${totalSpentCumulative.toLocaleString("en-IN")}` },
+      { label: "Avg Spend / Customer", value: `₹${avgSpent.toLocaleString("en-IN")}` }
+    ];
+
+    downloadStyledExcelSheet({
+      filename: "Prajnaa_Customers_Directory",
+      sheetTitle: "Prajnaa Market — Verified Customers Directory",
+      subtitle: "WhatsApp Opted-In Clients, VIP Loyalty Tiers & Lifetime Purchasing History",
+      headers,
+      rows,
+      summaryCards
+    });
+    toast.success(`Exported ${customers.length} customer contacts to styled Excel spreadsheet!`);
   };
 
-  // 4. Shipments & Speed Post CSV Export
+  // 4. Shipments & Speed Post Export (Formatted Excel Sheet)
   const handleExportShipmentsCsv = () => {
     if (unifiedShipments.length === 0) {
       toast.error("No shipment records available to export.");
@@ -4007,22 +4329,47 @@ export default function PrajnaaMasterCrmApp() {
       "Official India Post Tracking Link"
     ];
 
-    const rows = unifiedShipments.map((s: any) => [
-      s.trackingId || "",
-      s.orderId || "",
-      s.customer || "Customer",
-      s.city || "Dehradun",
-      s.date || new Date().toISOString().split("T")[0],
-      "India Post Speed Post",
-      s.status || "In Transit",
-      s.trackingId ? `https://www.indiapost.gov.in/_layouts/15/dpt.cptc.va/trackconsignment.aspx` : ""
-    ]);
+    let deliveredShipments = 0;
+    let transitShipments = 0;
+    let pendingShipments = 0;
 
-    downloadFormattedCsv("Prajnaa_SpeedPost_Shipments", headers, rows);
-    toast.success(`Exported ${unifiedShipments.length} shipment records to CSV!`);
+    const rows = unifiedShipments.map((s: any) => {
+      const st = String(s.status || "").toLowerCase();
+      if (st === "delivered") deliveredShipments++;
+      else if (st === "in transit" || st === "dispatched") transitShipments++;
+      else pendingShipments++;
+
+      return [
+        s.trackingId || "",
+        s.orderId || "",
+        s.customer || "Customer",
+        s.city || "Dehradun",
+        s.date || new Date().toISOString().split("T")[0],
+        "India Post Speed Post",
+        s.status || "In Transit",
+        s.trackingId ? `https://www.indiapost.gov.in/_layouts/15/dpt.cptc.va/trackconsignment.aspx` : ""
+      ];
+    });
+
+    const summaryCards = [
+      { label: "Total Parcels", value: unifiedShipments.length },
+      { label: "In Transit Speed Post", value: transitShipments },
+      { label: "Delivered Consignments", value: deliveredShipments },
+      { label: "Primary Carrier", value: "India Post Speed Post" }
+    ];
+
+    downloadStyledExcelSheet({
+      filename: "Prajnaa_SpeedPost_Shipments",
+      sheetTitle: "Prajnaa Market — Speed Post Shipments & Logistics Dispatch",
+      subtitle: "India Post Speed Post Consignment Log, Dispatches & Live Tracking",
+      headers,
+      rows,
+      summaryCards
+    });
+    toast.success(`Exported ${unifiedShipments.length} shipment records to styled Excel spreadsheet!`);
   };
 
-  // 5. Analytics & Business Performance CSV Export
+  // 5. Analytics & Business Performance Export (Formatted Excel Sheet)
   const handleExportAnalyticsCsv = () => {
     const totalRev = unifiedOrders.reduce((sum: number, o: any) => sum + (Number(o.amount) || 0), 0);
     const completedOrders = unifiedOrders.filter((o) => o.orderStatus === "Completed" || o.orderStatus === "Delivered");
@@ -4047,8 +4394,22 @@ export default function PrajnaaMasterCrmApp() {
       ["Inventory & Catalog", "Out of Stock SKUs", productsList.filter((p) => p.stock === "Out of Stock").length, "SKUs awaiting farm harvest or processing"]
     ];
 
-    downloadFormattedCsv("Prajnaa_CRM_Business_Analytics", headers, rows);
-    toast.success("Comprehensive business analytics CSV downloaded successfully!");
+    const summaryCards = [
+      { label: "Gross Sales", value: `₹${totalRev.toLocaleString("en-IN")}` },
+      { label: "Average Order Value", value: `₹${avgOrderVal.toLocaleString("en-IN")}` },
+      { label: "Total CRM Orders", value: unifiedOrders.length },
+      { label: "Customer Base", value: customers.length }
+    ];
+
+    downloadStyledExcelSheet({
+      filename: "Prajnaa_CRM_Business_Analytics",
+      sheetTitle: "Prajnaa Market — Business Performance & KPI Executive Report",
+      subtitle: "Gross Sales, WhatsApp Funnel Velocity, Inventory Health & Logistics Performance",
+      headers,
+      rows,
+      summaryCards
+    });
+    toast.success("Exported business analytics to styled Excel spreadsheet!");
   };
 
   const handleSendSpeedPostTracking = async (shipmentItem: typeof selectedShipment) => {
@@ -7359,10 +7720,10 @@ export default function PrajnaaMasterCrmApp() {
                   type="button"
                   onClick={handleExportOrdersCsv}
                   className="px-3.5 sm:px-4 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-50 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
-                  title="Export Orders List to CSV file"
+                  title="Export Orders to styled Excel spreadsheet (.xls)"
                 >
-                  <Download className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>Export CSV</span>
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>Export Excel</span>
                 </button>
 
                 <button
@@ -8045,10 +8406,10 @@ export default function PrajnaaMasterCrmApp() {
                 type="button"
                 onClick={handleExportCustomersCsv}
                 className="px-3.5 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-50 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs"
-                title="Export Customers to CSV"
+                title="Export Customers to styled Excel spreadsheet (.xls)"
               >
-                <Download className="h-3.5 w-3.5 text-emerald-600" />
-                <span>Export CSV</span>
+                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Export Excel</span>
               </button>
             </div>
 
@@ -8488,10 +8849,10 @@ export default function PrajnaaMasterCrmApp() {
                   type="button"
                   onClick={handleExportProductsCsv}
                   className="px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-50 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs"
-                  title="Export Products Catalog to CSV"
+                  title="Export Products Catalog to styled Excel spreadsheet (.xls)"
                 >
-                  <Download className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>Export CSV</span>
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>Export Excel</span>
                 </button>
 
                 <label
@@ -8721,10 +9082,10 @@ export default function PrajnaaMasterCrmApp() {
                 type="button"
                 onClick={handleExportShipmentsCsv}
                 className="px-3.5 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-50 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs"
-                title="Export Shipments to CSV"
+                title="Export Shipments to styled Excel spreadsheet (.xls)"
               >
-                <Download className="h-3.5 w-3.5 text-emerald-600" />
-                <span>Export CSV</span>
+                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Export Excel</span>
               </button>
             </div>
 
@@ -9028,10 +9389,13 @@ export default function PrajnaaMasterCrmApp() {
 
               <div className="flex items-center gap-2">
                 <button
+                  type="button"
                   onClick={handleExportAnalyticsCsv}
-                  className="px-3 py-1.5 rounded-xl border border-neutral-200 bg-white text-xs font-semibold text-neutral-700 hover:bg-neutral-50 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  className="px-3.5 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-50 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  title="Export Business Analytics to styled Excel spreadsheet (.xls)"
                 >
-                  <Download className="h-3.5 w-3.5" /> Export Data
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>Export Excel</span>
                 </button>
               </div>
             </div>
