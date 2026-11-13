@@ -231,61 +231,58 @@ function generateClientAutoReply(customerName?: string, queryText: string = "", 
   return "Nishant ji abhi available nahi hain. Woh jald hi aapse connect karenge.";
 }
 
+// Normalizes any catalogue/customer URL to open reliably on the current environment
+function normalizeLinkTarget(raw: string): string {
+  if (typeof window === "undefined") return raw;
+  const origin = window.location.origin;
+  let target = raw.replace(/[.,!?)]+$/, "");
+
+  // If viewing on localhost or 127.0.0.1, rewrite remote domain catalogue links to current local origin
+  if (origin.includes("localhost") || origin.includes("127.0.0.1")) {
+    target = target.replace(/https?:\/\/(?:crm|market)\.prajnaa\.in/i, origin);
+  }
+
+  // Redirect any /customer or /catalog typo to /catalogue
+  target = target.replace(/\/(?:customer|catalog)\b/i, "/catalogue");
+
+  // Ensure relative path gets full protocol & host
+  if (target.startsWith("/")) {
+    target = `${origin}${target}`;
+  }
+
+  return target;
+}
+
 // Resolves and renders clickable hyperlinks and interactive catalogue cards for chat messages
 function renderMessageContentWithLinks(text?: string) {
   if (!text) return null;
 
   // Extract any catalogue/customer URL or relative path
-  const catalogueUrlMatch = text.match(/https?:\/\/[^\s]+(?:catalogue|customer)[^\s]*|\/(?:catalogue|customer)[^\s]*/i);
+  const catalogueUrlMatch = text.match(/https?:\/\/[^\s]+(?:catalogue|customer|catalog)[^\s]*|\/(?:catalogue|customer|catalog)[^\s]*/i);
   let resolvedCatalogueUrl: string | null = null;
   if (catalogueUrlMatch) {
-    let raw = catalogueUrlMatch[0].replace(/[.,!?)]+$/, "");
-    if (raw.includes("/customer")) {
-      raw = raw.replace("/customer", "/catalogue");
-    }
-    if (raw.startsWith("/")) {
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
-      resolvedCatalogueUrl = `${origin}${raw}`;
-    } else {
-      resolvedCatalogueUrl = raw;
-    }
+    resolvedCatalogueUrl = normalizeLinkTarget(catalogueUrlMatch[0]);
   }
 
   // Regex to split URLs and relative catalogue/customer paths
-  const urlRegex = /(https?:\/\/[^\s]+|\/(?:catalogue|customer)[^\s]*)/g;
+  const urlRegex = /(https?:\/\/[^\s]+|\/(?:catalogue|customer|catalog)[^\s]*)/g;
   const parts = text.split(urlRegex);
 
   return (
     <>
       <div className="leading-relaxed whitespace-pre-wrap">
         {parts.map((part, index) => {
-          if (/^https?:\/\/[^\s]+/i.test(part)) {
+          if (/^https?:\/\/[^\s]+/i.test(part) || /^\/(?:catalogue|customer|catalog)[^\s]*/i.test(part)) {
+            const fullTarget = normalizeLinkTarget(part);
             return (
               <a
                 key={index}
-                href={part}
+                href={fullTarget}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline font-semibold text-emerald-800 dark:text-emerald-300 hover:text-emerald-950 dark:hover:text-emerald-100 break-all transition-colors cursor-pointer inline-flex items-center gap-0.5"
               >
-                <span>{part}</span>
-                <ExternalLink className="w-2.5 h-2.5 inline shrink-0 opacity-70" />
-              </a>
-            );
-          }
-          if (/^\/(?:catalogue|customer)[^\s]*/i.test(part)) {
-            const origin = typeof window !== "undefined" ? window.location.origin : "";
-            const targetUrl = part.replace(/^\/customer/, "/catalogue");
-            const fullUrl = `${origin}${targetUrl}`;
-            return (
-              <a
-                key={index}
-                href={fullUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline font-semibold text-emerald-800 dark:text-emerald-300 hover:text-emerald-950 dark:hover:text-emerald-100 break-all transition-colors cursor-pointer inline-flex items-center gap-0.5"
-              >
-                <span>{fullUrl}</span>
+                <span>{fullTarget}</span>
                 <ExternalLink className="w-2.5 h-2.5 inline shrink-0 opacity-70" />
               </a>
             );
@@ -300,7 +297,7 @@ function renderMessageContentWithLinks(text?: string) {
           href={resolvedCatalogueUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-2 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#0F3D2E] text-white hover:bg-[#16503d] transition shadow-xs text-xs font-semibold no-underline group cursor-pointer"
+          className="mt-2.5 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#0F3D2E] text-white hover:bg-[#16503d] transition shadow-xs text-xs font-semibold no-underline group cursor-pointer"
         >
           <div className="flex items-center gap-2">
             <ShoppingBag className="w-3.5 h-3.5 text-[#E8A317] shrink-0" />
