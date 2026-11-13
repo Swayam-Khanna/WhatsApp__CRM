@@ -269,7 +269,6 @@ async function handleWebhookProcessing(messages: any[], statuses: any[], reqHost
               $setOnInsert: {
                 createdAt: new Date(),
                 status: "active",
-                unreadCount: 0,
               },
               $inc: { unreadCount: 1 },
             },

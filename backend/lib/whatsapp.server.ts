@@ -331,16 +331,22 @@ export function buildOfficialOrderConfirmationMessage(order: {
   shippingAddressSnapshot: any;
 }): string {
   const formatInr = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
-  const itemsSummary = order.items
-    .map((it) => `${it.productName}${it.variantName ? ` (${it.variantName})` : ""} × ${it.quantity}`)
-    .join(", ");
+  const lines = [
+    `Namaste ${order.customerName} ji! 🌿`,
+    `Aapka Prajnaa Market order #${order.orderNumber} successfully receive ho gaya hai.`,
+  ];
 
-  return [
-    `Namaste ${order.customerName} ji! Aapka order #${order.orderNumber} successfully receive ho gaya hai.`,
-    `Items: ${itemsSummary}`,
-    `Total: ${formatInr(order.totalPaise)}`,
-    `Status: Processing mein hai (2–3 din mein dispatch). Thank you!`,
-  ].join("\n");
+  if (order.items && order.items.length > 0) {
+    order.items.forEach((it) => {
+      lines.push(`${it.productName}${it.variantName ? ` (${it.variantName})` : ""} × ${it.quantity}`);
+    });
+  }
+
+  lines.push(`Total Amount: ${formatInr(order.totalPaise)}`);
+  lines.push(`Order processing mein 2–3 din lagte hain.`);
+  lines.push(`*Team Prajnaa Market* 🌿`);
+
+  return lines.join("\n");
 }
 
 /**
@@ -361,18 +367,28 @@ export function buildItemizedCrmOrderConfirmationMessage(order: {
   paymentStatus: string;
 }): string {
   const formatInr = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
-  const itemsSummary = (order.items || [])
-    .map((it) => `${it.productName}${it.variantName ? ` (${it.variantName})` : ""} × ${it.quantity}`)
-    .join(", ");
   const isPaid = order.paymentStatus === "collected" || order.paymentStatus === "paid";
-  const payStatus = isPaid ? "Confirmed" : "Pending";
+  const payStatus = isPaid ? "Paid" : "Pending";
 
-  return [
-    `Namaste ${order.customerName} ji! Aapka order #${order.orderNumber} successfully receive ho gaya hai.`,
-    `Items: ${itemsSummary}`,
-    `Total: ${formatInr(order.totalPaise)} (Payment: ${payStatus})`,
-    `Dispatch mein 2–3 din lag sakte hain. Thank you!`,
-  ].join("\n");
+  const lines = [
+    `Namaste ${order.customerName} ji! 🌿`,
+    `Aapka order successfully receive ho gaya hai.`,
+    `Order No.: #${order.orderNumber}`,
+  ];
+
+  if (order.items && order.items.length > 0) {
+    order.items.forEach((it) => {
+      const lineTotal = it.totalPaise ? formatInr(it.totalPaise) : formatInr(it.unitPricePaise * it.quantity);
+      lines.push(`${it.productName}${it.variantName ? ` (${it.variantName})` : ""} × ${it.quantity} — ${lineTotal}`);
+    });
+  }
+
+  lines.push(`Order Total: ${formatInr(order.totalPaise)}`);
+  lines.push(`Payment Status: ${payStatus}`);
+  lines.push(`Dispatch mein 2–3 din lagte hain.`);
+  lines.push(`*Team Prajnaa Market* 🌿`);
+
+  return lines.join("\n");
 }
 
 /**
@@ -386,9 +402,11 @@ export function buildSpeedPostDispatchMessage(params: {
   deliveryCity: string;
 }): string {
   return [
-    `Good news ${params.customerName} ji! Aapka order #${params.orderNumber} dispatch ho gaya hai.`,
-    `Tracking: https://www.indiapost.gov.in (Speed Post: ${params.trackingId})`,
-    `Thank you!`,
+    `Namaste ${params.customerName} ji! 📦`,
+    `Aapka Prajnaa Market order #${params.orderNumber} Dehradun MDG se dispatch ho gaya hai.`,
+    `Speed Post Consignment ID: ${params.trackingId}`,
+    `Live Tracking: https://www.indiapost.gov.in`,
+    `*Team Prajnaa Market* 🌿`,
   ].join("\n");
 }
 

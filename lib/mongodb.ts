@@ -68,3 +68,13 @@ export async function getDatabase(dbName: string = "prajnaa_crm"): Promise<Db> {
   const client = await getClientPromise();
   return client.db(dbName);
 }
+
+export async function closeDatabase(): Promise<void> {
+  if (global._mongoClientPromise) {
+    try {
+      const client = await global._mongoClientPromise;
+      await client.close();
+    } catch {}
+    global._mongoClientPromise = undefined;
+  }
+}

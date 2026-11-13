@@ -1,6 +1,7 @@
-import { test, describe } from "node:test";
+import { test, describe, after } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import { closeDatabase } from "../lib/mongodb.ts";
 import {
   buildOfficialOrderConfirmationMessage,
   buildSpeedPostDispatchMessage,
@@ -13,6 +14,9 @@ import {
 import { products as AUTHORITATIVE_PRODUCTS } from "../frontend/lib/mock/products.ts";
 
 describe("PRAJNAA MARKET & WHATSAPP CRM — MASTER END-TO-END VERIFICATION", () => {
+  after(async () => {
+    await closeDatabase();
+  });
   // 1. Authoritative Catalogue & Strict Pricing Integrity
   test("1. Authoritative Storefront Catalogue Parity (Himalayan Products)", () => {
     assert.ok(Array.isArray(AUTHORITATIVE_PRODUCTS), "Product catalogue must be an array");
