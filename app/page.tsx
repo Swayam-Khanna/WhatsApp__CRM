@@ -95,10 +95,16 @@ interface Message {
   filename?: string;
 }
 
-// Client-side automated reply generator with multi-step unknown sender greeting, name capture & Himalayan catalog recommendations
+// Resolves proper absolute catalogue URL for client and chat redirects
+function getClientCatalogueUrl(hash?: string): string {
+  const origin = typeof window !== "undefined" && window.location.origin ? window.location.origin : "https://crm.prajnaa.in";
+  return hash ? `${origin}/catalogue#${hash}` : `${origin}/catalogue`;
+}
+
 // Client-side smart automated reply generator matching the 15 intent specifications
 function generateClientAutoReply(customerName?: string, queryText: string = "", contextOrder?: any): string {
   const query = (queryText || "").toLowerCase().trim();
+  const catalogueUrl = getClientCatalogueUrl();
 
   // 1. Human handoff / outside knowledge
   if (
@@ -150,7 +156,7 @@ function generateClientAutoReply(customerName?: string, queryText: string = "", 
     query.includes("kya-kya") ||
     query.includes("saare products")
   ) {
-    return "Bilkul ji! Hamara latest product catalogue yahan dekhein: /catalogue";
+    return `Bilkul ji! Hamara latest product catalogue yahan dekhein: ${catalogueUrl}`;
   }
 
   // 5. Order Placement
@@ -166,22 +172,22 @@ function generateClientAutoReply(customerName?: string, queryText: string = "", 
 
   // 6. Specific Product Enquiries
   if (query.includes("honey") || query.includes("shehad") || query.includes("shahad")) {
-    return "Ji haan! Himalayan Raw Flora Honey 500g available hai. Price: ₹550. Details: /catalogue#himalayan-multiflora-honey";
+    return `Ji haan! Himalayan Raw Flora Honey 500g available hai. Price: ₹550. Details: ${getClientCatalogueUrl("himalayan-multiflora-honey")}`;
   }
   if (query.includes("almond") || query.includes("badam") || query.includes("mamra")) {
-    return "Ji haan! Kashmiri Mamra Almonds 500g available hai. Price: ₹1,250. Details: /catalogue#kashmiri-mamra-almonds";
+    return `Ji haan! Kashmiri Mamra Almonds 500g available hai. Price: ₹1,250. Details: ${getClientCatalogueUrl("kashmiri-mamra-almonds")}`;
   }
   if (query.includes("walnut") || query.includes("akhrot")) {
-    return "Ji haan! Kashmiri Kagzi Walnuts (Kernels) 500g available hai. Price: ₹650. Details: /catalogue#kashmir-kagzi-walnuts";
+    return `Ji haan! Kashmiri Kagzi Walnuts (Kernels) 500g available hai. Price: ₹650. Details: ${getClientCatalogueUrl("kashmir-kagzi-walnuts")}`;
   }
   if (query.includes("shilajit")) {
-    return "Ji haan! Pure Himalayan Shilajit Resin 20g available hai. Price: ₹1,450. Details: /catalogue#pure-himalayan-shilajit";
+    return `Ji haan! Pure Himalayan Shilajit Resin 20g available hai. Price: ₹1,450. Details: ${getClientCatalogueUrl("pure-himalayan-shilajit")}`;
   }
   if (query.includes("ghee") || query.includes("badri")) {
-    return "Ji haan! A2 Badri Cow Bilona Ghee 1L available hai. Price: ₹2,100. Details: /catalogue#badri-cow-a2-ghee";
+    return `Ji haan! A2 Badri Cow Bilona Ghee 1L available hai. Price: ₹2,100. Details: ${getClientCatalogueUrl("badri-cow-a2-ghee")}`;
   }
   if (query.includes("saffron") || query.includes("kesar")) {
-    return "Ji haan! Pure Kashmiri Mongra Saffron 1g available hai. Price: ₹380. Details: /catalogue#kashmiri-mongra-saffron";
+    return `Ji haan! Pure Kashmiri Mongra Saffron 1g available hai. Price: ₹380. Details: ${getClientCatalogueUrl("kashmiri-mongra-saffron")}`;
   }
 
   // 7. Order Status
@@ -223,6 +229,88 @@ function generateClientAutoReply(customerName?: string, queryText: string = "", 
 
   // 10. Default / Unclear intent -> Short polite handoff
   return "Nishant ji abhi available nahi hain. Woh jald hi aapse connect karenge.";
+}
+
+// Resolves and renders clickable hyperlinks and interactive catalogue cards for chat messages
+function renderMessageContentWithLinks(text?: string) {
+  if (!text) return null;
+
+  // Extract any catalogue/customer URL or relative path
+  const catalogueUrlMatch = text.match(/https?:\/\/[^\s]+(?:catalogue|customer)[^\s]*|\/(?:catalogue|customer)[^\s]*/i);
+  let resolvedCatalogueUrl: string | null = null;
+  if (catalogueUrlMatch) {
+    let raw = catalogueUrlMatch[0].replace(/[.,!?)]+$/, "");
+    if (raw.includes("/customer")) {
+      raw = raw.replace("/customer", "/catalogue");
+    }
+    if (raw.startsWith("/")) {
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      resolvedCatalogueUrl = `${origin}${raw}`;
+    } else {
+      resolvedCatalogueUrl = raw;
+    }
+  }
+
+  // Regex to split URLs and relative catalogue/customer paths
+  const urlRegex = /(https?:\/\/[^\s]+|\/(?:catalogue|customer)[^\s]*)/g;
+  const parts = text.split(urlRegex);
+
+  return (
+    <>
+      <div className="leading-relaxed whitespace-pre-wrap">
+        {parts.map((part, index) => {
+          if (/^https?:\/\/[^\s]+/i.test(part)) {
+            return (
+              <a
+                key={index}
+                href={part}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline font-semibold text-emerald-800 dark:text-emerald-300 hover:text-emerald-950 dark:hover:text-emerald-100 break-all transition-colors cursor-pointer inline-flex items-center gap-0.5"
+              >
+                <span>{part}</span>
+                <ExternalLink className="w-2.5 h-2.5 inline shrink-0 opacity-70" />
+              </a>
+            );
+          }
+          if (/^\/(?:catalogue|customer)[^\s]*/i.test(part)) {
+            const origin = typeof window !== "undefined" ? window.location.origin : "";
+            const targetUrl = part.replace(/^\/customer/, "/catalogue");
+            const fullUrl = `${origin}${targetUrl}`;
+            return (
+              <a
+                key={index}
+                href={fullUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline font-semibold text-emerald-800 dark:text-emerald-300 hover:text-emerald-950 dark:hover:text-emerald-100 break-all transition-colors cursor-pointer inline-flex items-center gap-0.5"
+              >
+                <span>{fullUrl}</span>
+                <ExternalLink className="w-2.5 h-2.5 inline shrink-0 opacity-70" />
+              </a>
+            );
+          }
+          return <span key={index}>{part}</span>;
+        })}
+      </div>
+
+      {/* Interactive 1-click Catalogue Launcher Card if message links to or mentions catalogue */}
+      {resolvedCatalogueUrl && (
+        <a
+          href={resolvedCatalogueUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#0F3D2E] text-white hover:bg-[#16503d] transition shadow-xs text-xs font-semibold no-underline group cursor-pointer"
+        >
+          <div className="flex items-center gap-2">
+            <ShoppingBag className="w-3.5 h-3.5 text-[#E8A317] shrink-0" />
+            <span>Open Live Product Catalogue</span>
+          </div>
+          <ExternalLink className="w-3 h-3 text-white/70 group-hover:translate-x-0.5 transition-transform shrink-0" />
+        </a>
+      )}
+    </>
+  );
 }
 
 interface OrderItem {
@@ -681,7 +769,7 @@ const INITIAL_TEMPLATES = [
     id: "tpl_7",
     category: "Catalogue",
     name: "Live Product Catalogue",
-    message: "Bilkul ji! Hamara latest product catalogue yahan dekhein: /catalogue",
+    message: "Bilkul ji! Hamara latest product catalogue yahan dekhein: {{catalogue_url}}",
   },
   {
     id: "tpl_8",
@@ -1863,11 +1951,18 @@ export default function PrajnaaMasterCrmApp() {
       )?.trackingId) ||
       "ET809126569IN";
 
+    const catalogueUrl = getClientCatalogueUrl();
+
     return tplMessage
       .replace(/{{customer_name}}/gi, customer.name)
       .replace(/{{order_id}}/gi, latestOrder.orderNumber || "PRJ25680063")
       .replace(/{{amount}}/gi, (latestOrder.amount || 1740).toLocaleString("en-IN"))
-      .replace(/{{tracking_id}}/gi, trackingNumber);
+      .replace(/{{tracking_id}}/gi, trackingNumber)
+      .replace(/{{catalogue_url}}/gi, catalogueUrl)
+      .replace(/{{catalogue_link}}/gi, catalogueUrl)
+      .replace(/{{catalogue}}/gi, catalogueUrl)
+      .replace(/\/catalogue\b/g, catalogueUrl)
+      .replace(/\/customer\b/g, catalogueUrl);
   };
 
   // Launch Broadcast Campaign via Meta WhatsApp Cloud API endpoint
@@ -5670,7 +5765,7 @@ export default function PrajnaaMasterCrmApp() {
                             )}
 
                             {(!isImage && !isVideo && !isDoc) || (msg.text && !msg.text.startsWith("[Image Attachment]") && !msg.text.startsWith("[Video Attachment]")) ? (
-                              <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+                              renderMessageContentWithLinks(msg.text)
                             ) : null}
 
                             <div className="flex items-center justify-end gap-1 text-[9px] text-neutral-500 pt-0.5">

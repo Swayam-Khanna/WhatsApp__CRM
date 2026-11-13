@@ -96,15 +96,16 @@ export function releaseHumanAgentHandoff(phone: string) {
  * Resolves the public base URL of the application.
  */
 export function getAppBaseUrl(reqHost?: string): string {
-  if (process.env.NEXT_PUBLIC_APP_URL && !process.env.NEXT_PUBLIC_APP_URL.includes("localhost")) {
+  if (process.env.NEXT_PUBLIC_APP_URL) {
     return process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "");
   }
-  if (process.env.BETTER_AUTH_URL && !process.env.BETTER_AUTH_URL.includes("localhost")) {
-    return process.env.BETTER_AUTH_URL.replace(/\/+$/, "");
-  }
-  if (reqHost && !reqHost.includes("localhost")) {
-    const protocol = reqHost.includes("prajnaa.in") ? "https" : "http";
+  if (reqHost) {
+    const isLocal = reqHost.includes("localhost") || reqHost.includes("127.0.0.1");
+    const protocol = isLocal ? "http" : "https";
     return `${protocol}://${reqHost}`;
+  }
+  if (process.env.BETTER_AUTH_URL) {
+    return process.env.BETTER_AUTH_URL.replace(/\/+$/, "");
   }
   return "https://crm.prajnaa.in";
 }
