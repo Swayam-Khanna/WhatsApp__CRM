@@ -406,6 +406,10 @@ export interface ProductItem {
   origin: string;
   sku?: string;
   weight?: string;
+  isCrmOnly?: boolean;
+  channel?: "central" | "crm_only";
+  farmerName?: string;
+  description?: string;
 }
 
 interface TeamMember {
@@ -658,9 +662,15 @@ const REAL_CATEGORY_IMAGES: Record<string, string> = {
   "honey": "/assets/cat-honey.jpg",
 };
 
-const getRealProductImage = (prod: { id?: string; slug?: string; name?: string; category?: string; image?: string }): string => {
-  if (prod.image && (prod.image.startsWith("/") || prod.image.startsWith("http"))) {
-    return prod.image;
+const getRealProductImage = (prod: { id?: string; slug?: string; name?: string; category?: string; image?: string; images?: string[] }): string => {
+  const rawImg = prod.image || (Array.isArray(prod.images) && prod.images.length > 0 ? prod.images[0] : undefined);
+  if (rawImg) {
+    if (rawImg.startsWith("/api/storage") || rawImg.startsWith("/storage")) {
+      return `https://market.prajnaa.in${rawImg}`;
+    }
+    if (rawImg.startsWith("/") || rawImg.startsWith("http")) {
+      return rawImg;
+    }
   }
   const byId = prod.id && REAL_PRODUCT_IMAGES[prod.id];
   if (byId) return byId;
@@ -1094,22 +1104,40 @@ export default function PrajnaaMasterCrmApp() {
     if (typeof window !== "undefined") {
       try {
         const saved = localStorage.getItem("prajnaa_crm_products");
+        const manualSaved = localStorage.getItem("prajnaa_crm_manual_products");
+        let initialList: ProductItem[] = [];
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
             // Upgrade any emoji-only image fields to real Himalayan catalog photos
-            return parsed.map((p) => ({
+            initialList = parsed.map((p) => ({
               ...p,
+              channel: p.channel || (p.isCrmOnly ? "crm_only" : "central"),
               image: p.image && (p.image.startsWith("/") || p.image.startsWith("http")) ? p.image : (REAL_PRODUCT_IMAGES[p.id] || "/assets/cat-dryfruits.jpg")
             }));
           }
         }
+        if (manualSaved) {
+          try {
+            const manualParsed: ProductItem[] = JSON.parse(manualSaved);
+            if (Array.isArray(manualParsed)) {
+              manualParsed.forEach((m) => {
+                if (!initialList.some((p) => p.id === m.id || (m.sku && p.sku === m.sku))) {
+                  initialList.push({ ...m, isCrmOnly: true, channel: "crm_only" });
+                }
+              });
+            }
+          } catch {}
+        }
+        if (initialList.length > 0) return initialList;
       } catch {}
     }
     return INITIAL_PRODUCTS;
   });
   const [productStockFilter, setProductStockFilter] = useState<string>("all");
   const [productSearch, setProductSearch] = useState<string>("");
+  const [isSyncingProducts, setIsSyncingProducts] = useState<boolean>(false);
+  const [productSyncSource, setProductSyncSource] = useState<string>("market.prajnaa.in");
   const [editingProduct, setEditingProduct] = useState<ProductItem | null>(null);
   const [showEditStockModal, setShowEditStockModal] = useState<boolean>(false);
   const [editUnitsInput, setEditUnitsInput] = useState<number>(0);
@@ -1129,6 +1157,10 @@ export default function PrajnaaMasterCrmApp() {
     origin: "High Altitude Farm, Himachal Pradesh",
     sku: "",
     weight: "500g",
+    isCrmOnly: false,
+    channel: "central",
+    farmerName: "",
+    description: "",
   });
 
   // State: CRM Orders synchronized with Web Checkout & Server
@@ -1141,6 +1173,163 @@ export default function PrajnaaMasterCrmApp() {
 
   // Derived: Permissions for Current User
   const userPermissions = ROLE_PERMISSIONS[currentUser.role] || ROLE_PERMISSIONS["Store Admin"];
+
+  // Synchronize Products Catalog from Central Website (market.prajnaa.in) & Non-Destructively Merge CRM-Exclusive Items
+  const syncProductsCatalog = async (interactive: boolean = false) => {
+    setIsSyncingProducts(true);
+    try {
+      let rawProducts: any[] = [];
+      let sourceName = "market.prajnaa.in";
+
+      // 1. Primary: Fetch directly from central public API https://market.prajnaa.in/api/products
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const res = await fetch("https://market.prajnaa.in/api/products", {
+          headers: { Accept: "application/json" },
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.products) && data.products.length > 0) {
+            rawProducts = data.products;
+            sourceName = "market.prajnaa.in (Live Website)";
+          }
+        }
+      } catch (err: any) {
+        console.warn("[Products Sync] market.prajnaa.in not reachable directly from browser, trying local /api/products:", err?.message);
+      }
+
+      // 2. Fallback: Local /api/products endpoint
+      if (rawProducts.length === 0) {
+        try {
+          const res = await fetch("/api/products");
+          if (res.ok) {
+            const data = await res.json();
+            if (data && Array.isArray(data.products) && data.products.length > 0) {
+              rawProducts = data.products;
+              sourceName = "Local Database (/api/products)";
+            }
+          }
+        } catch (err: any) {
+          console.warn("[Products Sync] Local /api/products fallback failed:", err?.message);
+        }
+      }
+
+      // 3. Load manual CRM-exclusive products from persistent storage
+      let manualCrmProducts: ProductItem[] = [];
+      if (typeof window !== "undefined") {
+        try {
+          const savedManual = localStorage.getItem("prajnaa_crm_manual_products");
+          if (savedManual) {
+            const parsed = JSON.parse(savedManual);
+            if (Array.isArray(parsed)) {
+              manualCrmProducts = parsed.map((p) => ({
+                ...p,
+                isCrmOnly: true,
+                channel: "crm_only" as const,
+              }));
+            }
+          }
+        } catch {}
+      }
+
+      // 4. Load saved stock status and price overrides
+      const savedOverrides: Record<string, Partial<ProductItem>> = {};
+      if (typeof window !== "undefined") {
+        try {
+          const savedProductsStr = localStorage.getItem("prajnaa_crm_products");
+          if (savedProductsStr) {
+            const parsed: ProductItem[] = JSON.parse(savedProductsStr);
+            if (Array.isArray(parsed)) {
+              parsed.forEach((p) => {
+                savedOverrides[p.id] = { stock: p.stock, unitsLeft: p.unitsLeft, price: p.price };
+                if (p.sku) savedOverrides[p.sku] = { stock: p.stock, unitsLeft: p.unitsLeft, price: p.price };
+              });
+            }
+          }
+        } catch {}
+      }
+
+      let mappedCentral: ProductItem[] = [];
+      if (rawProducts.length > 0) {
+        mappedCentral = rawProducts.map((p: any) => {
+          const id = p.id || p.slug;
+          const sku = p.sku || `PM-${(p.slug || p.id || "PRD").substring(0, 3).toUpperCase()}-${(p.unit || p.weight || "500").toString().replace(/\D/g, "") || "500"}`;
+          const override = savedOverrides[id] || (p.slug ? savedOverrides[p.slug] : undefined) || (sku ? savedOverrides[sku] : undefined);
+          const isPreOrder = Boolean(p.is_preorder || p.isPreorder || p.preOrder?.enabled);
+          const defaultStock: StockStatus = isPreOrder ? "Pre-Order" : (p.stock > 0 || (p.inventory?.quantity ?? 0) > 0) ? "In Stock" : "Out of Stock";
+          const defaultUnits = typeof p.stock === "number" ? p.stock : (p.inventory?.quantity ?? 50);
+          const realImg = getRealProductImage(p);
+          const farmerName = p.farmer_profiles?.farmName || p.farmer_profiles?.fullName || (typeof p.farmer === "object" ? p.farmer?.farmName : undefined);
+          const origin = p.origin || (p.farmer_profiles?.village ? `${p.farmer_profiles.village}, ${p.farmer_profiles.state}` : (p.preOrder?.reservationNote ? "Ladakh High Altitude" : "Himalayan Farms"));
+
+          return {
+            id,
+            name: p.name,
+            price: override?.price !== undefined ? override.price : Number(p.price) || 0,
+            stock: override?.stock || defaultStock,
+            image: realImg,
+            category: p.category ? p.category.charAt(0).toUpperCase() + p.category.slice(1) : "Produce",
+            unitsLeft: override?.unitsLeft !== undefined ? override.unitsLeft : defaultUnits,
+            origin,
+            sku,
+            weight: p.unit || p.weight || "500g",
+            isCrmOnly: false,
+            channel: "central" as const,
+            farmerName,
+            description: p.description || "",
+          };
+        });
+      }
+
+      // If both network endpoints failed, fallback to cached catalog or INITIAL_PRODUCTS
+      if (mappedCentral.length === 0) {
+        if (typeof window !== "undefined") {
+          try {
+            const savedStr = localStorage.getItem("prajnaa_crm_products");
+            if (savedStr) {
+              const parsed = JSON.parse(savedStr);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                mappedCentral = parsed.filter((p) => !p.isCrmOnly);
+              }
+            }
+          } catch {}
+        }
+        if (mappedCentral.length === 0) {
+          mappedCentral = INITIAL_PRODUCTS.map((p) => ({ ...p, isCrmOnly: false, channel: "central" as const }));
+        }
+        sourceName = "Cached Catalog";
+      }
+
+      // Non-destructive merge: Central website products + manual CRM-exclusive items
+      const centralIds = new Set(mappedCentral.map((c) => c.id));
+      const centralSkus = new Set(mappedCentral.map((c) => c.sku).filter(Boolean));
+      const uniqueManual = manualCrmProducts.filter((m) => !centralIds.has(m.id) && (!m.sku || !centralSkus.has(m.sku)));
+
+      const combined: ProductItem[] = [...mappedCentral, ...uniqueManual];
+      setProductsList(combined);
+      setProductSyncSource(sourceName);
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("prajnaa_crm_products", JSON.stringify(combined));
+      }
+
+      if (interactive) {
+        toast.success("Products Synced with Prajnaa Website", {
+          description: `Loaded ${mappedCentral.length} products from ${sourceName} and preserved ${uniqueManual.length} CRM-exclusive items.`,
+        });
+      }
+    } catch (err: any) {
+      console.error("[Products Sync] Error during catalog sync:", err);
+      if (interactive) {
+        toast.error("Sync Failed", { description: err?.message || "Could not sync products" });
+      }
+    } finally {
+      setIsSyncingProducts(false);
+    }
+  };
 
   // Load persistent team, 24-hour session, authoritative products, & sync checkout orders
   useEffect(() => {
@@ -1218,57 +1407,8 @@ export default function PrajnaaMasterCrmApp() {
         })
         .catch(() => {});
 
-      // 1. Fetch live authoritative product catalogue from /api/products
-      fetch("/api/products")
-        .then((res) => res.json())
-        .then((data) => {
-          if (data && data.products && Array.isArray(data.products)) {
-            const savedProductsStr = localStorage.getItem("prajnaa_crm_products");
-            const savedOverrides: Record<string, Partial<ProductItem>> = {};
-            if (savedProductsStr) {
-              try {
-                const parsed: ProductItem[] = JSON.parse(savedProductsStr);
-                parsed.forEach((p) => {
-                  savedOverrides[p.id] = { stock: p.stock, unitsLeft: p.unitsLeft, price: p.price };
-                });
-              } catch {}
-            }
-
-            const mapped: ProductItem[] = data.products.map((p: any) => {
-              const override = savedOverrides[p.id] || savedOverrides[p.slug];
-              const isPreOrder = p.is_preorder || p.preOrder?.enabled;
-              const defaultStock: StockStatus = isPreOrder ? "Pre-Order" : p.stock > 0 ? "In Stock" : "Out of Stock";
-              const defaultUnits = typeof p.stock === "number" ? p.stock : 50;
-              const realImg = getRealProductImage(p);
-
-              return {
-                id: p.id || p.slug,
-                name: p.name,
-                price: override?.price !== undefined ? override.price : Number(p.price) || 0,
-                stock: override?.stock || defaultStock,
-                image: realImg,
-                category: p.category ? p.category.charAt(0).toUpperCase() + p.category.slice(1) : "Produce",
-                unitsLeft: override?.unitsLeft !== undefined ? override.unitsLeft : defaultUnits,
-                origin: p.origin || (p.preOrder?.reservationNote ? "Ladakh High Altitude" : "Himalayan Farms"),
-                sku: `PM-${(p.slug || p.id).substring(0, 3).toUpperCase()}-${p.unit?.replace(/\D/g, "") || "500"}`,
-                weight: p.unit || p.weight || "500g",
-              };
-            });
-
-            if (mapped.length > 0) {
-              setProductsList(mapped);
-            }
-          }
-        })
-        .catch(() => {
-          // If fetch fails, load saved from localStorage
-          const savedProducts = localStorage.getItem("prajnaa_crm_products");
-          if (savedProducts) {
-            try {
-              setProductsList(JSON.parse(savedProducts));
-            } catch {}
-          }
-        });
+      // 1. Fetch live authoritative product catalogue from central website & merge CRM-exclusive products
+      syncProductsCatalog(false);
 
       // 2. Sync CRM Orders from API & LocalStorage
       const syncCrmOrders = async () => {
@@ -1783,18 +1923,42 @@ export default function PrajnaaMasterCrmApp() {
       return;
     }
 
-    const isExisting = productsList.some((p) => p.id === prod.id);
+    const isExisting = productsList.some((p) => p.id === prod.id || (p.sku && p.sku === prod.sku));
+    const isCrmOnly = Boolean(prod.isCrmOnly || prod.channel === "crm_only");
+    const channel = isCrmOnly ? ("crm_only" as const) : ("central" as const);
+    const resolvedSku = prod.sku || `PM-${isCrmOnly ? "CRM" : "PRD"}-${Math.floor(1000 + Math.random() * 9000)}`;
+
     const targetProduct: ProductItem = {
       ...prod,
-      id: prod.id || `prod_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      sku: prod.sku || `PM-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: prod.id || `crm_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      sku: resolvedSku,
+      isCrmOnly,
+      channel,
     };
 
-    // 1. Optimistic local update
+    // If marked as CRM-exclusive, persist to prajnaa_crm_manual_products
+    if (isCrmOnly && typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("prajnaa_crm_manual_products");
+        let list: ProductItem[] = raw ? JSON.parse(raw) : [];
+        const idx = list.findIndex((p) => p.id === targetProduct.id || (p.sku && p.sku === targetProduct.sku));
+        if (idx >= 0) {
+          list[idx] = targetProduct;
+        } else {
+          list.unshift(targetProduct);
+        }
+        localStorage.setItem("prajnaa_crm_manual_products", JSON.stringify(list));
+      } catch (e) {
+        console.error("Failed to save to prajnaa_crm_manual_products:", e);
+      }
+    }
+
     setProductsList((prev) => {
-      const updated = isExisting
-        ? prev.map((p) => (p.id === targetProduct.id ? targetProduct : p))
+      const exists = prev.some((p) => p.id === targetProduct.id || (p.sku && p.sku === targetProduct.sku));
+      const updated = exists
+        ? prev.map((p) => (p.id === targetProduct.id || (p.sku && p.sku === targetProduct.sku) ? targetProduct : p))
         : [targetProduct, ...prev];
+
       if (typeof window !== "undefined") {
         localStorage.setItem("prajnaa_crm_products", JSON.stringify(updated));
       }
@@ -1804,7 +1968,7 @@ export default function PrajnaaMasterCrmApp() {
     toast.success(
       isExisting
         ? `Product "${targetProduct.name}" updated & live across catalogue!`
-        : `Product "${targetProduct.name}" added & live across catalogue!`
+        : `Product "${targetProduct.name}" added as ${isCrmOnly ? "CRM Exclusive" : "Catalog Product"} & live!`
     );
     setShowManageProductModal(false);
 
@@ -1827,6 +1991,14 @@ export default function PrajnaaMasterCrmApp() {
       const updated = prev.filter((p) => p.id !== productId);
       if (typeof window !== "undefined") {
         localStorage.setItem("prajnaa_crm_products", JSON.stringify(updated));
+        try {
+          const raw = localStorage.getItem("prajnaa_crm_manual_products");
+          if (raw) {
+            const list: ProductItem[] = JSON.parse(raw);
+            const filtered = list.filter((p) => p.id !== productId);
+            localStorage.setItem("prajnaa_crm_manual_products", JSON.stringify(filtered));
+          }
+        } catch {}
       }
       return updated;
     });
@@ -4207,6 +4379,8 @@ export default function PrajnaaMasterCrmApp() {
                   unitsLeft: units,
                   stock,
                   image: "🌿",
+                  channel: "crm_only",
+                  isCrmOnly: true,
                 });
               }
               importedCount++;
@@ -4215,6 +4389,10 @@ export default function PrajnaaMasterCrmApp() {
 
           if (typeof window !== "undefined") {
             localStorage.setItem("prajnaa_crm_products", JSON.stringify(current));
+            try {
+              const crmOnly = current.filter((p) => p.isCrmOnly);
+              localStorage.setItem("prajnaa_crm_manual_products", JSON.stringify(crmOnly));
+            } catch {}
           }
           return current;
         });
@@ -6489,9 +6667,20 @@ export default function PrajnaaMasterCrmApp() {
                             <span className="text-3xl shrink-0 p-1.5 rounded-xl bg-neutral-100 dark:bg-slate-800">{p.image || "🌿"}</span>
                           )}
                               <div className="truncate">
-                                <p className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400">
-                                  {p.name}
-                                </p>
+                                <div className="flex items-center gap-1.5">
+                                  <p className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400">
+                                    {p.name}
+                                  </p>
+                                  {p.isCrmOnly ? (
+                                    <span className="text-[9px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 px-1.5 py-0.2 rounded shrink-0">
+                                      CRM Only
+                                    </span>
+                                  ) : (
+                                    <span className="text-[9px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.2 rounded shrink-0">
+                                      Website
+                                    </span>
+                                  )}
+                                </div>
                                 <p className="text-[11px] text-neutral-500 dark:text-slate-400 truncate">
                                   {p.weight || "500g"} • {p.origin}
                                 </p>
@@ -8806,7 +8995,7 @@ export default function PrajnaaMasterCrmApp() {
                 </div>
               </div>
 
-              {/* Single-line toolbar: Add Product, CSV Actions, and all stock counters in the exact same line */}
+              {/* Single-line toolbar: Add Product, Sync from Website, CSV Actions, and all stock counters */}
               <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 scrollbar-thin">
                 <button
                   type="button"
@@ -8821,16 +9010,31 @@ export default function PrajnaaMasterCrmApp() {
                       category: "Dry Fruits",
                       unitsLeft: 50,
                       origin: "High Altitude Farm, Himachal Pradesh",
-                      sku: "PM-" + Math.floor(1000 + Math.random() * 9000),
+                      sku: "PM-CRM-" + Math.floor(1000 + Math.random() * 9000),
                       weight: "500g",
+                      isCrmOnly: true,
+                      channel: "crm_only",
+                      farmerName: "",
+                      description: "",
                     });
                     setShowManageProductModal(true);
                   }}
                   className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer shrink-0"
-                  title="Add New Product to Catalog"
+                  title="Add New Product (CRM Exclusive or Website Catalog)"
                 >
                   <Plus className="h-4 w-4" />
                   <span>+ Add Product</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => syncProductsCatalog(true)}
+                  disabled={isSyncingProducts}
+                  className="px-3 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-50 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs disabled:opacity-60"
+                  title="Fetch and synchronize products directly from market.prajnaa.in"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 text-emerald-600 ${isSyncingProducts ? "animate-spin" : ""}`} />
+                  <span>{isSyncingProducts ? "Syncing..." : "Sync from Website"}</span>
                 </button>
 
                 <button
@@ -8853,13 +9057,19 @@ export default function PrajnaaMasterCrmApp() {
                 </label>
 
                 <span className="px-3 py-1.5 rounded-xl border border-neutral-200 bg-white dark:bg-slate-800 text-xs font-semibold shadow-2xs shrink-0">
-                  Total SKUs: <strong className="text-neutral-900 dark:text-white font-mono">{productsList.length}</strong>
+                  Total: <strong className="text-neutral-900 dark:text-white font-mono">{productsList.length}</strong>
+                </span>
+                <span className="px-3 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold shadow-2xs shrink-0">
+                  🌐 {productsList.filter((p) => !p.isCrmOnly).length} Website
+                </span>
+                <span className="px-3 py-1.5 rounded-xl border border-purple-200 bg-purple-50 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 text-xs font-bold shadow-2xs shrink-0">
+                  💬 {productsList.filter((p) => p.isCrmOnly).length} CRM Only
                 </span>
                 <span className="px-3 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-bold shadow-2xs shrink-0">
                   ● {productsList.filter((p) => p.stock === "In Stock").length} In Stock
                 </span>
                 <span className="px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-xs font-bold shadow-2xs shrink-0">
-                  ▲ {productsList.filter((p) => p.stock === "Low Stock").length} Low Stock
+                  ▲ {productsList.filter((p) => p.stock === "Low Stock").length} Low
                 </span>
                 <span className="px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 text-xs font-bold shadow-2xs shrink-0">
                   ✕ {productsList.filter((p) => p.stock === "Out of Stock").length} Out
@@ -8868,24 +9078,32 @@ export default function PrajnaaMasterCrmApp() {
             </div>
 
             {/* Filter and Search Bar */}
-            <div className={`p-4 rounded-2xl border shadow-2xs flex items-center justify-between gap-4 ${themeStyles.cardBg}`}>
+            <div className={`p-4 rounded-2xl border shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 ${themeStyles.cardBg}`}>
               <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-                {(["all", "In Stock", "Low Stock", "Out of Stock", "Pre-Order"] as const).map((st) => (
+                {[
+                  { key: "all", label: "All Products" },
+                  { key: "website", label: "🌐 Website Synced" },
+                  { key: "crm_only", label: "💬 CRM Exclusive" },
+                  { key: "In Stock", label: "🟢 In Stock" },
+                  { key: "Low Stock", label: "🟡 Low Stock" },
+                  { key: "Out of Stock", label: "🔴 Out of Stock" },
+                  { key: "Pre-Order", label: "🔵 Pre-Order" },
+                ].map((tab) => (
                   <button
-                    key={st}
-                    onClick={() => setProductStockFilter(st)}
+                    key={tab.key}
+                    onClick={() => setProductStockFilter(tab.key)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer shrink-0 ${
-                      productStockFilter === st
+                      productStockFilter === tab.key
                         ? "bg-emerald-600 text-white font-bold shadow-xs"
                         : "text-neutral-600 hover:bg-neutral-100 dark:hover:bg-slate-800 dark:text-slate-300"
                     }`}
                   >
-                    {st === "all" ? "All Products" : st}
+                    {tab.label}
                   </button>
                 ))}
               </div>
 
-              <div className="relative w-72">
+              <div className="relative w-full md:w-72">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" />
                 <input
                   type="text"
@@ -8914,7 +9132,14 @@ export default function PrajnaaMasterCrmApp() {
                 <tbody className="divide-y divide-neutral-100 dark:divide-slate-800">
                   {productsList
                     .filter((p) => {
-                      if (productStockFilter !== "all" && p.stock !== productStockFilter) return false;
+                      if (productStockFilter === "website") {
+                        if (p.isCrmOnly) return false;
+                      } else if (productStockFilter === "crm_only") {
+                        if (!p.isCrmOnly) return false;
+                      } else if (productStockFilter !== "all" && p.stock !== productStockFilter) {
+                        return false;
+                      }
+
                       if (productSearch) {
                         const q = productSearch.toLowerCase();
                         return (
@@ -8939,17 +9164,27 @@ export default function PrajnaaMasterCrmApp() {
                               className="h-12 w-12 rounded-xl object-cover border border-neutral-200/80 dark:border-slate-700 shadow-xs shrink-0 bg-neutral-100"
                             />
                             <div>
-                              <div className="font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
+                              <div className="font-bold text-neutral-900 dark:text-white flex items-center gap-1.5 flex-wrap">
                                 <span>{prod.name}</span>
                                 {prod.sku && (
                                   <span className="text-[10px] font-mono text-neutral-400 bg-neutral-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
                                     {prod.sku}
                                   </span>
                                 )}
+                                {prod.isCrmOnly ? (
+                                  <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                                    <span>💬</span> CRM Exclusive
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                                    <span>🌐</span> Website Synced
+                                  </span>
+                                )}
                               </div>
                               <p className="text-[11px] text-neutral-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
                                 <MapPin className="h-3 w-3 text-emerald-600" />
                                 <span>{prod.origin}</span>
+                                {prod.farmerName && <span className="text-neutral-400 font-normal">• {prod.farmerName}</span>}
                               </p>
                             </div>
                           </div>
@@ -9010,7 +9245,11 @@ export default function PrajnaaMasterCrmApp() {
                               type="button"
                               onClick={() => {
                                 setEditingProduct(prod);
-                                setProductFormData({ ...prod });
+                                setProductFormData({
+                                  ...prod,
+                                  isCrmOnly: prod.isCrmOnly ?? false,
+                                  channel: prod.channel || (prod.isCrmOnly ? "crm_only" : "central"),
+                                });
                                 setShowManageProductModal(true);
                               }}
                               className="px-2.5 py-1 rounded-lg border border-neutral-200 hover:bg-neutral-100 dark:border-slate-700 dark:hover:bg-slate-800 text-neutral-700 dark:text-slate-300 font-semibold text-[11px] transition cursor-pointer flex items-center gap-1 shadow-2xs"
@@ -11293,6 +11532,48 @@ export default function PrajnaaMasterCrmApp() {
             </div>
 
             <div className="space-y-3.5 text-xs">
+              {/* Channel Availability Selector */}
+              <div className="p-3 rounded-2xl bg-neutral-50 dark:bg-slate-800/80 border border-neutral-200 dark:border-slate-700/80 space-y-2">
+                <label className="text-xs font-bold text-neutral-800 dark:text-slate-200 block">
+                  Product Availability & Channel *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setProductFormData({ ...productFormData, isCrmOnly: false, channel: "central" })}
+                    className={`p-2.5 rounded-xl border text-left transition flex flex-col gap-1 cursor-pointer ${
+                      !productFormData.isCrmOnly
+                        ? "border-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20"
+                        : "border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-neutral-600 dark:text-slate-400 hover:bg-neutral-100 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-bold text-xs">
+                      <span>🌐</span> Central Website & CRM
+                    </div>
+                    <p className="text-[10px] text-neutral-500 dark:text-slate-400 leading-tight">
+                      Available on market.prajnaa.in storefront and synced with CRM
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setProductFormData({ ...productFormData, isCrmOnly: true, channel: "crm_only" })}
+                    className={`p-2.5 rounded-xl border text-left transition flex flex-col gap-1 cursor-pointer ${
+                      productFormData.isCrmOnly
+                        ? "border-purple-500 bg-purple-50/80 dark:bg-purple-950/40 text-purple-900 dark:text-purple-200 ring-2 ring-purple-500/20"
+                        : "border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-neutral-600 dark:text-slate-400 hover:bg-neutral-100 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-bold text-xs">
+                      <span>💬</span> CRM Exclusive (Manual)
+                    </div>
+                    <p className="text-[10px] text-neutral-500 dark:text-slate-400 leading-tight">
+                      WhatsApp custom quotes & offline phone orders only (hidden from website)
+                    </p>
+                  </button>
+                </div>
+              </div>
+
               {/* Product Name */}
               <div>
                 <label className="text-xs font-bold text-neutral-700 dark:text-slate-300 block mb-1">
@@ -11448,6 +11729,49 @@ export default function PrajnaaMasterCrmApp() {
                     className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-slate-800 border border-neutral-200 dark:border-slate-700 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
+              </div>
+
+              {/* Farmer / Artisan & Custom Image URL */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-neutral-700 dark:text-slate-300 block mb-1">
+                    Farmer / Farm Name (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={productFormData.farmerName || ""}
+                    onChange={(e) => setProductFormData({ ...productFormData, farmerName: e.target.value })}
+                    placeholder="e.g. Bashir Ahmad / Orchard"
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-slate-800 border border-neutral-200 dark:border-slate-700 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-neutral-700 dark:text-slate-300 block mb-1">
+                    Product Image URL (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={productFormData.image && (productFormData.image.startsWith("/") || productFormData.image.startsWith("http")) ? productFormData.image : ""}
+                    onChange={(e) => setProductFormData({ ...productFormData, image: e.target.value || "🌿" })}
+                    placeholder="https://... or /assets/..."
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-slate-800 border border-neutral-200 dark:border-slate-700 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Product Description */}
+              <div>
+                <label className="text-xs font-bold text-neutral-700 dark:text-slate-300 block mb-1">
+                  Product Description / Staff Notes
+                </label>
+                <textarea
+                  rows={2}
+                  value={productFormData.description || ""}
+                  onChange={(e) => setProductFormData({ ...productFormData, description: e.target.value })}
+                  placeholder="Harvest details, pure organic notes, or custom CRM notes..."
+                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-slate-800 border border-neutral-200 dark:border-slate-700 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                />
               </div>
             </div>
 
