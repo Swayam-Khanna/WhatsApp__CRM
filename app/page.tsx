@@ -3771,7 +3771,7 @@ export default function PrajnaaMasterCrmApp() {
       if (["delivered", "completed", "in stock", "paid", "yes", "vip customer", "active", "confirmed"].includes(s)) {
         return "background-color: #DEF7EC; color: #03543F; font-weight: 700; border: 1px solid #BCF0DA; border-radius: 9999px; padding: 4px 10px; display: inline-block;";
       }
-      if (["pending", "processing", "low stock", "partially paid", "in review"].includes(s)) {
+      if (["pending", "processing", "low stock", "partially paid", "in review", "pre-order", "pre order"].includes(s)) {
         return "background-color: #FEF3C7; color: #92400E; font-weight: 700; border: 1px solid #FDE68A; border-radius: 9999px; padding: 4px 10px; display: inline-block;";
       }
       if (["out of stock", "cancelled", "failed", "no", "returned", "rejected"].includes(s)) {
@@ -3789,9 +3789,9 @@ export default function PrajnaaMasterCrmApp() {
       const cardsHtml = summaryCards
         .map((c, i) => {
           const span = i === summaryCards.length - 1 ? colCount - cardsCols * (summaryCards.length - 1) : cardsCols;
-          return `<td colspan="${span}" style="background-color: #F0FDF4; border: 1px solid #BBF7D0; padding: 10px 14px; vertical-align: top;">
-          <div style="font-size: 8pt; color: #166534; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">${escapeHtml(c.label)}</div>
-          <div style="font-size: 13pt; color: #0F3D2E; font-weight: bold; margin-top: 2px;">${escapeHtml(c.value)}</div>
+          return `<td colspan="${span}" align="center" style="background-color: #F0FDF4; border: 1px solid #BBF7D0; padding: 10px 14px; vertical-align: middle; text-align: center;">
+          <div style="font-size: 8pt; color: #166534; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: center;">${escapeHtml(c.label)}</div>
+          <div style="font-size: 13pt; color: #0F3D2E; font-weight: bold; margin-top: 2px; text-align: center;">${escapeHtml(c.value)}</div>
         </td>`;
         })
         .join("");
@@ -3801,7 +3801,7 @@ export default function PrajnaaMasterCrmApp() {
     const headerRowHtml = headers
       .map(
         (h) =>
-          `<th style="background-color: #0F3D2E; color: #FFFFFF; font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 10pt; font-weight: bold; border: 1px solid #144A38; padding: 10px 14px; text-align: left; vertical-align: middle; white-space: nowrap;">${escapeHtml(h)}</th>`
+          `<th align="center" style="background-color: #0F3D2E; color: #FFFFFF; font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 10pt; font-weight: bold; border: 1px solid #144A38; padding: 10px 14px; text-align: center; vertical-align: middle; white-space: nowrap;">${escapeHtml(h)}</th>`
       )
       .join("");
 
@@ -3900,17 +3900,17 @@ export default function PrajnaaMasterCrmApp() {
 <body style="font-family: 'Segoe UI', Calibri, Arial, sans-serif; background-color: #FFFFFF; margin: 0; padding: 12px;">
   <table border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%; table-layout: auto;">
     <tr>
-      <td colspan="${colCount}" style="background-color: #0F3D2E; color: #FFFFFF; font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 15pt; font-weight: bold; padding: 14px 18px; border: 1px solid #0B2B20;">
+      <td colspan="${colCount}" align="center" style="background-color: #0F3D2E; color: #FFFFFF; font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 15pt; font-weight: bold; padding: 14px 18px; border: 1px solid #0B2B20; text-align: center;">
         🌿 ${escapeHtml(sheetTitle)}
       </td>
     </tr>
     <tr>
-      <td colspan="${colCount}" style="background-color: #174E3C; color: #D1FAE5; font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 9.5pt; padding: 6px 18px; border: 1px solid #0F3D2E;">
+      <td colspan="${colCount}" align="center" style="background-color: #174E3C; color: #D1FAE5; font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 9.5pt; padding: 6px 18px; border: 1px solid #0F3D2E; text-align: center;">
         ${escapeHtml(subtitle || "Prajnaa Market — Himalayan Pure & Natural Produce CRM Report")}
       </td>
     </tr>
     <tr>
-      <td colspan="${colCount}" style="background-color: #F8FAFC; color: #475569; font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 9pt; font-weight: 600; padding: 8px 18px; border-bottom: 2px solid #CBD5E1; border-left: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0;">
+      <td colspan="${colCount}" align="center" style="background-color: #F8FAFC; color: #475569; font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 9pt; font-weight: 600; padding: 8px 18px; border-bottom: 2px solid #CBD5E1; border-left: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; text-align: center;">
         📅 Generated: ${dateStr} at ${timeStr} &nbsp;&bull;&nbsp; 📊 Total Records: ${rows.length} &nbsp;&bull;&nbsp; 📞 WhatsApp Support: +91 80912 65690 &nbsp;&bull;&nbsp; 🌐 Store: crm.prajnaa.in
       </td>
     </tr>
@@ -3924,7 +3924,7 @@ export default function PrajnaaMasterCrmApp() {
       ${totalsHtml}
     </tbody>
   </table>
-  <div style="margin-top: 16px; font-size: 8.5pt; color: #94A3B8; font-family: 'Segoe UI', Calibri, Arial, sans-serif;">
+  <div style="margin-top: 16px; font-size: 8.5pt; color: #94A3B8; font-family: 'Segoe UI', Calibri, Arial, sans-serif; text-align: center;">
     &copy; ${now.getFullYear()} Prajnaa Market &bull; Confidential Business Intelligence Report &bull; Generated from Prajnaa WhatsApp CRM
   </div>
 </body>
