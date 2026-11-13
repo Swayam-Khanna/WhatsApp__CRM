@@ -3705,7 +3705,32 @@ export default function PrajnaaMasterCrmApp() {
   }, [shipments, unifiedOrders]);
 
   // Send Speed Post Consignment Tracking to Customer via WhatsApp
-    // Helper: Export Orders to CSV
+  // Universal Helper: Export dataset to RFC-4180 compliant CSV with UTF-8 BOM for Microsoft Excel / Google Sheets
+  const downloadFormattedCsv = (filename: string, headers: string[], rows: (string | number | boolean | null | undefined)[][]) => {
+    const escapeCell = (val: any): string => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/\r\n/g, " ").replace(/\r/g, " ").replace(/\n/g, " ");
+      return `"${str.replace(/"/g, '""')}"`;
+    };
+
+    const headerLine = headers.map(escapeCell).join(",");
+    const dataLines = rows.map((row) => row.map(escapeCell).join(","));
+
+    // \uFEFF ensures Excel on Windows/Mac detects UTF-8 encoding properly (Rupee symbol ₹, Hindi, special characters)
+    const csvContent = "\uFEFF" + [headerLine, ...dataLines].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    const dateStamp = new Date().toISOString().split("T")[0];
+    link.setAttribute("download", `${filename.replace(/[^a-zA-Z0-9_-]/g, "_")}_${dateStamp}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // 1. Orders Section CSV Export
   const handleExportOrdersCsv = () => {
     const list = unifiedOrders.filter((o: any) => {
       if (ordersFilter !== "all" && String(o.orderStatus || "").toLowerCase() !== ordersFilter.toLowerCase()) {
@@ -3725,91 +3750,116 @@ export default function PrajnaaMasterCrmApp() {
       toast.error("No orders available to export.");
       return;
     }
+
     const headers = [
-      "Order ID",
-      "Date",
+      "Order Number",
+      "Order Date",
       "Customer Name",
       "Customer Phone",
       "Customer Email",
-      "Shipping Address",
-      "Items",
-      "Items Count",
-      "Total Amount (INR)",
+      "Full Shipping Address",
+      "City",
+      "State",
+      "Pincode",
+      "Ordered Items (Qty x Price)",
+      "Total Items Count",
+      "Subtotal (INR)",
+      "Shipping (INR)",
+      "Discount (INR)",
+      "Net Total Amount (INR)",
       "Payment Status",
       "Payment Method",
       "Order Status",
-      "Tracking Number"
+      "Shipping Carrier",
+      "Speed Post Tracking ID",
+      "Live Tracking URL",
+      "WhatsApp Confirmation Sent"
     ];
 
-    const rows = list.map((o: any) => [
-      `"${o.orderNumber || ""}"`,
-      `"${o.date || ""}"`,
-      `"${(o.customerName || "").replace(/"/g, '""')}"`,
-      `"${o.customerPhone || ""}"`,
-      `"${o.customerEmail || ""}"`,
-      `"${(o.shippingAddress || "").replace(/"/g, '""')}"`,
-      `"${(o.items || []).map((i: any) => `${i.name} (${i.qty})`).join("; ").replace(/"/g, '""')}"`,
-      o.itemsCount || 1,
-      o.amount || 0,
-      `"${o.paymentStatus || "Pending"}"`,
-      `"${o.paymentMethod || "COD"}"`,
-      `"${o.orderStatus || "Pending"}"`,
-      `"${o.trackingNumber || ""}"`
-    ]);
+    const rows = list.map((o: any) => {
+      const itemsStr = Array.isArray(o.items) && o.items.length > 0
+        ? o.items.map((it: any) => `${it.name || "Item"} [${it.weight || "Pack"}] (Qty: ${it.qty || 1} @ ₹${it.price || 0})`).join(" | ")
+        : (o.productName ? `${o.productName} (Qty: ${o.quantity || 1})` : "Standard Consignment");
 
-    const csvContent = [headers.join(","), ...rows.map((r: any) => r.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Prajnaa_Orders_Export_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      const trackingId = o.trackingNumber || o.trackingId || "";
+      const trackingUrl = trackingId ? `https://www.indiapost.gov.in/_layouts/15/dpt.cptc.va/trackconsignment.aspx` : "";
+
+      return [
+        o.orderNumber || o.id || "",
+        o.date || o.createdAt || new Date().toISOString().split("T")[0],
+        o.customerName || "Customer",
+        o.customerPhone ? `'${o.customerPhone}` : "",
+        o.customerEmail || "",
+        o.shippingAddress || o.deliveryAddress || "",
+        o.city || "Dehradun",
+        o.state || "Uttarakhand",
+        o.pincode || "248001",
+        itemsStr,
+        o.itemsCount || (Array.isArray(o.items) ? o.items.length : 1),
+        o.subtotal || o.amount || 0,
+        o.shippingPaise ? o.shippingPaise / 100 : 0,
+        o.discountPaise ? o.discountPaise / 100 : 0,
+        o.amount || 0,
+        o.paymentStatus || "Pending",
+        o.paymentMethod || "UPI",
+        o.orderStatus || "Processing",
+        "India Post Speed Post",
+        trackingId,
+        trackingUrl,
+        o.whatsappConfirmation ? "Yes" : "No"
+      ];
+    });
+
+    downloadFormattedCsv("Prajnaa_CRM_Orders_Export", headers, rows);
     toast.success(`Exported ${list.length} orders to CSV successfully!`);
   };
 
-  // Helper: Export Products to CSV
+  // 2. Products Catalog CSV Export
   const handleExportProductsCsv = () => {
     if (productsList.length === 0) {
       toast.error("No products available to export.");
       return;
     }
+
     const headers = [
       "Product ID",
-      "SKU",
+      "SKU Code",
       "Product Name",
       "Category",
       "Himalayan Origin",
-      "Weight",
+      "Packaging Weight",
       "Selling Price (INR)",
-      "Units in Stock",
-      "Stock Status"
+      "Units In Stock",
+      "Stock Status",
+      "Direct Catalogue Link",
+      "WhatsApp Direct Order URL"
     ];
 
-    const rows = productsList.map((p) => [
-      `"${p.id || ""}"`,
-      `"${p.sku || ""}"`,
-      `"${(p.name || "").replace(/"/g, '""')}"`,
-      `"${p.category || ""}"`,
-      `"${(p.origin || "").replace(/"/g, '""')}"`,
-      `"${p.weight || ""}"`,
-      p.price || 0,
-      p.unitsLeft || 0,
-      `"${p.stock || "In Stock"}"`
-    ]);
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://crm.prajnaa.in";
+    const storePhone = "918091265690";
 
-    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Prajnaa_Products_Catalog_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const rows = productsList.map((p) => {
+      const slug = (p.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      const catUrl = `${origin}/catalogue#${slug}`;
+      const waText = encodeURIComponent(`Namaste ji! Mujhe ${p.name} (${p.weight || "500g"} - ₹${p.price}) order karna hai.`);
+      const waUrl = `https://wa.me/${storePhone}?text=${waText}`;
+
+      return [
+        p.id || "",
+        p.sku || "",
+        p.name || "",
+        p.category || "Produce",
+        p.origin || "Himalayan Farms",
+        p.weight || "500g",
+        p.price || 0,
+        p.unitsLeft || 0,
+        p.stock || "In Stock",
+        catUrl,
+        waUrl
+      ];
+    });
+
+    downloadFormattedCsv("Prajnaa_Products_Catalog", headers, rows);
     toast.success(`Exported ${productsList.length} products to CSV!`);
   };
 
@@ -3888,33 +3938,117 @@ export default function PrajnaaMasterCrmApp() {
     reader.readAsText(file);
   };
 
-  // Helper: Export Analytics Report to CSV
-  const handleExportAnalyticsCsv = () => {
-    const totalRev = unifiedOrders.reduce((sum: number, o: any) => sum + (Number(o.amount) || 0), 0);
-    const headers = ["Metric", "Value", "Scope / Details"];
-    const rows = [
-      ["Gross Sales Volume", `₹${totalRev.toLocaleString("en-IN")}`, "Total recorded orders revenue"],
-      ["Completed Orders", unifiedOrders.filter((o) => o.orderStatus === "Completed").length, "Fully delivered orders"],
-      ["Pending Processing", unifiedOrders.filter((o) => o.orderStatus === "Pending").length, "Awaiting dispatch"],
-      ["Shipped in Transit", unifiedOrders.filter((o) => o.orderStatus === "Shipped").length, "Speed Post parcels"],
-      ["Total Active Customers", customers.length, "Registered CRM clients"],
-      ["Total Himalayan SKUs", productsList.length, "Active catalog products"],
-      ["In Stock SKUs", productsList.filter((p) => p.stock === "In Stock").length, "Ready for immediate packing"],
-      ["Low Stock SKUs", productsList.filter((p) => p.stock === "Low Stock").length, "Replenishment required"],
-      ["Out of Stock SKUs", productsList.filter((p) => p.stock === "Out of Stock").length, "Production cycle active"]
+  // 3. Customers Directory CSV Export
+  const handleExportCustomersCsv = () => {
+    if (customers.length === 0) {
+      toast.error("No customers available to export.");
+      return;
+    }
+
+    const headers = [
+      "Customer ID",
+      "Customer Full Name",
+      "WhatsApp Phone",
+      "Email Address",
+      "City / Location",
+      "Customer Tier",
+      "Total Orders",
+      "Lifetime Spent (INR)",
+      "Latest Order Number",
+      "Latest Order Amount (INR)",
+      "Latest Order Status",
+      "Latest Order Tracking",
+      "Direct WhatsApp Link"
     ];
 
-    const csvContent = [headers.join(","), ...rows.map((r) => r.map((c) => `"${c}"`).join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Prajnaa_CRM_Analytics_Report_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast.success("Analytics CSV report downloaded successfully!");
+    const storePhone = "918091265690";
+
+    const rows = customers.map((c) => {
+      const cleanPhone = (c.phone || "").replace(/\D/g, "");
+      const waLink = cleanPhone ? `https://wa.me/${cleanPhone}` : `https://wa.me/${storePhone}`;
+      const latestOrder: any = c.latestOrder || {};
+
+      return [
+        c.id || "",
+        c.name || "Customer",
+        c.phone ? `'${c.phone}` : "",
+        c.email || "",
+        c.location || "Dehradun",
+        c.isVip ? "VIP Customer" : "Regular Customer",
+        c.totalOrders || 0,
+        c.totalSpent || 0,
+        latestOrder.orderNumber || "",
+        latestOrder.amount || 0,
+        latestOrder.orderStatus || "Active",
+        latestOrder.trackingNumber || "",
+        waLink
+      ];
+    });
+
+    downloadFormattedCsv("Prajnaa_Customers_Directory", headers, rows);
+    toast.success(`Exported ${customers.length} customer contacts to CSV!`);
+  };
+
+  // 4. Shipments & Speed Post CSV Export
+  const handleExportShipmentsCsv = () => {
+    if (unifiedShipments.length === 0) {
+      toast.error("No shipment records available to export.");
+      return;
+    }
+
+    const headers = [
+      "Speed Post Consignment ID",
+      "Order ID",
+      "Customer Name",
+      "Destination City",
+      "Dispatch Date",
+      "Carrier",
+      "Shipment Status",
+      "Official India Post Tracking Link"
+    ];
+
+    const rows = unifiedShipments.map((s: any) => [
+      s.trackingId || "",
+      s.orderId || "",
+      s.customer || "Customer",
+      s.city || "Dehradun",
+      s.date || new Date().toISOString().split("T")[0],
+      "India Post Speed Post",
+      s.status || "In Transit",
+      s.trackingId ? `https://www.indiapost.gov.in/_layouts/15/dpt.cptc.va/trackconsignment.aspx` : ""
+    ]);
+
+    downloadFormattedCsv("Prajnaa_SpeedPost_Shipments", headers, rows);
+    toast.success(`Exported ${unifiedShipments.length} shipment records to CSV!`);
+  };
+
+  // 5. Analytics & Business Performance CSV Export
+  const handleExportAnalyticsCsv = () => {
+    const totalRev = unifiedOrders.reduce((sum: number, o: any) => sum + (Number(o.amount) || 0), 0);
+    const completedOrders = unifiedOrders.filter((o) => o.orderStatus === "Completed" || o.orderStatus === "Delivered");
+    const pendingOrders = unifiedOrders.filter((o) => o.orderStatus === "Pending" || o.orderStatus === "Processing");
+    const shippedOrders = unifiedOrders.filter((o) => o.orderStatus === "Shipped" || o.orderStatus === "Packed");
+    const avgOrderVal = unifiedOrders.length > 0 ? Math.round(totalRev / unifiedOrders.length) : 0;
+    const vipCustomers = customers.filter((c) => c.isVip);
+
+    const headers = ["Category / Department", "KPI Metric", "Reported Value", "Context / Definition"];
+    const rows = [
+      ["Revenue & Sales", "Gross Recorded Sales Volume", `₹${totalRev.toLocaleString("en-IN")}`, "Total cumulative value of all orders in CRM"],
+      ["Revenue & Sales", "Average Order Value (AOV)", `₹${avgOrderVal.toLocaleString("en-IN")}`, "Average revenue per customer order"],
+      ["Fulfillment", "Total Recorded Orders", unifiedOrders.length, "All active and completed orders"],
+      ["Fulfillment", "Completed & Delivered Orders", completedOrders.length, "Orders successfully delivered to customers"],
+      ["Fulfillment", "Pending Processing Orders", pendingOrders.length, "Orders awaiting packaging or payment clearance"],
+      ["Fulfillment", "Speed Post Shipments In Transit", shippedOrders.length, "Parcels currently dispatched via India Post Speed Post"],
+      ["Customer CRM", "Total Verified Customers", customers.length, "Opted-in clients with registered WhatsApp numbers"],
+      ["Customer CRM", "VIP Customer Count", vipCustomers.length, "High-value clients with spending > ₹5,000"],
+      ["Inventory & Catalog", "Active Himalayan SKUs", productsList.length, "Live products available in catalogue"],
+      ["Inventory & Catalog", "In Stock SKUs", productsList.filter((p) => p.stock === "In Stock").length, "Products ready for immediate packing"],
+      ["Inventory & Catalog", "Low Stock Alert SKUs", productsList.filter((p) => p.stock === "Low Stock").length, "SKUs with stock below threshold (< 15 units)"],
+      ["Inventory & Catalog", "Out of Stock SKUs", productsList.filter((p) => p.stock === "Out of Stock").length, "SKUs awaiting farm harvest or processing"]
+    ];
+
+    downloadFormattedCsv("Prajnaa_CRM_Business_Analytics", headers, rows);
+    toast.success("Comprehensive business analytics CSV downloaded successfully!");
   };
 
   const handleSendSpeedPostTracking = async (shipmentItem: typeof selectedShipment) => {
@@ -7900,13 +8034,22 @@ export default function PrajnaaMasterCrmApp() {
         {/* SCREEN 5: CUSTOMER DIRECTORY */}
         {activeNav === "customers" && userPermissions.allowedTabs.includes("customers") && (
           <div className="flex-1 overflow-y-auto p-6 space-y-5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-neutral-900">Customers Directory</h2>
                 <p className="text-xs text-neutral-500 mt-0.5">
                   Verified WhatsApp customers, lifetime spending, and direct chat links.
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={handleExportCustomersCsv}
+                className="px-3.5 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-50 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs"
+                title="Export Customers to CSV"
+              >
+                <Download className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Export CSV</span>
+              </button>
             </div>
 
             <div className="bg-white rounded-2xl border border-neutral-200/80 shadow-2xs overflow-hidden">
@@ -8567,11 +8710,22 @@ export default function PrajnaaMasterCrmApp() {
         {/* SCREEN 8: SHIPMENTS & SPEED POST (Fulfillment Officer Work Area) */}
         {activeNav === "shipments" && userPermissions.allowedTabs.includes("shipments") && (
           <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold text-neutral-900">Shipments & India Post Speed Post</h2>
-              <p className="text-xs text-neutral-500 mt-0.5">
-                Official India Post consignment tracking, packaging milestone updates, and dispatch links.
-              </p>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold text-neutral-900">Shipments & India Post Speed Post</h2>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  Official India Post consignment tracking, packaging milestone updates, and dispatch links.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleExportShipmentsCsv}
+                className="px-3.5 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-50 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs"
+                title="Export Shipments to CSV"
+              >
+                <Download className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Export CSV</span>
+              </button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
