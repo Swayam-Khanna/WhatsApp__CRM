@@ -398,6 +398,7 @@ interface OrderItem {
   weight: string;
   qty: number;
   price: number;
+  discount?: number;
   total: number;
   image: string;
 }
@@ -1332,12 +1333,12 @@ export default function PrajnaaMasterCrmApp() {
   const [newOrderNotes, setNewOrderNotes] = useState<string>("");
   const [isSubmittingNewOrder, setIsSubmittingNewOrder] = useState<boolean>(false);
   const [isTestingWebhook, setIsTestingWebhook] = useState<boolean>(false);
-  // Multi-product order items and payment method
-  const [newOrderItemsList, setNewOrderItemsList] = useState<Array<{ productId: string; qty: number }>>([
-    { productId: "prajnaa-almond-500g", qty: 1 }
+  // Multi-product order items, discount per product, and manual delivery charge
+  const [newOrderItemsList, setNewOrderItemsList] = useState<Array<{ productId: string; qty: number; discount?: number }>>([
+    { productId: "prajnaa-almond-500g", qty: 1, discount: 0 }
   ]);
   const [newOrderPaymentMethodChoice, setNewOrderPaymentMethodChoice] = useState<string>("UPI");
-  const [newOrderDiscount, setNewOrderDiscount] = useState<number>(0);
+  const [newOrderShipping, setNewOrderShipping] = useState<number>(0);
 
   // WhatsApp Inbox Interactive states
   const [showEditCustomerModal, setShowEditCustomerModal] = useState<boolean>(false);
@@ -3357,13 +3358,24 @@ export default function PrajnaaMasterCrmApp() {
   // Multi-Product Line Item Helpers
   const handleAddOrderItemLine = () => {
     const nextProd = productsList.find((p) => !newOrderItemsList.some((it) => it.productId === p.id)) || productsList[0];
-    setNewOrderItemsList((prev) => [...prev, { productId: nextProd?.id || "raw-forest-honey", qty: 1 }]);
+    setNewOrderItemsList((prev) => [...prev, { productId: nextProd?.id || "raw-forest-honey", qty: 1, discount: 0 }]);
   };
 
-  const handleUpdateOrderItemLine = (index: number, productId: string, qty: number) => {
+  const handleUpdateOrderItemLine = (index: number, productId: string, qty: number, discount?: number) => {
     setNewOrderItemsList((prev: any[]) => {
       const updated = [...prev];
-      updated[index] = { productId, qty: Math.max(1, qty) };
+      const curDiscount = discount !== undefined ? Math.max(0, discount) : (updated[index]?.discount || 0);
+      updated[index] = { productId, qty: Math.max(1, qty), discount: curDiscount };
+      return updated;
+    });
+  };
+
+  const handleUpdateOrderItemDiscount = (index: number, discount: number) => {
+    setNewOrderItemsList((prev: any[]) => {
+      const updated = [...prev];
+      if (updated[index]) {
+        updated[index] = { ...updated[index], discount: Math.max(0, discount) };
+      }
       return updated;
     });
   };
@@ -3556,26 +3568,30 @@ export default function PrajnaaMasterCrmApp() {
       return;
     }
 
-    // Multi-Product Line Items Mapping
+    // Multi-Product Line Items Mapping with product-level discounts
     const lineItems: OrderItem[] = newOrderItemsList.map((item: any) => {
       const prod = productsList.find((p) => p.id === item.productId) || productsList[0];
       const itemPrice = prod?.price || 950;
       const itemQty = Math.max(1, item.qty || 1);
+      const grossTotal = itemPrice * itemQty;
+      const itemDiscount = Math.max(0, Math.min(grossTotal, Number(item.discount) || 0));
+      const netTotal = grossTotal - itemDiscount;
       return {
         name: prod?.name || "Himalayan Produce",
         weight: prod?.weight || "500g",
         qty: itemQty,
         price: itemPrice,
-        total: itemPrice * itemQty,
+        discount: itemDiscount,
+        total: netTotal,
         image: prod?.image || "🍯",
       };
     });
 
-    const subtotal = lineItems.reduce((acc, it) => acc + it.total, 0);
-    const discount = Math.max(0, Number(newOrderDiscount) || 0);
-    const afterDiscount = Math.max(0, subtotal - discount);
-    const shipping = afterDiscount > 1500 ? 0 : 50;
-    const total = afterDiscount + shipping;
+    const subtotal = lineItems.reduce((acc, it) => acc + (it.price * it.qty), 0);
+    const totalDiscount = lineItems.reduce((acc, it) => acc + (it.discount || 0), 0);
+    const netProduce = Math.max(0, subtotal - totalDiscount);
+    const shipping = Math.max(0, Number(newOrderShipping) || 0);
+    const total = netProduce + shipping;
     const totalQty = lineItems.reduce((acc, it) => acc + it.qty, 0);
 
     const paymentMethodLabels: Record<string, string> = {
@@ -3607,7 +3623,7 @@ export default function PrajnaaMasterCrmApp() {
       time: formattedTime,
       items: lineItems,
       subtotal,
-      discount: discount,
+      discount: totalDiscount,
       shipping,
       paymentMethod: paymentMethodLabel,
       trackingNumber: "",
@@ -3662,7 +3678,19 @@ export default function PrajnaaMasterCrmApp() {
       });
 
       // 3. Add first WhatsApp message from Store Admin
-      const firstMsgText = `Namaste ${newOrderCustomerName.trim()}! 🙏 Prajnaa Market se connect karne ke liye dhanyawad.\n\nAapne hamare Prajnaa portal se yeh saman order kiya hai:\n\n📦 *Order ID:* ${fullOrderNum}\n🌾 *Saman / Items:* ${lineItems.map((i: any) => `${i.name} × ${i.qty}`).join(", ")}\n💰 *Total Amount:* ₹${total.toLocaleString("en-IN")}\n📍 *Delivery Address:* ${newOrderAddress || "Civil Lines"}, ${newOrderCity} - ${newOrderPincode}\n🚚 *Shipping Mode:* India Post Speed Post (2-3 din me dispatch)\n\nHum aapka order organic farms se pack kar rahe hain. Kisi bhi jaankari ya payment confirmation ke liye aap yahan reply kar sakte hain! 🌿`;
+      const itemsBreakdown = lineItems
+        .map((i: any) => {
+          if (i.discount && i.discount > 0) {
+            return `${i.name} × ${i.qty} (₹${(i.price * i.qty).toLocaleString("en-IN")} - ₹${i.discount.toLocaleString("en-IN")} disc = ₹${i.total.toLocaleString("en-IN")})`;
+          }
+          return `${i.name} × ${i.qty} (₹${i.total.toLocaleString("en-IN")})`;
+        })
+        .join("\n• ");
+
+      const discountLine = totalDiscount > 0 ? `\n🏷️ *Discount Given:* -₹${totalDiscount.toLocaleString("en-IN")}` : "";
+      const deliveryLine = `\n🚚 *Delivery Charges:* ₹${shipping.toLocaleString("en-IN")}`;
+
+      const firstMsgText = `Namaste ${newOrderCustomerName.trim()}! 🙏 Prajnaa Market se connect karne ke liye dhanyawad.\n\nAapne hamare Prajnaa portal se yeh saman order kiya hai:\n\n📦 *Order ID:* ${fullOrderNum}\n🌾 *Produce Items:*\n• ${itemsBreakdown}\n\n💵 *Produce Subtotal:* ₹${subtotal.toLocaleString("en-IN")}${discountLine}${deliveryLine}\n💰 *Total Amount Payable:* ₹${total.toLocaleString("en-IN")}\n📍 *Delivery Address:* ${newOrderAddress || "Civil Lines"}, ${newOrderCity || "Dehradun"} - ${newOrderPincode || "248001"}\n🚚 *Shipping Mode:* India Post Speed Post (2-3 din me dispatch)\n\nHum aapka order organic farms se pack kar rahe hain. Kisi bhi jaankari ya payment confirmation ke liye aap yahan reply kar sakte hain! 🌿`;
 
       setMessagesMap((prev) => {
         const existing = prev[targetCustId] || [];
@@ -3697,11 +3725,11 @@ export default function PrajnaaMasterCrmApp() {
           customerPhone: cleanPhone.slice(-10),
           customerEmail: newOrderCustomerEmail.trim(),
           amount: total,
-          totalPaise: total * 100,
-          subtotalPaise: subtotal * 100,
-          discountPaise: discount * 100,
-          shippingPaise: shipping * 100,
-          paymentMethod: newOrderPaymentMethod.toLowerCase(),
+          totalPaise: Math.round(total * 100),
+          subtotalPaise: Math.round(subtotal * 100),
+          discountPaise: Math.round(totalDiscount * 100),
+          shippingPaise: Math.round(shipping * 100),
+          paymentMethod: newOrderPaymentMethodChoice.toLowerCase(),
           paymentStatus: newOrderPaymentStatus.toLowerCase(),
           status: newOrderStatus.toLowerCase(),
           items: lineItems.map((i: any) => ({
@@ -3709,9 +3737,11 @@ export default function PrajnaaMasterCrmApp() {
             weight: i.weight,
             quantity: i.qty,
             price: i.price,
+            discount: i.discount || 0,
             total: i.total,
-            unitPricePaise: i.price * 100,
-            totalPaise: i.total * 100,
+            unitPricePaise: Math.round(i.price * 100),
+            discountPaise: Math.round((i.discount || 0) * 100),
+            totalPaise: Math.round(i.total * 100),
           })),
           shippingAddressSnapshot: {
             line1: newOrderAddress || "Civil Lines",
@@ -3727,8 +3757,11 @@ export default function PrajnaaMasterCrmApp() {
       setNewOrderCustomerPhone("");
       setNewOrderCustomerEmail("");
       setNewOrderAddress("");
+      setNewOrderCity("");
+      setNewOrderPincode("");
       setNewOrderNotes("");
-      setNewOrderDiscount(0);
+      setNewOrderShipping(0);
+      setNewOrderItemsList([{ productId: "prajnaa-almond-500g", qty: 1, discount: 0 }]);
       setShowAddOrderModal(false);
 
       toast.success(`Order ${fullOrderNum} created successfully! WhatsApp message generated.`);
@@ -8810,6 +8843,11 @@ export default function PrajnaaMasterCrmApp() {
                             <div className="text-xs font-extrabold text-emerald-700 dark:text-emerald-400 font-mono">
                               ₹{Number(item.total || (item.price * (item.qty || 1)) || 0).toLocaleString("en-IN")}
                             </div>
+                            {item.discount && Number(item.discount) > 0 ? (
+                              <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-medium">
+                                -₹{Number(item.discount).toLocaleString("en-IN")} off
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       ))
@@ -8878,9 +8916,7 @@ export default function PrajnaaMasterCrmApp() {
                     <div className="flex justify-between text-neutral-600 dark:text-slate-400">
                       <span>India Post Speed Post Delivery:</span>
                       <span className="font-mono font-semibold text-neutral-900 dark:text-white">
-                        {Number(selectedOrderForView.shipping || 0) > 0
-                          ? `₹${Number(selectedOrderForView.shipping).toLocaleString("en-IN")}`
-                          : "FREE (Complimentary)"}
+                        ₹{Number(selectedOrderForView.shipping || 0).toLocaleString("en-IN")}
                       </span>
                     </div>
 
@@ -11802,7 +11838,11 @@ export default function PrajnaaMasterCrmApp() {
                 <div className="space-y-2.5">
                   {newOrderItemsList.map((item: any, idx: number) => {
                     const selectedProd = productsList.find((p) => p.id === item.productId) || productsList[0];
-                    const lineTotal = (selectedProd?.price || 0) * (item.qty || 1);
+                    const itemPrice = selectedProd?.price || 0;
+                    const itemQty = Math.max(1, item.qty || 1);
+                    const lineGross = itemPrice * itemQty;
+                    const itemDiscount = Math.max(0, Math.min(lineGross, Number(item.discount) || 0));
+                    const lineNet = lineGross - itemDiscount;
 
                     return (
                       <div
@@ -11810,7 +11850,12 @@ export default function PrajnaaMasterCrmApp() {
                         className="p-3 bg-white rounded-xl border border-neutral-200/80 shadow-2xs space-y-2"
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-bold text-neutral-400 uppercase font-mono">Item #{idx + 1}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-neutral-400 uppercase font-mono">Item #{idx + 1}</span>
+                            <span className="text-[11px] font-semibold text-emerald-800">
+                              ₹{itemPrice.toLocaleString("en-IN")}{selectedProd?.weight ? ` / ${selectedProd.weight}` : ""}
+                            </span>
+                          </div>
                           {newOrderItemsList.length > 1 && (
                             <button
                               type="button"
@@ -11824,7 +11869,7 @@ export default function PrajnaaMasterCrmApp() {
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                          <div className="sm:col-span-8">
+                          <div className="sm:col-span-5">
                             <SearchableProductSelect
                               products={productsList.map((p) => ({
                                 id: p.id,
@@ -11834,32 +11879,54 @@ export default function PrajnaaMasterCrmApp() {
                                 category: p.category,
                               }))}
                               selectedId={item.productId}
-                              onSelect={(prod: any) => handleUpdateOrderItemLine(idx, prod.id, item.qty)}
+                              onSelect={(prod: any) => handleUpdateOrderItemLine(idx, prod.id, item.qty, item.discount)}
                               placeholder="Search Himalayan produce..."
                               className="w-full"
                             />
                           </div>
 
-                          <div className="sm:col-span-4 flex items-center justify-end gap-2">
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateOrderItemLine(idx, item.productId, Math.max(1, item.qty - 1))}
-                                className="h-7 w-7 rounded-lg border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 flex items-center justify-center font-bold text-neutral-700 cursor-pointer"
-                              >
-                                -
-                              </button>
-                              <span className="w-7 text-center font-mono font-bold text-xs">{item.qty}</span>
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateOrderItemLine(idx, item.productId, item.qty + 1)}
-                                className="h-7 w-7 rounded-lg border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 flex items-center justify-center font-bold text-neutral-700 cursor-pointer"
-                              >
-                                +
-                              </button>
+                          <div className="sm:col-span-3 flex items-center justify-start sm:justify-center gap-1">
+                            <span className="text-[10px] text-neutral-400 mr-1 sm:hidden">Qty:</span>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateOrderItemLine(idx, item.productId, Math.max(1, item.qty - 1), item.discount)}
+                              className="h-7 w-7 rounded-lg border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 flex items-center justify-center font-bold text-neutral-700 cursor-pointer"
+                            >
+                              -
+                            </button>
+                            <span className="w-7 text-center font-mono font-bold text-xs">{itemQty}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateOrderItemLine(idx, item.productId, itemQty + 1, item.discount)}
+                              className="h-7 w-7 rounded-lg border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 flex items-center justify-center font-bold text-neutral-700 cursor-pointer"
+                            >
+                              +
+                            </button>
+                          </div>
+
+                          <div className="sm:col-span-2 flex items-center gap-1">
+                            <div className="relative w-full" title="Discount on this product (₹)">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-700">₹</span>
+                              <input
+                                type="number"
+                                min="0"
+                                max={lineGross}
+                                placeholder="Disc"
+                                value={item.discount === 0 || item.discount == null ? "" : item.discount}
+                                onChange={(e) => handleUpdateOrderItemDiscount(idx, Number(e.target.value) || 0)}
+                                className="w-full pl-5 pr-1.5 py-1 text-xs font-mono font-semibold rounded-lg border border-emerald-300 bg-emerald-50/40 text-emerald-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 placeholder:text-neutral-400 placeholder:font-normal"
+                              />
                             </div>
-                            <span className="font-mono font-bold text-xs text-neutral-900 w-16 text-right">
-                              ₹{lineTotal.toLocaleString("en-IN")}
+                          </div>
+
+                          <div className="sm:col-span-2 text-right font-mono flex flex-col items-end justify-center">
+                            {itemDiscount > 0 && (
+                              <span className="line-through text-[10px] text-neutral-400">
+                                ₹{lineGross.toLocaleString("en-IN")}
+                              </span>
+                            )}
+                            <span className={`font-bold text-xs ${itemDiscount > 0 ? "text-emerald-700" : "text-neutral-900"}`}>
+                              ₹{lineNet.toLocaleString("en-IN")}
                             </span>
                           </div>
                         </div>
@@ -11927,7 +11994,7 @@ export default function PrajnaaMasterCrmApp() {
                 </div>
               </div>
 
-              {/* Order Notes & Discounted Price */}
+              {/* Order Notes & Manual Delivery Charges */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div className="space-y-1">
                   <label className="font-semibold text-neutral-700">Customer / Internal Notes (Optional)</label>
@@ -11941,50 +12008,66 @@ export default function PrajnaaMasterCrmApp() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-semibold text-emerald-800 flex items-center justify-between">
-                    <span>Discounted Price / Order Discount (₹)</span>
-                    <span className="text-[10px] text-neutral-400 font-normal">Deducted from total</span>
+                  <label className="font-semibold text-neutral-700 flex items-center justify-between">
+                    <span>Delivery / Shipping Charges (₹)</span>
+                    <span className="text-[10px] text-amber-600 font-medium">Manual charge (no free delivery)</span>
                   </label>
                   <input
                     type="number"
                     min="0"
                     placeholder="0"
-                    value={newOrderDiscount || ""}
-                    onChange={(e) => setNewOrderDiscount(Math.max(0, Number(e.target.value) || 0))}
-                    className="w-full p-2 rounded-xl border border-emerald-300 font-mono font-bold text-xs bg-emerald-50/40 text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    value={newOrderShipping === 0 ? "" : newOrderShipping}
+                    onChange={(e) => setNewOrderShipping(Math.max(0, Number(e.target.value) || 0))}
+                    className="w-full p-2 rounded-xl border border-neutral-200 font-mono font-bold text-xs bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                   />
                 </div>
               </div>
 
-              {/* Dynamic Pricing Summary Card */}
+              {/* Dynamic Pricing Summary Card - Only shows discount given, manual delivery charge */}
               {(() => {
                 const subtotal = newOrderItemsList.reduce((acc: number, item: any) => {
                   const prod = productsList.find((p) => p.id === item.productId) || productsList[0];
                   return acc + (prod?.price || 0) * (item.qty || 1);
                 }, 0);
-                const discount = Math.max(0, Number(newOrderDiscount) || 0);
-                const afterDiscount = Math.max(0, subtotal - discount);
-                const shipping = afterDiscount > 1500 ? 0 : 50;
-                const total = afterDiscount + shipping;
+                const totalDiscount = newOrderItemsList.reduce((acc: number, item: any) => {
+                  const prod = productsList.find((p) => p.id === item.productId) || productsList[0];
+                  const gross = (prod?.price || 0) * (item.qty || 1);
+                  const itemDisc = Math.max(0, Math.min(gross, Number(item.discount) || 0));
+                  return acc + itemDisc;
+                }, 0);
+                const netProduce = Math.max(0, subtotal - totalDiscount);
+                const shipping = Math.max(0, Number(newOrderShipping) || 0);
+                const total = netProduce + shipping;
+                const totalItemsCount = newOrderItemsList.reduce((a: number, b: any) => a + (b.qty || 1), 0);
 
                 return (
                   <div className="bg-emerald-50/70 p-3.5 rounded-2xl border border-emerald-200/80 space-y-1.5 text-xs">
                     <div className="flex justify-between text-neutral-600">
-                      <span>Produce Subtotal ({newOrderItemsList.reduce((a: number, b: any) => a + (b.qty || 1), 0)} items)</span>
+                      <span>Produce Subtotal ({totalItemsCount} items)</span>
                       <span className="font-mono font-bold text-neutral-800">₹{subtotal.toLocaleString("en-IN")}</span>
                     </div>
-                    {discount > 0 && (
-                      <div className="flex justify-between text-emerald-700 font-semibold">
-                        <span>Special Order Discount</span>
-                        <span className="font-mono font-bold">-₹{discount.toLocaleString("en-IN")}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between text-neutral-600">
-                      <span>India Post Speed Post Delivery</span>
-                      <span className="font-mono font-bold text-neutral-800">
-                        {shipping === 0 ? "FREE (Orders > ₹1,500)" : `₹${shipping}`}
+
+                    <div className={`flex justify-between ${totalDiscount > 0 ? "text-emerald-700 font-semibold" : "text-neutral-500"}`}>
+                      <span>Total Product Discount Given</span>
+                      <span className="font-mono font-bold">
+                        {totalDiscount > 0 ? `-₹${totalDiscount.toLocaleString("en-IN")}` : "₹0"}
                       </span>
                     </div>
+
+                    {totalDiscount > 0 && (
+                      <div className="flex justify-between text-neutral-600 text-[11px]">
+                        <span>Net Produce (After Discount)</span>
+                        <span className="font-mono font-semibold text-neutral-700">₹{netProduce.toLocaleString("en-IN")}</span>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between text-neutral-600">
+                      <span>India Post Speed Post Delivery (Manual Charge)</span>
+                      <span className="font-mono font-bold text-neutral-800">
+                        ₹{shipping.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+
                     <div className="flex justify-between text-sm font-extrabold text-neutral-900 pt-2 border-t border-emerald-200">
                       <span>Total Amount Payable</span>
                       <span className="font-mono text-emerald-800 text-base">₹{total.toLocaleString("en-IN")}</span>
@@ -13019,7 +13102,7 @@ export default function PrajnaaMasterCrmApp() {
                     };
                   });
 
-                  const computedSubtotal = parsedInvoiceItems.reduce((acc, it) => acc + it.total, 0);
+                  const computedSubtotal = parsedInvoiceItems.reduce((acc, it) => acc + (it.price * it.qty), 0);
                   const discountVal = Number(selectedOrderForView.discount || 0);
                   const shippingVal = Number(selectedOrderForView.shipping || 0);
                   const computedTotal = Math.max(0, computedSubtotal - discountVal + shippingVal);
@@ -13054,6 +13137,11 @@ export default function PrajnaaMasterCrmApp() {
                                   <span className="text-[10px] text-neutral-500 font-mono">
                                     Pack / Weight: {it.weight} • Certified Himalayan Single-Origin
                                   </span>
+                                  {it.discount && Number(it.discount) > 0 ? (
+                                    <span className="block text-[10px] text-emerald-700 font-medium">
+                                      Product Discount: -₹{Number(it.discount).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                  ) : null}
                                 </td>
                                 <td className="py-2 px-3 text-center font-mono text-[11px] text-neutral-600">
                                   {getProductHsn(it.name)}
@@ -13122,9 +13210,7 @@ export default function PrajnaaMasterCrmApp() {
                             <div className="flex justify-between text-neutral-600">
                               <span>Speed Post Delivery:</span>
                               <span className="font-mono font-semibold text-neutral-900">
-                                {shippingVal > 0
-                                  ? `₹${shippingVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                  : "FREE (Included)"}
+                                ₹{shippingVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </span>
                             </div>
 

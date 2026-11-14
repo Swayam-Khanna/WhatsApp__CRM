@@ -373,6 +373,8 @@ export function buildItemizedCrmOrderConfirmationMessage(order: {
   }>;
   totalPaise: number;
   paymentStatus: string;
+  shippingPaise?: number;
+  discountPaise?: number;
 }): string {
   const formatInr = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
   const isPaid = order.paymentStatus === "collected" || order.paymentStatus === "paid";
@@ -389,6 +391,13 @@ export function buildItemizedCrmOrderConfirmationMessage(order: {
       const lineTotal = it.totalPaise ? formatInr(it.totalPaise) : formatInr(it.unitPricePaise * it.quantity);
       lines.push(`${it.productName}${it.variantName ? ` (${it.variantName})` : ""} × ${it.quantity} — ${lineTotal}`);
     });
+  }
+
+  if (order.discountPaise && order.discountPaise > 0) {
+    lines.push(`Discount Given: -${formatInr(order.discountPaise)}`);
+  }
+  if (order.shippingPaise !== undefined && order.shippingPaise > 0) {
+    lines.push(`Delivery Charges: ${formatInr(order.shippingPaise)}`);
   }
 
   lines.push(`Order Total: ${formatInr(order.totalPaise)}`);

@@ -197,6 +197,8 @@ export async function POST(req: Request) {
           items: persistedOrder.items,
           totalPaise: persistedOrder.totalPaise,
           paymentStatus: persistedOrder.paymentStatus,
+          shippingPaise: persistedOrder.shippingPaise,
+          discountPaise: persistedOrder.discountPaise,
         });
 
         const sendResult = await sendWhatsAppTextMessage({
