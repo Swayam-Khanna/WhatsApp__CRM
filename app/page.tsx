@@ -8066,7 +8066,7 @@ export default function PrajnaaMasterCrmApp() {
                             </span>
                           </td>
                           <td className="p-3 font-mono text-[11px] text-neutral-600 dark:text-slate-300">
-                            {o.trackingNumber || o.trackingId || "Pending Dispatch"}
+                            {o.trackingNumber || (o as any).trackingId || "Pending Dispatch"}
                           </td>
                           <td className="p-3 text-right">
                             <button
@@ -8724,8 +8724,10 @@ export default function PrajnaaMasterCrmApp() {
                     {selectedOrderForView.trackingNumber ? (
                       <button
                         onClick={() => {
-                          navigator.clipboard.writeText(selectedOrderForView.trackingNumber);
-                          toast.success("Tracking number copied to clipboard!");
+                          if (selectedOrderForView.trackingNumber) {
+                            navigator.clipboard.writeText(selectedOrderForView.trackingNumber);
+                            toast.success("Tracking number copied to clipboard!");
+                          }
                         }}
                         className="text-emerald-700 dark:text-emerald-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
                       >

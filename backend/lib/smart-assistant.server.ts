@@ -5,12 +5,26 @@ import { eq, desc, or, ilike } from "drizzle-orm";
 import { allProducts as staticCatalog } from "../../frontend/lib/mock/products.ts";
 import { getDatabase } from "../../lib/mongodb.ts";
 import { getAuthoritativeCrmProducts } from "./product-registry.ts";
+import {
+  normalizeCustomerMessage,
+  detectMessageLanguage,
+  extractEntities,
+  classifyCustomerIntent,
+  ExtractedEntities,
+} from "./message-understanding.server.ts";
+import {
+  AUTOMATED_TEMPLATES,
+  getAutomatedTemplateById,
+  findBestAutomatedTemplate,
+  renderAutomatedTemplate,
+} from "./automation-templates.ts";
 
 export type SupportedLanguage = "en" | "hinglish" | "hi";
 
 export type CustomerIntent =
   | "first_welcome_greeting"
   | "greeting"
+  | "greetings"
   | "product_enquiry"
   | "catalogue_request"
   | "price_enquiry"
@@ -24,7 +38,16 @@ export type CustomerIntent =
   | "wholesale_enquiry"
   | "general_question"
   | "unclear_intent"
-  | "human_handoff";
+  | "human_handoff"
+  | "thank_you"
+  | "acknowledgement"
+  | "positive_response"
+  | "negative_response"
+  | "casual_conversation"
+  | "casual"
+  | "clarification"
+  | "follow_up"
+  | "closing";
 
 export interface LiveProductVariant {
   name: string;
@@ -402,13 +425,13 @@ export function findMatchingProduct(
   const q = (query || "").toLowerCase();
 
   const keywordsMap: Record<string, string[]> = {
-    honey: ["honey", "shehad", "shahad", "flora", "madhu", "raw flora", "शहद", "मधु"],
-    almond: ["almond", "almonds", "badam", "badaam", "mamra", "kagzi almond", "giri", "बादाम", "मामरा"],
-    walnut: ["walnut", "walnuts", "akhrot", "akhrot giri", "kagzi akhrot", "अखरोट"],
-    shilajit: ["shilajit", "silajit", "resin", "shilajeet", "शिलाजीत"],
-    ghee: ["ghee", "bilona", "cow ghee", "desi ghee", "badri cow", "a2", "घी"],
-    apricot: ["apricot", "apricots", "khumani", "khubani", "ladakh apricot", "खुबानी", "खुमानी"],
+    shilajit: ["shilajit", "silajit", "shilajeet", "resin", "शिलाजीत"],
+    ghee: ["badri", "bilona", "cow ghee", "desi ghee", "a2", "ghee", "घी"],
     saffron: ["saffron", "kesar", "mongra", "zafran", "केसर", "मोंगरा"],
+    honey: ["honey", "shehad", "shahad", "madhu", "raw flora", "multiflora", "शहद", "मधु"],
+    almond: ["almond", "almonds", "badam", "badaam", "mamra", "kagzi almond", "बादाम", "मामरा"],
+    walnut: ["walnut", "walnuts", "akhrot", "akhrot giri", "kagzi akhrot", "अखरोट"],
+    apricot: ["apricot", "apricots", "khumani", "khubani", "ladakh apricot", "खुबानी", "खुमानी"],
     turmeric: ["turmeric", "haldi", "lakadong", "हल्दी"],
     salt: ["salt", "namak", "sendha", "rock salt", "pahadi namak", "नमक", "सेंधा"],
     pickle: ["pickle", "achar", "linguda", "galgal", "अचार"],
@@ -425,7 +448,13 @@ export function findMatchingProduct(
     }
   }
 
-  // Fallback direct name/slug substring matching
+  // Fallback direct name/slug substring matching without generic stopwords
+  const stopWords = new Set([
+    "himalayan", "pure", "organic", "natural", "fresh", "mountain",
+    "market", "harvest", "authentic", "patron", "product", "products",
+    "item", "items", "farm", "prajnaa", "prajna", "best", "good"
+  ]);
+
   return (
     catalogue.find((item) => {
       const itemName = item.name.toLowerCase();
@@ -433,7 +462,9 @@ export function findMatchingProduct(
       return (
         q.includes(itemName) ||
         q.includes(itemSlug) ||
-        itemName.split(" ").some((w) => w.length > 3 && q.includes(w))
+        itemName
+          .split(" ")
+          .some((w) => w.length > 3 && !stopWords.has(w) && q.includes(w))
       );
     }) || null
   );
@@ -821,7 +852,65 @@ export function detectCustomerIntent(
     return context?.isFirstMessage ? "first_welcome_greeting" : "greeting";
   }
 
-  // 15. Fallback
+  // 15. Thank You & Gratitude ("Thank you", "Thanks", "Shukriya", "Dhanyawad")
+  if (
+    /^(?:thank\s*you|thanks|thank\s*u|thx|tq|ty|shukriya|dhanyawad|dhanyavad|bahut dhanyawad|thanks a lot|thank you so much|thanks for helping|thanks for the info|thanks for info|thank you ji|okay thanks|ok thanks|shukriya ji|dhanyawad ji)[\s.!]*$/i.test(q) ||
+    /\b(?:thank\s*you\s*so\s*much|thanks\s*a\s*lot|thanks\s*for\s*(?:the\s*)?(?:info|help|information|details)|bahut\s*dhanyawad|aapka\s*shukriya)\b/i.test(q)
+  ) {
+    return "thank_you";
+  }
+
+  // 16. Acknowledgements ("Okay", "Ok", "Achha", "Theek hai", "Sure", "Fine", "Got it")
+  if (
+    /^(?:ok|okay|k|okk|alright|sure|fine|got\s*it|understood|achha|acha|theek\s*hai|theek|haan\s*ji|bilkul|sahi\s*hai|noted)[\s.!]*$/i.test(q)
+  ) {
+    return "acknowledgement";
+  }
+
+  // 17. Positive Responses ("Yes", "Definitely", "Sounds good", "Perfect", "Haan", "Ji haan")
+  if (
+    /^(?:yes|yeah|yep|yup|definitely|sounds\s*good|perfect|great|nice|haan|ji\s*haan|ha\s*ji|bilkul)[\s.!]*$/i.test(q)
+  ) {
+    return "positive_response";
+  }
+
+  // 18. Negative Responses ("No", "No thanks", "Not interested", "Maybe later", "Nahi", "Abhi nahi")
+  if (
+    /^(?:no|nah|nope|no\s*thanks|not\s*interested|maybe\s*later|nahi|nahin|nahi\s*ji|abhi\s*nahi|rehne\s*dijiye|rehne\s*do|zarurat\s*nahi)[\s.!]*$/i.test(q)
+  ) {
+    return "negative_response";
+  }
+
+  // 19. Casual Conversation ("How are you?", "How is your day?", "What are you doing?", "Aap kaise hain?")
+  if (
+    /\b(?:how\s*are\s*you|how\s*is\s*your\s*day|what\s*are\s*you\s*doing|are\s*you\s*available|aap\s*kaise\s*hain|kaise\s*ho|kya\s*haal|sab\s*badhiya|kya\s*kar\s*rahe\s*ho|sb\s*thik)\b/i.test(q)
+  ) {
+    return "casual_conversation";
+  }
+
+  // 20. Confusion & Clarification ("What do you mean?", "I don't understand", "Samajh nahi aaya")
+  if (
+    /\b(?:what\s*do\s*you\s*mean|i\s*don'?t\s*understand|can\s*you\s*explain|please\s*explain\s*again|samajh\s*nahi\s*aaya|thoda\s*detail\s*mein|clear\s*karein|phir\s*se\s*batao)\b/i.test(q)
+  ) {
+    return "clarification";
+  }
+
+  // 21. Follow-up Messages ("Any update?", "Waiting for your response", "Koi update?")
+  if (
+    /^(?:any\s*update|hello\?|are\s*you\s*there|waiting\s*for\s*(?:your\s*)?response|koi\s*update|reply\s*please|bataiye\s*ji|waiting)[\s?!.]*$/i.test(q) ||
+    /\b(?:any\s*update\s*on\s*my|waiting\s*for\s*(?:your\s*)?reply|koi\s*update\s*hai)\b/i.test(q)
+  ) {
+    return "follow_up";
+  }
+
+  // 22. Closing / Bye ("Bye", "Good bye", "Good night", "Alvida")
+  if (
+    /^(?:bye|good\s*bye|see\s*you|alvida|take\s*care|good\s*night|gn)[\s.!]*$/i.test(q)
+  ) {
+    return "closing";
+  }
+
+  // 23. Fallback
   return "unclear_intent";
 }
 
@@ -999,19 +1088,21 @@ export async function processSmartCustomerReply(params: {
   handoffRequired?: boolean;
   updatedCustomerName?: string;
   detectedLanguage: SupportedLanguage;
+  templateId?: string;
 }> {
   const cleanPhone = extractCleanPhone(params.customerPhone);
-  const text = (params.customerText || "").trim();
+  const rawText = (params.customerText || "").trim();
+  const normalizedText = normalizeCustomerMessage(rawText);
   const host = getAppBaseUrl(params.reqHost);
   const catalogueUrl = `${host}/catalogue`;
 
   // Retrieve or create conversation context
   const context = getConversationContext(cleanPhone);
-  const extractedName = extractCustomerNameFromText(text);
+  const extractedName = extractCustomerNameFromText(rawText);
   const updatedCustomerName = extractedName || params.customerName || context.customerName;
 
-  // 1. Detect customer's language
-  const detectedLanguage = detectLanguage(text, context.language);
+  // 1. Detect customer's language with mid-conversation switching support
+  const detectedLanguage = detectMessageLanguage(normalizedText, context.language);
   updateConversationContext(cleanPhone, {
     language: detectedLanguage,
     customerName: updatedCustomerName,
@@ -1030,363 +1121,186 @@ export async function processSmartCustomerReply(params: {
     };
   }
 
-  // Fetch live catalogue from PostgreSQL / Storefront
+  // Fetch live catalogue from database / registry
   const catalogue = await getLiveProductCatalogue(host);
 
-  // Search matching product explicitly mentioned in text
-  const explicitProduct = findMatchingProduct(text, catalogue);
+  // Extract entities (Product, Variant, Quantity, Order Number, Address, Payment Ref)
+  const entities = extractEntities(normalizedText, catalogue, context);
 
-  // Contextual product if available from previous turn
-  let contextProduct: LiveCatalogueItem | null = null;
-  if (context.lastDiscussedProductSlug) {
-    const prevSlug = context.lastDiscussedProductSlug.toLowerCase();
-    contextProduct = catalogue.find((p) => p.slug.toLowerCase() === prevSlug) || null;
-  }
+  // Classify Customer Intent & SubIntent using semantic rules and context
+  const classification = classifyCustomerIntent(normalizedText, context, entities, catalogue);
 
-  // Check if this is the customer's very first message
-  const isFirst = context.messageCount <= 1 ? await isFirstCustomerMessage(cleanPhone) : false;
-
-  // Detect Customer Intent
-  const intent = detectCustomerIntent(text, {
-    isFirstMessage: isFirst,
-    explicitProduct,
-    conversationContext: context,
-  });
-
-  // Determine effective matched product:
-  // Use explicit product if present, or contextual product ONLY for product-related follow-ups
-  const isProductRelatedIntent =
-    intent === "product_enquiry" ||
-    intent === "price_enquiry" ||
-    intent === "packaging_quantity_enquiry" ||
-    intent === "product_availability" ||
-    intent === "order_placement";
-
-  const matchedProduct = explicitProduct || (isProductRelatedIntent ? contextProduct : null);
-
-  // If matched product found, update context
+  // Determine matched product for context updating
+  const matchedProduct = entities.product;
   if (matchedProduct) {
     updateConversationContext(cleanPhone, {
       lastDiscussedProductSlug: matchedProduct.slug,
       lastDiscussedProductName: matchedProduct.name,
       lastDiscussedPrice: matchedProduct.price,
+      lastDiscussedVariant: entities.variantName || matchedProduct.variants[0]?.name || "500g Glass Jar",
+    });
+  }
+  if (entities.quantity) {
+    updateConversationContext(cleanPhone, {
+      lastDiscussedQuantity: entities.quantity,
     });
   }
 
-  // Detect packaging/quantity from text (e.g. "500g", "1kg", "2 packs", "two", "I want two")
-  let requestedVariant: LiveProductVariant | undefined = undefined;
-  if (matchedProduct) {
-    const qLower = text.toLowerCase();
-    if (qLower.includes("250g") || qLower.includes("250 gm")) {
-      requestedVariant = matchedProduct.variants.find((v) => v.name.includes("250g"));
-    } else if (qLower.includes("500g") || qLower.includes("500 gm") || qLower.includes("500ml")) {
-      requestedVariant = matchedProduct.variants.find((v) => v.name.includes("500g") || v.name.includes("500ml"));
-    } else if (qLower.includes("1kg") || qLower.includes("1 kg") || qLower.includes("1 litre") || qLower.includes("1l")) {
-      requestedVariant = matchedProduct.variants.find((v) => v.name.includes("1kg") || v.name.includes("1 Litre"));
-    } else if (qLower.includes("20g")) {
-      requestedVariant = matchedProduct.variants.find((v) => v.name.includes("20g"));
-    } else if (qLower.includes("50g")) {
-      requestedVariant = matchedProduct.variants.find((v) => v.name.includes("50g"));
-    } else if (qLower.includes("1g")) {
-      requestedVariant = matchedProduct.variants.find((v) => v.name.includes("1g"));
+  // Look up latest verified order if needed for order/payment/shipping queries
+  let latestOrder: any = null;
+  const isOrderRelated =
+    classification.intent === "order_status" ||
+    classification.intent === "payment_enquiry" ||
+    classification.intent === "delivery_enquiry";
+
+  if (isOrderRelated) {
+    latestOrder = await getCustomerLatestOrder(cleanPhone);
+  }
+
+  // Determine specific template ID
+  let selectedTemplateId = classification.templateId;
+
+  // Specific dynamic sub-routing based on verified order state
+  if (classification.intent === "order_status") {
+    if (latestOrder && latestOrder.orderNumber) {
+      const rawStatus = (latestOrder.status || "Processing").toLowerCase();
+      const stage = (latestOrder.shippingStage || latestOrder.stage || "").toLowerCase();
+      const loc = latestOrder.currentLocation || latestOrder.transitLocation || latestOrder.location || "";
+
+      if (stage === "delivering_tomorrow" || rawStatus === "delivering_tomorrow" || rawStatus.includes("tomorrow")) {
+        selectedTemplateId = "auto_status_delivering_tomorrow";
+      } else if (loc || stage === "in_transit" || rawStatus === "in_transit" || rawStatus === "in transit") {
+        selectedTemplateId = "auto_status_in_transit";
+      } else if (rawStatus === "shipped" || rawStatus === "dispatched" || latestOrder.consignmentNumber) {
+        selectedTemplateId = "auto_status_dispatched";
+      } else {
+        selectedTemplateId = "auto_status_packing";
+      }
+    } else {
+      selectedTemplateId = "auto_status_ask_number";
+    }
+  } else if (classification.intent === "payment_enquiry") {
+    const isPaid = latestOrder && (latestOrder.paymentStatus === "paid" || latestOrder.paymentStatus === "collected");
+    if (isPaid) {
+      selectedTemplateId = "auto_pay_confirmed";
+    } else if (latestOrder && latestOrder.totalPaise) {
+      selectedTemplateId = "auto_pay_pending_with_amount";
+    }
+  } else if (classification.intent === "delivery_enquiry") {
+    if (latestOrder && latestOrder.orderNumber) {
+      const rawStatus = (latestOrder.status || "").toLowerCase();
+      const stage = (latestOrder.shippingStage || latestOrder.stage || "").toLowerCase();
+      const loc = latestOrder.currentLocation || latestOrder.transitLocation || latestOrder.location || "";
+
+      if (stage === "delivering_tomorrow" || rawStatus === "delivering_tomorrow" || rawStatus.includes("tomorrow")) {
+        selectedTemplateId = "auto_status_delivering_tomorrow";
+      } else if (loc || stage === "in_transit" || rawStatus === "in_transit" || rawStatus === "in transit") {
+        selectedTemplateId = "auto_status_in_transit";
+      } else if (rawStatus === "shipped" || rawStatus === "dispatched" || latestOrder.consignmentNumber) {
+        selectedTemplateId = "auto_status_dispatched";
+      }
     }
   }
 
-  // Check numeric quantity mentioned (e.g. "I want two", "2 pack", "quantity 3", "दो पैक")
-  const qtyMatch = text.match(/\b(?:two|three|four|five|one|\d+)\b|(?:(?:एक|दो|तीन|चार|पांच))/i);
-  let resolvedQty: number | undefined = undefined;
-  if (qtyMatch) {
-    const word = qtyMatch[0].toLowerCase();
-    const wordMap: Record<string, number> = {
-      one: 1, two: 2, three: 3, four: 4, five: 5,
-      "एक": 1, "दो": 2, "तीन": 3, "चार": 4, "पांच": 5,
-    };
-    resolvedQty = wordMap[word] || parseInt(word, 10);
-    if (!isNaN(resolvedQty) && resolvedQty > 0) {
-      updateConversationContext(cleanPhone, { lastDiscussedQuantity: resolvedQty });
+  // Handle stage transitions
+  if (classification.intent === "order_placement") {
+    if (entities.hasAddressIndicator) {
+      updateConversationContext(cleanPhone, { activeStage: "order_confirmed" });
+    } else if (entities.quantity || context.lastDiscussedQuantity) {
+      updateConversationContext(cleanPhone, { activeStage: "awaiting_address" });
+    } else {
+      updateConversationContext(cleanPhone, { activeStage: "awaiting_quantity" });
     }
+  } else if (classification.intent === "product_enquiry" || classification.intent === "price_enquiry") {
+    updateConversationContext(cleanPhone, { activeStage: "discussing_product" });
+  } else if (classification.intent === "catalogue_request") {
+    updateConversationContext(cleanPhone, { activeStage: "browsing" });
   }
 
-  // ROUTE INTENT TO MULTILINGUAL TEMPLATES
-  let replyText = "";
+  // Handle human takeover triggers
   let handoffRequired = false;
-
-  switch (intent) {
-    // 1. Pure Greeting (ONLY when the message is solely a greeting like "Hi", "Hello", "Namaste")
-    case "greeting":
-    case "first_welcome_greeting": {
-      replyText = fillTemplate(TEMPLATES.welcome[detectedLanguage], {
-        catalogueLink: catalogueUrl,
-      });
-      updateConversationContext(cleanPhone, { activeStage: "browsing" });
-      break;
-    }
-
-    // 2. Catalogue Request (General product catalog)
-    case "catalogue_request": {
-      replyText = fillTemplate(TEMPLATES.catalogue[detectedLanguage], {
-        catalogueLink: catalogueUrl,
-      });
-      updateConversationContext(cleanPhone, { activeStage: "browsing" });
-      break;
-    }
-
-    // 3. Price Enquiry
-    case "price_enquiry": {
-      if (matchedProduct) {
-        const variant = requestedVariant || matchedProduct.variants[0] || { name: "500g Glass Jar", price: matchedProduct.price };
-        const priceStr = variant.price.toLocaleString("en-IN");
-        replyText = fillTemplate(TEMPLATES.price[detectedLanguage], {
-          productName: matchedProduct.name,
-          packaging: variant.name,
-          livePrice: priceStr,
-          productLink: matchedProduct.url,
-        });
-        updateConversationContext(cleanPhone, {
-          activeStage: "discussing_product",
-          lastDiscussedVariant: variant.name,
-        });
-      } else {
-        replyText = fillTemplate(TEMPLATES.catalogue[detectedLanguage], {
-          catalogueLink: catalogueUrl,
-        });
-      }
-      break;
-    }
-
-    // 4. Specific Product Enquiry / Availability / Packaging
-    case "product_enquiry":
-    case "product_availability":
-    case "packaging_quantity_enquiry": {
-      if (matchedProduct) {
-        if (matchedProduct.stockStatus === "out_of_stock") {
-          replyText = fillTemplate(TEMPLATES.product_out_of_stock[detectedLanguage], {
-            productName: matchedProduct.name,
-          });
-        } else {
-          const variant = requestedVariant || matchedProduct.variants[0] || { name: "500g Glass Jar", price: matchedProduct.price };
-          const priceStr = variant.price.toLocaleString("en-IN");
-
-          replyText = fillTemplate(TEMPLATES.price[detectedLanguage], {
-            productName: matchedProduct.name,
-            packaging: variant.name,
-            livePrice: priceStr,
-            productLink: matchedProduct.url,
-          });
-          updateConversationContext(cleanPhone, {
-            activeStage: "discussing_product",
-            lastDiscussedVariant: variant.name,
-          });
-        }
-      } else {
-        replyText = fillTemplate(TEMPLATES.catalogue[detectedLanguage], {
-          catalogueLink: catalogueUrl,
-        });
-      }
-      break;
-    }
-
-    // 5. Order Placement Intent
-    case "order_placement": {
-      if (matchedProduct) {
-        // If customer specifies quantity in this turn or previous turn
-        const effectiveQty = resolvedQty || context.lastDiscussedQuantity;
-        const variantName = requestedVariant?.name || context.lastDiscussedVariant || matchedProduct.variants[0]?.name || "500g";
-
-        // If customer already provided address details
-        const hasAddressDetails = /\b\d{6}\b|road|street|house|flat|nagar|colony|sector|pata|address/i.test(text);
-        if (hasAddressDetails) {
-          if (detectedLanguage === "en") {
-            replyText = `Thank you! Your delivery details for ${matchedProduct.name} have been received. We will confirm your order and dispatch shortly.`;
-          } else if (detectedLanguage === "hi") {
-            replyText = `धन्यवाद! ${matchedProduct.name} के लिए आपका पता प्राप्त हो गया है। हम तुरंत ऑर्डर कन्फर्म कर देंगे।`;
-          } else {
-            replyText = `Bahut badhiya ji! ${matchedProduct.name} ke liye aapka delivery address note kar liya gaya hai. Hum turant order book kar rahe hain.`;
-          }
-          updateConversationContext(cleanPhone, { activeStage: "order_confirmed" });
-        } else if (effectiveQty) {
-          // Multi-turn order confirmation prompt with quantity
-          if (detectedLanguage === "en") {
-            replyText = `Certainly! ${effectiveQty} packs of ${matchedProduct.name} (${variantName}). Please share your delivery name, full address, and pincode to confirm your order.`;
-          } else if (detectedLanguage === "hi") {
-            replyText = `बिल्कुल जी! ${matchedProduct.name} (${variantName}) के ${effectiveQty} पैक। डिलीवरी के लिए कृपया अपना नाम, पूरा पता और पिनकोड साझा करें।`;
-          } else {
-            replyText = `Bilkul ji! ${matchedProduct.name} (${variantName}) ke ${effectiveQty} pack. Delivery ke liye apna naam, poora address aur pincode share kar dijiye ji.`;
-          }
-          updateConversationContext(cleanPhone, { activeStage: "awaiting_address" });
-        } else {
-          replyText = fillTemplate(TEMPLATES.order_with_product_prompt[detectedLanguage], {
-            productName: matchedProduct.name,
-          });
-          updateConversationContext(cleanPhone, { activeStage: "awaiting_address" });
-        }
-      } else {
-        replyText = TEMPLATES.order_prompt[detectedLanguage];
-        updateConversationContext(cleanPhone, { activeStage: "awaiting_quantity" });
-      }
-      break;
-    }
-
-    // 6. Existing Order Status
-    case "order_status": {
-      const order = await getCustomerLatestOrder(cleanPhone);
-      if (order && order.orderNumber) {
-        const rawStatus = (order.status || "Processing").toLowerCase();
-        const stage = (order.shippingStage || order.stage || "").toLowerCase();
-        const loc = order.currentLocation || order.transitLocation || order.location || "";
-
-        if (stage === "delivering_tomorrow" || rawStatus === "delivering_tomorrow" || rawStatus.includes("tomorrow")) {
-          replyText = fillTemplate(TEMPLATES.delivering_tomorrow[detectedLanguage], {
-            orderNumber: order.orderNumber,
-          });
-        } else if (loc || stage === "in_transit" || rawStatus === "in_transit" || rawStatus === "in transit") {
-          const locName = loc || (detectedLanguage === "en" ? "Regional Sorting Hub" : "Sorting Hub");
-          replyText = fillTemplate(TEMPLATES.transit_location[detectedLanguage], {
-            orderNumber: order.orderNumber,
-            location: locName,
-          });
-        } else if (rawStatus === "shipped" || rawStatus === "dispatched" || order.consignmentNumber) {
-          replyText = fillTemplate(TEMPLATES.dispatched[detectedLanguage], {
-            orderNumber: order.orderNumber,
-          });
-        } else if (rawStatus === "delivered") {
-          replyText = detectedLanguage === "en"
-            ? `Your order #${order.orderNumber} has been successfully delivered. Thank you!`
-            : detectedLanguage === "hi"
-            ? `आपका ऑर्डर #${order.orderNumber} सफलतापूर्वक डिलीवर हो चुका है। धन्यवाद!`
-            : `Aapka order #${order.orderNumber} successfully deliver ho chuka hai ji. Thank you!`;
-        } else {
-          const isDispatchQuery = /dispatch|डिस्पैच/i.test(text || "");
-          if (isDispatchQuery) {
-            replyText = fillTemplate(TEMPLATES.dispatch_enquiry[detectedLanguage], {
-              orderNumber: order.orderNumber,
-            });
-          } else {
-            const statusText = detectedLanguage === "en"
-              ? "being packed at our mountain hub (dispatches in 2–3 days)"
-              : detectedLanguage === "hi"
-              ? "पैकिंग में है (2-3 दिन में शिप होगा)"
-              : "artisan packaging mein hai (2–3 din mein ship hoga)";
-            replyText = fillTemplate(TEMPLATES.order_status_with_order[detectedLanguage], {
-              orderNumber: order.orderNumber,
-              status: statusText,
-            });
-          }
-        }
-      } else {
-        replyText = TEMPLATES.order_status_ask_number[detectedLanguage];
-      }
-      break;
-    }
-
-    // 7. Payment Enquiry
-    case "payment_enquiry": {
-      const order = await getCustomerLatestOrder(cleanPhone);
-      const isPaid = order && (order.paymentStatus === "paid" || order.paymentStatus === "collected");
-      if (isPaid) {
-        replyText = TEMPLATES.payment_confirmed[detectedLanguage];
-      } else if (order && order.totalPaise) {
-        const amt = Math.round(order.totalPaise / 100).toLocaleString("en-IN");
-        replyText = fillTemplate(TEMPLATES.payment_pending[detectedLanguage], {
-          orderNumber: order.orderNumber,
-          amount: amt,
-        });
-      } else {
-        replyText = TEMPLATES.payment_instructions[detectedLanguage];
-      }
-      break;
-    }
-
-    // 8. Delivery Timeline & Dispatch Enquiry
-    case "delivery_enquiry": {
-      const order = await getCustomerLatestOrder(cleanPhone);
-      const isDispatchQuery = /dispatch|डिस्पैच/i.test(text || "");
-
-      if (order && order.orderNumber) {
-        const rawStatus = (order.status || "").toLowerCase();
-        const stage = (order.shippingStage || order.stage || "").toLowerCase();
-        const loc = order.currentLocation || order.transitLocation || order.location || "";
-
-        if (stage === "delivering_tomorrow" || rawStatus === "delivering_tomorrow" || rawStatus.includes("tomorrow")) {
-          replyText = fillTemplate(TEMPLATES.delivering_tomorrow[detectedLanguage], {
-            orderNumber: order.orderNumber,
-          });
-        } else if (loc || stage === "in_transit" || rawStatus === "in_transit" || rawStatus === "in transit") {
-          const locName = loc || (detectedLanguage === "en" ? "Regional Sorting Hub" : "Sorting Hub");
-          replyText = fillTemplate(TEMPLATES.transit_location[detectedLanguage], {
-            orderNumber: order.orderNumber,
-            location: locName,
-          });
-        } else if (rawStatus === "shipped" || rawStatus === "dispatched" || order.consignmentNumber) {
-          replyText = fillTemplate(TEMPLATES.dispatched[detectedLanguage], {
-            orderNumber: order.orderNumber,
-          });
-        } else if (isDispatchQuery) {
-          replyText = fillTemplate(TEMPLATES.dispatch_enquiry[detectedLanguage], {
-            orderNumber: order.orderNumber,
-          });
-        } else {
-          replyText = TEMPLATES.delivery_timeline[detectedLanguage];
-        }
-      } else {
-        replyText = isDispatchQuery
-          ? TEMPLATES.dispatch_general[detectedLanguage]
-          : TEMPLATES.delivery_timeline[detectedLanguage];
-      }
-      break;
-    }
-
-    // 9. Complaint / Damaged / Return
-    case "complaint": {
-      setHumanAgentHandoff(cleanPhone, "Support Escalation");
-      replyText = TEMPLATES.complaint[detectedLanguage];
-      handoffRequired = true;
-      break;
-    }
-
-    // 10. Wholesale / Bulk Enquiry
-    case "wholesale_enquiry": {
-      replyText = TEMPLATES.wholesale[detectedLanguage];
-      break;
-    }
-
-    // 11. General Purity / Organic Origin
-    case "general_question": {
-      replyText = fillTemplate(TEMPLATES.general_purity[detectedLanguage], {
-        catalogueLink: catalogueUrl,
-      });
-      break;
-    }
-
-    // 12. Human Agent Request
-    case "human_handoff": {
-      setHumanAgentHandoff(cleanPhone, "Nishant (Store Desk)");
-      replyText = TEMPLATES.human_handoff[detectedLanguage];
-      handoffRequired = true;
-      break;
-    }
-
-    // 13. Unclear Query / Fallback
-    case "unclear_intent":
-    default: {
-      replyText = fillTemplate(TEMPLATES.unclear_fallback[detectedLanguage], {
-        catalogueLink: catalogueUrl,
-      });
-      handoffRequired = true;
-      break;
-    }
+  if (
+    classification.category === "complaints_returns_refunds" ||
+    classification.intent === "complaint"
+  ) {
+    setHumanAgentHandoff(cleanPhone, "Support Escalation");
+    handoffRequired = true;
+  } else if (
+    classification.intent === "human_handoff" ||
+    selectedTemplateId === "auto_handoff_explicit_request"
+  ) {
+    setHumanAgentHandoff(cleanPhone, "Nishant (Store Desk)");
+    handoffRequired = true;
   }
+
+  // Retrieve template from internal automated template library
+  const matchedTemplate =
+    (selectedTemplateId ? getAutomatedTemplateById(selectedTemplateId) : undefined) ||
+    findBestAutomatedTemplate(classification.intent, classification.subIntent);
+
+  // Prepare variable substitutions
+  const variantName =
+    entities.variantName ||
+    context.lastDiscussedVariant ||
+    matchedProduct?.variants[0]?.name ||
+    "500g Glass Jar";
+
+  const priceVal =
+    entities.variant?.price ||
+    matchedProduct?.price ||
+    context.lastDiscussedPrice ||
+    550;
+
+  const orderNum =
+    entities.orderNumber ||
+    latestOrder?.orderNumber ||
+    "PM-9021";
+
+  const orderAmt = latestOrder?.totalPaise
+    ? Math.round(latestOrder.totalPaise / 100).toLocaleString("en-IN")
+    : "1,100";
+
+  const orderLocation =
+    latestOrder?.currentLocation ||
+    latestOrder?.transitLocation ||
+    latestOrder?.location ||
+    (detectedLanguage === "en" ? "Regional Sorting Hub" : "Sorting Hub");
+
+  const orderStatusText =
+    latestOrder?.status ||
+    (detectedLanguage === "en" ? "being packed at our Solan mountain hub" : "artisan packing mein hai");
+
+  const productLinkUrl = matchedProduct?.url || catalogueUrl;
+
+  const variables: Record<string, string | number> = {
+    catalogueLink: catalogueUrl,
+    productLink: productLinkUrl,
+    productName: matchedProduct?.name || context.lastDiscussedProductName || "Himalayan Pure Products",
+    packaging: variantName,
+    livePrice: priceVal.toLocaleString("en-IN"),
+    quantity: entities.quantity || context.lastDiscussedQuantity || 1,
+    orderNumber: orderNum,
+    amount: orderAmt,
+    location: orderLocation,
+    status: orderStatusText,
+    phone: cleanPhone,
+    customerName: updatedCustomerName || "Customer",
+  };
+
+  // Render response in customer's detected language
+  const replyText = renderAutomatedTemplate(matchedTemplate, detectedLanguage, variables);
 
   updateConversationContext(cleanPhone, {
-    lastIntent: intent,
+    lastIntent: classification.intent as CustomerIntent,
   });
 
   return {
     replyText,
-    intent,
+    intent: classification.intent as CustomerIntent,
     shouldSend: true,
     handoffRequired,
     updatedCustomerName,
     detectedLanguage,
+    templateId: matchedTemplate.id,
   };
 }
