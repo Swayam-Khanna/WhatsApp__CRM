@@ -466,6 +466,255 @@ export function buildSpeedPostDispatchMessage(params: {
   return buildOrderShippedMessage(params);
 }
 
+/**
+ * Builds automated Order Processing notification.
+ */
+export function buildOrderProcessingMessage(params: {
+  customerName: string;
+  orderNumber: string;
+}): string {
+  const name = params.customerName?.trim() || "ji";
+  const ordTag = params.orderNumber.startsWith("#") ? params.orderNumber : `#${params.orderNumber}`;
+  return [
+    `Namaste ${name}! ⏳`,
+    ``,
+    `Update on your Prajnaa Market order *${ordTag}*:`,
+    `Your order has been confirmed and is now being *processed* by our Himalayan harvest team. 🌿`,
+    ``,
+    `We are carefully preparing your authentic natural produce directly from the farms. You will receive another notification as soon as your parcel is packed!`,
+    `*Team Prajnaa Market* 🌿`,
+  ].join("\n");
+}
+
+/**
+ * Builds automated Order Packed notification.
+ */
+export function buildOrderPackedMessage(params: {
+  customerName: string;
+  orderNumber: string;
+}): string {
+  const name = params.customerName?.trim() || "ji";
+  const ordTag = params.orderNumber.startsWith("#") ? params.orderNumber : `#${params.orderNumber}`;
+  return [
+    `Namaste ${name}! 📦`,
+    ``,
+    `Great news! Your Prajnaa Market order *${ordTag}* has been *quality-checked and carefully packed*.`,
+    ``,
+    `It is safely sealed and prepared for dispatch via India Post Speed Post. We will share your tracking consignment details as soon as it is handed over to the courier! 🌿`,
+    `*Team Prajnaa Market* 🌿`,
+  ].join("\n");
+}
+
+/**
+ * Builds automated Out For Delivery notification.
+ */
+export function buildOrderOutForDeliveryMessage(params: {
+  customerName: string;
+  orderNumber: string;
+}): string {
+  const name = params.customerName?.trim() || "ji";
+  const ordTag = params.orderNumber.startsWith("#") ? params.orderNumber : `#${params.orderNumber}`;
+  return [
+    `Namaste ${name}! 🛵`,
+    ``,
+    `Exciting update! Your Prajnaa Market order *${ordTag}* is *out for delivery today*! 🎉`,
+    ``,
+    `The delivery executive / India Post postman will be arriving with your parcel shortly. Please keep your phone reachable to receive your fresh farm harvest! 🌿`,
+    `*Team Prajnaa Market* 🌿`,
+  ].join("\n");
+}
+
+/**
+ * Builds automated Order Delivered notification.
+ */
+export function buildOrderDeliveredMessage(params: {
+  customerName: string;
+  orderNumber: string;
+}): string {
+  const name = params.customerName?.trim() || "ji";
+  const ordTag = params.orderNumber.startsWith("#") ? params.orderNumber : `#${params.orderNumber}`;
+  return [
+    `Namaste ${name}! 🎉`,
+    ``,
+    `Aapka Prajnaa Market order *${ordTag}* successfully *deliver ho gaya hai*! ✅`,
+    ``,
+    `We hope you love the purity and freshness of your Himalayan harvest. If you have any feedback or questions, please reply to this message directly.`,
+    ``,
+    `Dhanyawaad for supporting our Himalayan farmer community! 🌿🌸`,
+    `*Team Prajnaa Market*`,
+  ].join("\n");
+}
+
+/**
+ * Builds automated Order Cancelled notification.
+ */
+export function buildOrderCancelledMessage(params: {
+  customerName: string;
+  orderNumber: string;
+  reason?: string;
+}): string {
+  const name = params.customerName?.trim() || "ji";
+  const ordTag = params.orderNumber.startsWith("#") ? params.orderNumber : `#${params.orderNumber}`;
+  const reasonLine = params.reason ? `\nReason: ${params.reason}\n` : "";
+  return [
+    `Namaste ${name}! ℹ️`,
+    ``,
+    `Aapka Prajnaa Market order *${ordTag}* cancel kar diya gaya hai.${reasonLine}`,
+    `Agar yeh kisi galti se hua hai ya aapko refund/replacement mein koi sahayata chahiye, toh kripya yahan reply karein. Humari team aapki poori madad karegi! 🌿`,
+    `*Team Prajnaa Market*`,
+  ].join("\n");
+}
+
+/**
+ * Unified Master Helper: Builds the appropriate, polite WhatsApp notification for ANY order status transition.
+ */
+export function buildOrderStatusNotificationMessage(params: {
+  status: string;
+  customerName: string;
+  orderNumber: string;
+  location?: string;
+  trackingId?: string;
+  carrier?: string;
+  reason?: string;
+}): string {
+  const normStatus = (params.status || "").toLowerCase().replace(/[\s_-]+/g, "");
+  const name = params.customerName?.trim() || "ji";
+  const ordTag = params.orderNumber?.startsWith("#") ? params.orderNumber : `#${params.orderNumber || "PRJ-ORD"}`;
+  const trackingPart = params.trackingId
+    ? `\n📦 *Tracking Consignment:* ${params.trackingId}${params.carrier ? ` (${params.carrier})` : ""}\n`
+    : "";
+
+  switch (normStatus) {
+    case "processing":
+      return buildOrderProcessingMessage(params);
+
+    case "packed":
+      return buildOrderPackedMessage(params);
+
+    case "shipped":
+    case "partiallyshipped":
+      if (params.trackingId) {
+        return buildSpeedPostDispatchMessage(params);
+      }
+      return [
+        `Namaste ${name}! 🚀`,
+        ``,
+        `Your Prajnaa Market order *${ordTag}* has been *dispatched and shipped*! 🌿${trackingPart}`,
+        `Dispatch Hub: Solan / Dehradun Postal Sorting Center`,
+        ``,
+        `Hum aapko har transit hub ki live milestone update isi WhatsApp par send karte rahenge.`,
+        `*Team Prajnaa Market* 🌿`,
+      ].join("\n");
+
+    case "intransit":
+    case "transit": {
+      const loc = params.location?.trim() || "Regional Sorting Hub";
+      return [
+        `Namaste ${name}! 📍`,
+        ``,
+        `Transit Update for order *${ordTag}*:`,
+        `Your parcel has reached *${loc}* and is moving smoothly towards your destination address. 🌿${trackingPart}`,
+        `Pure Himalayan farm goodness is on its way to you!`,
+        `*Team Prajnaa Market* 🌿`,
+      ].join("\n");
+    }
+
+    case "outfordelivery":
+      return buildOrderOutForDeliveryMessage(params);
+
+    case "deliveringtomorrow":
+      return buildOrderDeliveringTomorrowMessage(params);
+
+    case "delivered":
+    case "completed":
+      return buildOrderDeliveredMessage(params);
+
+    case "cancelled":
+      return buildOrderCancelledMessage(params);
+
+    case "pending":
+    default:
+      return [
+        `Namaste ${name}! 🕒`,
+        ``,
+        `Aapka order *${ordTag}* hume praapt ho gaya hai aur *pending review* status mein hai.`,
+        ``,
+        `Humari team jald hi farm harvest check karke ise process karegi. Prajnaa Market par bharosa karne ke liye dhanyawad! 🌿`,
+        `*Team Prajnaa Market*`,
+      ].join("\n");
+  }
+}
+
+/**
+ * Sends an automated Order Status WhatsApp update directly to the customer.
+ */
+export async function sendOrderStatusNotificationToCustomer(params: {
+  orderNumber: string;
+  customerPhone: string;
+  customerName: string;
+  status: string;
+  location?: string;
+  trackingId?: string;
+  carrier?: string;
+  reason?: string;
+}): Promise<WhatsAppMessageResult> {
+  const text = buildOrderStatusNotificationMessage(params);
+  const result = await sendWhatsAppTextMessage({
+    to: params.customerPhone,
+    text,
+  });
+
+  const msgRecord = {
+    id: result.messageId || `msg_status_${Date.now()}`,
+    direction: "outbound",
+    sender: "business",
+    from: process.env.ADMIN_WHATSAPP_NUMBER || "918091265690",
+    to: result.recipientPhone || params.customerPhone,
+    customerName: params.customerName,
+    text,
+    timestamp: new Date().toISOString(),
+    status: "sent",
+    orderNumber: params.orderNumber,
+    type: `order_status_${params.status.toLowerCase().replace(/[\s_-]+/g, "_")}`,
+    mode: result.mode,
+    whatsappUrl: result.whatsappUrl || null,
+    createdAt: new Date(),
+  };
+
+  if (!globalThis.__globalWhatsAppFeed) globalThis.__globalWhatsAppFeed = [];
+  globalThis.__globalWhatsAppFeed.unshift(msgRecord);
+
+  try {
+    const { getDatabase } = await import("../../lib/mongodb.ts");
+    const mongoDb = await getDatabase();
+    if (mongoDb) {
+      await mongoDb.collection("crm_messages").insertOne(msgRecord);
+    }
+  } catch {}
+
+  try {
+    const { db, isPostgresConfigured } = await import("../db.ts");
+    const { crmMessages } = await import("../schema/crm.ts");
+    if (isPostgresConfigured) {
+      await db.insert(crmMessages).values({
+        id: msgRecord.id,
+        direction: "outbound",
+        sender: "business",
+        from: msgRecord.from,
+        to: msgRecord.to,
+        customerName: params.customerName || null,
+        text: msgRecord.text,
+        type: msgRecord.type || "text",
+        status: "sent",
+        isAutomated: true,
+        createdAt: new Date(),
+      });
+    }
+  } catch {}
+
+  return result;
+}
+
 declare global {
   // eslint-disable-next-line no-var
   var __crmChatSessions: Map<string, { stage: string; customerName?: string; updatedAt: number }> | undefined;

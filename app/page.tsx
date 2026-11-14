@@ -412,7 +412,7 @@ interface Order {
   itemsCount: number;
   amount: number;
   paymentStatus: "Pending" | "Paid" | "Refunded" | "COD";
-  orderStatus: "Pending" | "Processing" | "Packed" | "Shipped" | "In Transit" | "Delivering Tomorrow" | "Delivered" | "Cancelled" | "Completed";
+  orderStatus: "Pending" | "Processing" | "Packed" | "Shipped" | "In Transit" | "Out for Delivery" | "Delivering Tomorrow" | "Delivered" | "Cancelled" | "Completed";
   currentLocation?: string;
   date: string;
   time?: string;
@@ -796,6 +796,64 @@ const numberToWordsIndian = (num: number): string => {
 
   return str.trim() + " Rupees Only";
 };
+
+// Unified Master Helper: Builds the appropriate, polite WhatsApp notification for ANY order status transition.
+const getOrderStatusNotificationText = (
+  status: string,
+  order: { customerName?: string; orderNumber: string; trackingNumber?: string },
+  location?: string
+): string => {
+  const custName = order?.customerName?.trim() || "ji";
+  const orderNumTag = order?.orderNumber?.startsWith("#") ? order.orderNumber : `#${order?.orderNumber || "PRJ-ORD"}`;
+  const trackingPart = order?.trackingNumber ? `\n📦 *Tracking Consignment:* ${order.trackingNumber}\n` : "";
+  const currentLoc = location?.trim() || "Regional Sorting Hub";
+  const normStatus = (status || "").toLowerCase().replace(/[\s_-]+/g, "");
+
+  switch (normStatus) {
+    case "processing":
+      return `Namaste ${custName}! ⏳\n\nUpdate on your Prajnaa Market order *${orderNumTag}*:\nYour order has been confirmed and is now being *processed* by our Himalayan harvest team. 🌿\n\nWe are carefully preparing your authentic natural produce directly from the farms. You will receive another notification as soon as your parcel is packed!\n\n*Team Prajnaa Market* 🌿`;
+
+    case "packed":
+      return `Namaste ${custName}! 📦\n\nGreat news! Your Prajnaa Market order *${orderNumTag}* has been *quality-checked and carefully packed*. 🌿\n\nIt is safely sealed and prepared for dispatch via India Post Speed Post. We will share your tracking consignment details as soon as it is handed over to the courier!\n\n*Team Prajnaa Market* 🌿`;
+
+    case "shipped":
+    case "partiallyshipped":
+      return `Namaste ${custName}! 🚀\n\nYour Prajnaa Market order *${orderNumTag}* has been *dispatched and shipped*! 🌿${trackingPart}Dispatch Hub: Solan / Dehradun Postal Sorting Center\n\nHum aapko har transit hub ki live milestone update isi WhatsApp par send karte rahenge.\n\n*Team Prajnaa Market* 🌿`;
+
+    case "intransit":
+    case "transit":
+      return `Namaste ${custName}! 📍\n\nTransit Update for order *${orderNumTag}*:\nYour parcel has reached *${currentLoc}* and is moving smoothly towards your destination address. 🌿${trackingPart}\nPure Himalayan farm goodness is on its way to you!\n\n*Team Prajnaa Market* 🌿`;
+
+    case "outfordelivery":
+      return `Namaste ${custName}! 🛵\n\nExciting update! Your Prajnaa Market order *${orderNumTag}* is *out for delivery today*! 🎉\n\nThe delivery executive / India Post postman will be arriving with your parcel shortly. Please keep your phone reachable to receive your fresh farm harvest! 🌿\n\n*Team Prajnaa Market* 🌿`;
+
+    case "deliveringtomorrow":
+      return `Namaste ${custName}! 🚚\n\nZaroori Delivery Update for order *${orderNumTag}*:\nAapka parcel local delivery hub pahunch chuka hai aur *kal deliver ho jayega*. 🌿\n\nKripya delivery receive karne ke liye available rahein. Prajnaa Himalayan harvest choose karne ke liye dhanyawad!\n\n*Team Prajnaa Market* 🌿`;
+
+    case "delivered":
+    case "completed":
+      return `Namaste ${custName}! 🎉\n\nAapka Prajnaa Market order *${orderNumTag}* successfully *deliver ho gaya hai*! ✅\n\nWe hope you love the purity and freshness of your Himalayan harvest. If you have any feedback or questions, please reply to this message directly.\n\nDhanyawaad for supporting our Himalayan farmer community! 🌿🌸\n\n*Team Prajnaa Market*`;
+
+    case "cancelled":
+      return `Namaste ${custName}! ℹ️\n\nAapka Prajnaa Market order *${orderNumTag}* cancel kar diya gaya hai.\n\nAgar yeh kisi galti se hua hai ya aapko refund/replacement mein koi sahayata chahiye, toh kripya yahan reply karein. Humari team aapki poori madad karegi! 🌿\n\n*Team Prajnaa Market*`;
+
+    case "pending":
+    default:
+      return `Namaste ${custName}! 🕒\n\nAapka order *${orderNumTag}* hume praapt ho gaya hai aur *pending review* status mein hai.\n\nHumari team jald hi farm harvest check karke ise process karegi. Prajnaa Market par bharosa karne ke liye dhanyawad! 🌿\n\n*Team Prajnaa Market*`;
+  }
+};
+
+const ORDER_STATUS_OPTIONS = [
+  { key: "Pending", label: "Pending", icon: "🕒", desc: "Awaiting review" },
+  { key: "Processing", label: "Processing", icon: "⏳", desc: "Prepping harvest" },
+  { key: "Packed", label: "Packed", icon: "📦", desc: "Checked & sealed" },
+  { key: "Shipped", label: "Shipped", icon: "🚀", desc: "Dispatched (Post)" },
+  { key: "In Transit", label: "In Transit", icon: "📍", desc: "En route at hub" },
+  { key: "Out for Delivery", label: "Out for Delivery", icon: "🛵", desc: "With courier today" },
+  { key: "Delivering Tomorrow", label: "Delivering Tomorrow", icon: "🚚", desc: "Arrives tomorrow" },
+  { key: "Delivered", label: "Delivered", icon: "✅", desc: "Safely received" },
+  { key: "Cancelled", label: "Cancelled", icon: "❌", desc: "Order cancelled" },
+] as const;
 
 // Initial Products Data (All 14 Authoritative Himalayan Store Items with Real Photographs)
 const INITIAL_PRODUCTS: ProductItem[] = [
@@ -4929,33 +4987,55 @@ export default function PrajnaaMasterCrmApp() {
   // Automated WhatsApp Dispatch Milestone Notification for Shipments & Speed Post section
   const handleSendShipmentMilestone = async (
     shipmentItem: any,
-    milestone: "shipped" | "transit" | "delivering_tomorrow",
+    milestone: "shipped" | "transit" | "out_for_delivery" | "delivering_tomorrow" | "delivered" | "packed" | "processing",
     customLocation?: string
   ) => {
     if (!shipmentItem) return;
 
-    let dispatchMsg = "";
-    let statusLabel = "";
+    let statusLabel: Order["orderStatus"] = "Shipped";
     let timelineStatus = "";
     let timelineLoc = "";
 
-    if (milestone === "shipped") {
-      dispatchMsg = `Namaste ${shipmentItem.customer} ji! 📦\n\nAapka Prajnaa Market order *${shipmentItem.orderId}* Solan mountain hub se ship ho gaya hai. 🚚\n\nJaise-jaise parcel aage badhega, hum aapko yahan WhatsApp par automated location updates bhejte rahenge! 🌿\n\n*Team Prajnaa Market*`;
+    if (milestone === "processing") {
+      statusLabel = "Processing";
+      timelineStatus = "Order Processing Initiated";
+      timelineLoc = "Prajnaa Himalayan Hub";
+    } else if (milestone === "packed") {
+      statusLabel = "Packed";
+      timelineStatus = "Produce Quality Checked & Box Packed";
+      timelineLoc = "Prajnaa Packaging Desk, Solan";
+    } else if (milestone === "shipped") {
       statusLabel = "Shipped";
       timelineStatus = "Dispatched from Solan Mountain Hub";
       timelineLoc = "Solan Hub, HP";
     } else if (milestone === "transit") {
       const loc = (customLocation || "").trim() || "Regional Sorting Hub";
-      dispatchMsg = `Namaste ${shipmentItem.customer} ji! 📍\n\nUpdate: aapka Prajnaa Market order *${shipmentItem.orderId}* abhi *${loc}* pahunch chuka hai aur aapke delivery address ki taraf badh raha hai. 🚚\n\n*Team Prajnaa Market* 🌿`;
       statusLabel = "In Transit";
       timelineStatus = `Parcel Reached ${loc}`;
       timelineLoc = loc;
+    } else if (milestone === "out_for_delivery") {
+      statusLabel = "Out for Delivery";
+      timelineStatus = "Out for Delivery with Postman / Courier";
+      timelineLoc = "Destination Postal Delivery Hub";
+    } else if (milestone === "delivered") {
+      statusLabel = "Delivered";
+      timelineStatus = "Delivered Successfully to Recipient";
+      timelineLoc = "Customer Destination";
     } else {
-      dispatchMsg = `Namaste ${shipmentItem.customer} ji! 🚚\n\nGood news: aapka Prajnaa Market order *${shipmentItem.orderId}* kal deliver ho jayega! 🎉\n\nKripya address par kisi ke rehne ka dhyan rakhein.\n\n*Team Prajnaa Market* 🌿`;
       statusLabel = "Delivering Tomorrow";
       timelineStatus = "Scheduled for Tomorrow's Delivery";
       timelineLoc = "Destination Delivery Facility";
     }
+
+    const dispatchMsg = getOrderStatusNotificationText(
+      statusLabel,
+      {
+        customerName: shipmentItem.customer,
+        orderNumber: shipmentItem.orderId,
+        trackingNumber: shipmentItem.trackingId,
+      },
+      timelineLoc
+    );
 
     // 1. Find matching customer
     const targetCust = customers.find(
@@ -4992,12 +5072,7 @@ export default function PrajnaaMasterCrmApp() {
         c.id === targetCust.id
           ? {
               ...c,
-              lastMessageText:
-                milestone === "shipped"
-                  ? `📦 Shipped: Order ${shipmentItem.orderId}`
-                  : milestone === "transit"
-                  ? `📍 Reached ${timelineLoc}`
-                  : `🚚 Delivering Tomorrow: Order ${shipmentItem.orderId}`,
+              lastMessageText: dispatchMsg.split("\n")[0] || `Order ${statusLabel}: ${shipmentItem.orderId}`,
               lastMessageTime: timeStr,
             }
           : c
@@ -5047,8 +5122,16 @@ export default function PrajnaaMasterCrmApp() {
               shippingStage:
                 milestone === "delivering_tomorrow"
                   ? "delivering_tomorrow"
+                  : milestone === "out_for_delivery"
+                  ? "out_for_delivery"
+                  : milestone === "delivered"
+                  ? "delivered"
                   : milestone === "transit"
                   ? "in_transit"
+                  : milestone === "packed"
+                  ? "packed"
+                  : milestone === "processing"
+                  ? "processing"
                   : "shipped",
             }
           : o
@@ -10039,6 +10122,52 @@ export default function PrajnaaMasterCrmApp() {
                     </button>
                   </div>
 
+                  {/* Milestone 4: Out for Delivery */}
+                  <div className="p-2.5 rounded-xl bg-neutral-50 border border-neutral-200/70 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-neutral-800 flex items-center gap-1">
+                        <span>🛵</span> Milestone 4: Out for Delivery
+                      </span>
+                      <span className="text-[10px] text-emerald-700 bg-emerald-50 font-bold px-1.5 py-0.5 rounded-md border border-emerald-200">
+                        Today
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-neutral-500">
+                      Informs customer parcel is out for delivery with courier / postman today.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleSendShipmentMilestone(selectedShipment, "out_for_delivery")}
+                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Send className="h-3 w-3" />
+                      <span>Send &ldquo;Out for Delivery&rdquo; Alert (WhatsApp)</span>
+                    </button>
+                  </div>
+
+                  {/* Milestone 5: Delivered */}
+                  <div className="p-2.5 rounded-xl bg-neutral-50 border border-neutral-200/70 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-neutral-800 flex items-center gap-1">
+                        <span>✅</span> Milestone 5: Delivered Successfully
+                      </span>
+                      <span className="text-[10px] text-green-700 bg-green-50 font-bold px-1.5 py-0.5 rounded-md border border-green-200">
+                        Final Delivery
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-neutral-500">
+                      Confirms successful delivery and sends thank you message on WhatsApp.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleSendShipmentMilestone(selectedShipment, "delivered")}
+                      className="w-full py-2 bg-[#0F3D2E] hover:bg-[#16503d] text-white rounded-xl text-xs font-bold transition shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <CheckCircle2 className="h-3 w-3" />
+                      <span>Send &ldquo;Delivered Successfully&rdquo; Alert (WhatsApp)</span>
+                    </button>
+                  </div>
+
                   {/* Operational links */}
                   <div className="grid grid-cols-2 gap-2 pt-1">
                     <button
@@ -11925,27 +12054,24 @@ export default function PrajnaaMasterCrmApp() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-2">
-              {(["Pending", "Processing", "Shipped", "In Transit", "Delivering Tomorrow", "Delivered", "Cancelled"] as const).map((st) => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {ORDER_STATUS_OPTIONS.map((opt) => (
                 <button
-                  key={st}
-                  onClick={() => setStatusUpdateChoice(st as any)}
-                  className={`p-3 rounded-xl border text-xs font-bold transition cursor-pointer text-left ${
-                    statusUpdateChoice === st
-                      ? "border-emerald-600 bg-emerald-50 text-emerald-800 ring-1 ring-emerald-600"
+                  key={opt.key}
+                  onClick={() => setStatusUpdateChoice(opt.key as any)}
+                  className={`p-2.5 rounded-xl border text-xs font-bold transition cursor-pointer text-left flex flex-col justify-between gap-1 ${
+                    statusUpdateChoice === opt.key
+                      ? "border-emerald-600 bg-emerald-50 text-emerald-900 ring-1 ring-emerald-600 shadow-2xs"
                       : "border-neutral-200 text-neutral-700 hover:bg-neutral-50"
                   }`}
                 >
                   <div className="flex items-center gap-1.5">
-                    {st === "Shipped" && <span>📦</span>}
-                    {st === "In Transit" && <span>📍</span>}
-                    {st === "Delivering Tomorrow" && <span>🚚</span>}
-                    {st === "Delivered" && <span>✅</span>}
-                    {st === "Processing" && <span>⏳</span>}
-                    {st === "Pending" && <span>🕒</span>}
-                    {st === "Cancelled" && <span>❌</span>}
-                    <span>{st}</span>
+                    <span>{opt.icon}</span>
+                    <span className="font-bold text-xs">{opt.label}</span>
                   </div>
+                  <span className="text-[10px] text-neutral-500 font-normal truncate block">
+                    {opt.desc}
+                  </span>
                 </button>
               ))}
             </div>
@@ -11977,6 +12103,21 @@ export default function PrajnaaMasterCrmApp() {
               </div>
             )}
 
+            {/* Live WhatsApp Notification Message Preview */}
+            <div className="p-3 bg-emerald-50/70 rounded-2xl border border-emerald-200 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">
+                  <span>💬</span> Live WhatsApp Update Preview
+                </span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                  To: {selectedOrderForView.customerPhone || "Customer"}
+                </span>
+              </div>
+              <div className="text-[11px] text-neutral-800 whitespace-pre-wrap font-sans bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs leading-relaxed max-h-36 overflow-y-auto">
+                {getOrderStatusNotificationText(statusUpdateChoice, selectedOrderForView, transitLocationInput)}
+              </div>
+            </div>
+
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 onClick={() => setShowStatusModal(false)}
@@ -11989,12 +12130,14 @@ export default function PrajnaaMasterCrmApp() {
                   const custName = selectedOrderForView.customerName || "ji";
                   const orderNumTag = selectedOrderForView.orderNumber || "PRJ-ORD";
                   const currentLoc = transitLocationInput.trim() || "Regional Sorting Hub";
+                  const notifyText = getOrderStatusNotificationText(statusUpdateChoice, selectedOrderForView, currentLoc);
 
                   setSelectedOrderForView((prev) => ({
                     ...prev,
                     orderStatus: statusUpdateChoice,
                     currentLocation: statusUpdateChoice === "In Transit" ? currentLoc : prev.currentLocation,
                   }));
+
                   setCreatedOrders((prev) =>
                     prev.map((o) =>
                       o.orderNumber === selectedOrderForView.orderNumber
@@ -12002,20 +12145,57 @@ export default function PrajnaaMasterCrmApp() {
                         : o
                     )
                   );
+
+                  // Find matching customer in WhatsApp CRM
+                  const cleanPhone = (selectedOrderForView.customerPhone || "").replace(/\D/g, "");
+                  const matchingCust =
+                    customers.find(
+                      (c) =>
+                        (cleanPhone.length >= 10 && c.phone.replace(/\D/g, "").endsWith(cleanPhone.slice(-10))) ||
+                        c.name.toLowerCase() === custName.toLowerCase() ||
+                        c.latestOrder?.orderNumber === selectedOrderForView.orderNumber
+                    ) || currentCustomer;
+
+                  // Update customer state & last message
+                  const now = new Date();
+                  const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                  const dateStr = now.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+
                   setCustomers((prev) =>
                     prev.map((c) =>
-                      c.latestOrder?.orderNumber === selectedOrderForView.orderNumber
+                      c.id === matchingCust.id || c.latestOrder?.orderNumber === selectedOrderForView.orderNumber
                         ? {
                             ...c,
+                            lastMessageText: notifyText.split("\n")[0] || `Status updated to ${statusUpdateChoice}`,
+                            lastMessageTime: timeStr,
                             latestOrder: {
                               ...c.latestOrder,
                               orderStatus: statusUpdateChoice,
-                              currentLocation: statusUpdateChoice === "In Transit" ? currentLoc : c.latestOrder.currentLocation,
+                              currentLocation: statusUpdateChoice === "In Transit" ? currentLoc : c.latestOrder?.currentLocation,
                             },
                           }
                         : c
                     )
                   );
+
+                  // Append to CRM active chat thread so admin sees it immediately in Inbox
+                  const newMsg: Message = {
+                    id: `msg_status_${Date.now()}`,
+                    sender: "business",
+                    senderName: "Prajnaa Fulfillment",
+                    text: notifyText,
+                    time: timeStr,
+                    date: dateStr,
+                    type: "text",
+                    status: "delivered",
+                  };
+
+                  setMessagesMap((prev: any) => ({
+                    ...prev,
+                    [matchingCust.id]: [...(prev[matchingCust.id] || []), newMsg],
+                  }));
+
+                  // Update localStorage orders
                   setCrmOrders((prev) => {
                     const updated = prev.map((o) =>
                       `#${o.orderNumber || o.id}` === selectedOrderForView.orderNumber ||
@@ -12025,7 +12205,7 @@ export default function PrajnaaMasterCrmApp() {
                             ...o,
                             status: statusUpdateChoice,
                             currentLocation: statusUpdateChoice === "In Transit" ? currentLoc : o.currentLocation,
-                            shippingStage: statusUpdateChoice === "Delivering Tomorrow" ? "delivering_tomorrow" : statusUpdateChoice.toLowerCase(),
+                            shippingStage: statusUpdateChoice === "Delivering Tomorrow" ? "delivering_tomorrow" : statusUpdateChoice === "Out for Delivery" ? "out_for_delivery" : statusUpdateChoice.toLowerCase(),
                           }
                         : o
                     );
@@ -12035,41 +12215,31 @@ export default function PrajnaaMasterCrmApp() {
                     return updated;
                   });
 
-                  // Automated WhatsApp Notification to Customer
-                  let notifyText = "";
-                  if (statusUpdateChoice === "Shipped") {
-                    notifyText = `Namaste ${custName}! 📦\n\nGood news! Aapka Prajnaa Market order ${orderNumTag} ship ho gaya hai.\n\nHum aapko har transit location ki live update isi WhatsApp par bhejte rahenge. 🌿`;
-                  } else if (statusUpdateChoice === "In Transit") {
-                    notifyText = `Namaste ${custName}! 📍\n\nAapka Prajnaa Market order ${orderNumTag} abhi *${currentLoc}* pahunch chuka hai aur aage transit mein hai. 🌿`;
-                  } else if (statusUpdateChoice === "Delivering Tomorrow") {
-                    notifyText = `Namaste ${custName}! 🚚\n\nZaroori update: Aapka Prajnaa Market order ${orderNumTag} *kal deliver ho jayega*.\n\nKripya parcel receive karne ke liye apna phone available rakhein! 🌿`;
-                  } else if (statusUpdateChoice === "Delivered") {
-                    notifyText = `Namaste ${custName}! 🎉\n\nAapka Prajnaa Market order ${orderNumTag} successfully deliver ho gaya hai. Prajnaa Himalayan harvest choose karne ke liye dhanyawad! 🌿`;
-                  }
-
-                  if (notifyText) {
-                    try {
-                      const targetPhone = (selectedOrderForView.customerPhone || "917018490629").replace(/\D/g, "");
-                      fetch("/api/crm/messages", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          sender: "business",
-                          from: "918091265690",
-                          to: targetPhone.length === 10 ? `91${targetPhone}` : targetPhone,
-                          customerName: custName,
-                          text: notifyText,
-                        }),
-                      }).catch(() => {});
-                    } catch {}
-                  }
+                  // Dispatch automated WhatsApp notification via server pipeline
+                  const targetPhone = cleanPhone || "918091265690";
+                  try {
+                    fetch("/api/crm/messages", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        sender: "business",
+                        from: "918091265690",
+                        to: targetPhone.length === 10 ? `91${targetPhone}` : targetPhone,
+                        customerName: custName,
+                        text: notifyText,
+                        orderNumber: selectedOrderForView.orderNumber,
+                        customerId: matchingCust.id,
+                      }),
+                    }).catch((err) => console.warn("WhatsApp status dispatch error:", err));
+                  } catch {}
 
                   if (typeof window !== "undefined") {
                     window.dispatchEvent(new Event("storage"));
                     window.dispatchEvent(new CustomEvent("prajnaa_order_placed"));
                   }
+
                   setShowStatusModal(false);
-                  toast.success(`Order status updated to ${statusUpdateChoice}! Automated notification sent on WhatsApp.`);
+                  toast.success(`Order status updated to "${statusUpdateChoice}"! Automated WhatsApp update sent to ${custName}.`);
                 }}
                 className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer"
               >

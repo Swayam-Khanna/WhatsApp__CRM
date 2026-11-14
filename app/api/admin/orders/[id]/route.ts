@@ -616,6 +616,7 @@ export async function PATCH(
           await restoreOrderStockAtomic(order.id, adminUser, reason);
 
           const nextPaymentStatus = order.paymentStatus === "collected" ? "refunded" : "pending";
+
           await db
             .update(orders)
             .set({
@@ -623,6 +624,21 @@ export async function PATCH(
               updatedAt: new Date(now),
             })
             .where(eq(orders.id, order.id));
+
+          if (order.customerPhone) {
+            try {
+              const { sendOrderStatusNotificationToCustomer } = await import("../../../../../backend/lib/whatsapp.server.ts");
+              await sendOrderStatusNotificationToCustomer({
+                orderNumber: order.orderNumber,
+                customerPhone: order.customerPhone,
+                customerName: order.customerName || "Customer",
+                status: "cancelled",
+                reason: reason,
+              });
+            } catch (waErr) {
+              console.warn("[Admin Order Cancelled] WhatsApp notification dispatch warning:", waErr);
+            }
+          }
         } else {
           const updateData: Record<string, any> = {
             status: nextStatus as any,
@@ -648,6 +664,22 @@ export async function PATCH(
             notes: body.status_note || `Status updated from ${order.status} to ${nextStatus}`,
             createdAt: new Date(now),
           });
+
+          if (order.customerPhone) {
+            try {
+              const { sendOrderStatusNotificationToCustomer } = await import("../../../../../backend/lib/whatsapp.server.ts");
+              await sendOrderStatusNotificationToCustomer({
+                orderNumber: order.orderNumber,
+                customerPhone: order.customerPhone,
+                customerName: order.customerName || "Customer",
+                status: nextStatus,
+                trackingId: currentShipments[0]?.trackingNumber,
+                carrier: currentShipments[0]?.carrier,
+              });
+            } catch (waErr) {
+              console.warn("[Admin Order Status] WhatsApp notification dispatch warning:", waErr);
+            }
+          }
         }
       }
 
@@ -1303,6 +1335,25 @@ export async function PATCH(
     }
 
     await docRef.update(patch);
+
+    if (patch.status && (currentOrder.customer_phone || currentOrder.phone || currentOrder.customerPhone)) {
+      try {
+        const { sendOrderStatusNotificationToCustomer } = await import("../../../../../backend/lib/whatsapp.server.ts");
+        const phone = currentOrder.customer_phone || currentOrder.phone || currentOrder.customerPhone;
+        await sendOrderStatusNotificationToCustomer({
+          orderNumber: currentOrder.order_id || docRef.id,
+          customerPhone: phone,
+          customerName: currentOrder.customer_name || currentOrder.name || currentOrder.customerName || "Customer",
+          status: patch.status,
+          trackingId: patch.tracking_number || currentOrder.tracking_number,
+          carrier: patch.carrier_name || currentOrder.carrier_name,
+          reason: patch.cancellation_reason,
+        });
+      } catch (waErr) {
+        console.warn("[Firestore Admin Order Status] WhatsApp notification dispatch warning:", waErr);
+      }
+    }
+
     const updatedSnap = await docRef.get();
     const updatedData = updatedSnap.data() || {};
 
