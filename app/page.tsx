@@ -1098,7 +1098,162 @@ export default function PrajnaaMasterCrmApp() {
   const [createdOrders, setCreatedOrders] = useState<Order[]>([]);
   const [showInvoiceModal, setShowInvoiceModal] = useState<boolean>(false);
 
-  // State: Global Universal Search Bar (Dashboard Header)
+  // Dedicated, bulletproof print engine for Official Tax Invoice
+  const handlePrintInvoice = () => {
+    if (typeof window === "undefined") return;
+
+    const invoiceEl = document.getElementById("prajnaa-tax-invoice");
+    if (!invoiceEl) {
+      window.print();
+      return;
+    }
+
+    // Clean up any existing print iframe
+    const oldFrame = document.getElementById("prajnaa-print-frame");
+    if (oldFrame && oldFrame.parentNode) {
+      oldFrame.parentNode.removeChild(oldFrame);
+    }
+
+    // Create isolated invisible iframe for printing
+    const iframe = document.createElement("iframe");
+    iframe.id = "prajnaa-print-frame";
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.visibility = "hidden";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      window.print();
+      return;
+    }
+
+    // Extract all stylesheets and style blocks from current document
+    let stylesHtml = "";
+    document.querySelectorAll("link[rel='stylesheet'], style").forEach((node) => {
+      stylesHtml += node.outerHTML;
+    });
+
+    const invoiceTitle = selectedOrderForView?.orderNumber
+      ? `Tax Invoice - ${selectedOrderForView.orderNumber}`
+      : "Tax Invoice - Prajnaa Market";
+
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>${invoiceTitle}</title>
+        ${stylesHtml}
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 6mm 8mm;
+          }
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            box-sizing: border-box;
+          }
+          html, body {
+            background: #ffffff !important;
+            color: #111827 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            width: 100% !important;
+            height: auto !important;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+          }
+          #prajnaa-tax-invoice {
+            box-shadow: none !important;
+            border: none !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+            display: block !important;
+            visibility: visible !important;
+          }
+          .print-keep {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          table {
+            page-break-inside: auto;
+          }
+          tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+        </style>
+      </head>
+      <body class="bg-white">
+        <div style="width: 100%; max-width: 820px; margin: 0 auto; padding: 4px;">
+          ${invoiceEl.outerHTML}
+        </div>
+      </body>
+      </html>
+    `);
+    doc.close();
+
+    const executePrint = () => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (err) {
+        console.warn("Iframe print fallback triggered:", err);
+        window.print();
+      } finally {
+        setTimeout(() => {
+          const frame = document.getElementById("prajnaa-print-frame");
+          if (frame && frame.parentNode) {
+            frame.parentNode.removeChild(frame);
+          }
+        }, 2000);
+      }
+    };
+
+    // Ensure images (such as Prajnaa logo) are loaded prior to opening print preview
+    const images = iframe.contentDocument?.images;
+    if (images && images.length > 0) {
+      let pending = images.length;
+      let fired = false;
+      const done = () => {
+        if (!fired) {
+          fired = true;
+          executePrint();
+        }
+      };
+      for (let i = 0; i < images.length; i++) {
+        if (images[i].complete) {
+          pending--;
+        } else {
+          images[i].onload = () => {
+            pending--;
+            if (pending <= 0) done();
+          };
+          images[i].onerror = () => {
+            pending--;
+            if (pending <= 0) done();
+          };
+        }
+      }
+      if (pending <= 0) {
+        setTimeout(done, 100);
+      } else {
+        setTimeout(done, 500); // Fail-safe timeout
+      }
+    } else {
+      setTimeout(executePrint, 150);
+    }
+  };
   const [globalSearch, setGlobalSearch] = useState<string>("");
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState<boolean>(false);
   const globalSearchRef = useRef<HTMLDivElement>(null);
@@ -12403,8 +12558,14 @@ export default function PrajnaaMasterCrmApp() {
       {/* 5.8. OFFICIAL TAX INVOICE & COMMERCIAL SLIP MODAL           */}
       {/* ========================================================= */}
       {showInvoiceModal && selectedOrderForView && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-neutral-100 dark:bg-slate-900 rounded-3xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl border border-neutral-300 dark:border-slate-800 overflow-hidden my-auto">
+        <div
+          id="prajnaa-tax-invoice-modal-overlay"
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto"
+        >
+          <div
+            id="prajnaa-tax-invoice-modal-card"
+            className="bg-neutral-100 dark:bg-slate-900 rounded-3xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl border border-neutral-300 dark:border-slate-800 overflow-hidden my-auto"
+          >
             {/* Top Modal Controls Bar (Hidden during Print) */}
             <div className="px-5 py-3.5 bg-white dark:bg-slate-800 border-b border-neutral-200 dark:border-slate-700 flex items-center justify-between gap-3 shrink-0 print:hidden">
               <div className="flex items-center gap-2.5">
@@ -12427,7 +12588,7 @@ export default function PrajnaaMasterCrmApp() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => window.print()}
+                  onClick={handlePrintInvoice}
                   className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
                 >
                   <Printer className="h-3.5 w-3.5" />
@@ -12445,7 +12606,10 @@ export default function PrajnaaMasterCrmApp() {
             </div>
 
             {/* Scrollable Document Preview Area */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-neutral-200/60 dark:bg-slate-950 flex justify-center items-start print:p-0 print:m-0 print:bg-white print:overflow-visible">
+            <div
+              id="prajnaa-tax-invoice-preview-wrapper"
+              className="flex-1 overflow-y-auto p-4 sm:p-8 bg-neutral-200/60 dark:bg-slate-950 flex justify-center items-start print:p-0 print:m-0 print:bg-white print:overflow-visible"
+            >
               {/* THE OFFICIAL TAX INVOICE A4 SHEET */}
               <div
                 id="prajnaa-tax-invoice"

@@ -399,7 +399,7 @@ div[data-nextjs-dialog-overlay] {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 8mm 10mm;
+    margin: 6mm 8mm;
   }
 
   html, body {
@@ -411,6 +411,16 @@ div[data-nextjs-dialog-overlay] {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     overflow: visible !important;
+    height: auto !important;
+    min-height: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Reset all overflow and screen-bound height restrictions during print */
+  div, main, section, [class*="h-screen"], [class*="overflow-"] {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
   }
 
   /* Hide interactive CRM UI elements during print */
@@ -429,11 +439,16 @@ div[data-nextjs-dialog-overlay] {
     visibility: hidden !important;
   }
 
-  /* Modal backdrop and containers reset for print */
-  .fixed,
-  .fixed.inset-0,
-  .fixed.inset-0 > div,
-  .fixed.inset-0 > div > div {
+  /* When the invoice modal is open, hide the rest of the CRM dashboard */
+  body:has(#prajnaa-tax-invoice-modal-overlay) > div > *:not(#prajnaa-tax-invoice-modal-overlay),
+  body:has(#prajnaa-tax-invoice) > div > *:not(:has(#prajnaa-tax-invoice)) {
+    display: none !important;
+  }
+
+  /* Modal backdrop and card reset for print */
+  #prajnaa-tax-invoice-modal-overlay,
+  #prajnaa-tax-invoice-modal-card,
+  #prajnaa-tax-invoice-preview-wrapper {
     position: static !important;
     background: #ffffff !important;
     padding: 0 !important;
@@ -446,6 +461,9 @@ div[data-nextjs-dialog-overlay] {
     width: 100% !important;
     overflow: visible !important;
     display: block !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    inset: auto !important;
   }
 
   /* Render ONLY the official tax invoice container */
@@ -454,9 +472,9 @@ div[data-nextjs-dialog-overlay] {
     visibility: visible !important;
     position: relative !important;
     width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 4mm 6mm !important;
+    max-width: 820px !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
     border: none !important;
     box-shadow: none !important;
     border-radius: 0 !important;
