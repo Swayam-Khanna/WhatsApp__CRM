@@ -767,23 +767,25 @@ export function detectCustomerIntent(
   }
 
   // 11. GENERAL PRODUCT CATALOGUE REQUEST
-  // (Critical requirement: covers "Tell me about your products", "What products do you have?", etc.)
+  // (Critical requirement: covers "Tell me about your products", "What products do you have?", "I want to know about your products", etc.)
   const cataloguePatterns = [
     /\b(?:catalogue|catalog|menu)\b/i,
-    /\b(?:tell me about (?:your )?products?)\b/i,
-    /\b(?:what products? (?:do you have|do you sell|are available|do you offer))\b/i,
-    /\b(?:what do you sell)\b/i,
-    /\b(?:show (?:me )?(?:your )?products?)\b/i,
-    /\b(?:show (?:me )?(?:your )?catalogue)\b/i,
-    /\b(?:send (?:your )?catalogue)\b/i,
-    /\b(?:products? list|all products?|list of products?)\b/i,
-    /\b(?:aapke paas kaun (?:se )?products? hain)\b/i,
-    /\b(?:aapke products? ke baare mein batao)\b/i,
-    /\b(?:products? batao|products? dikhao|products? dikha dijiye)\b/i,
-    /\b(?:kya kya (?:products?|milta hai|bechte ho|hai aapke paas))\b/i,
-    /\b(?:kaun kaun se product)\b/i,
-    /\b(?:catalogue bhejo|catalog share karo)\b/i,
-    /(?:उत्पाद|कैटलॉग|सामान की सूची|क्या क्या उत्पाद)/i,
+    /^\s*products?\s*[?!.]*\s*$/i,
+    /\ball\s+products?\b/i,
+    /\b(?:all|our|your)?\s*products?\s*(?:list|catalog|catalogue|menu|details?|info|range|collection|variety)\b/i,
+    /\b(?:list|details?|info|catalog|catalogue)\s*of\s*(?:all\s*)?products?\b/i,
+    /\b(?:tell\s+me|know|hear|learn|read)\s+(?:more\s+)?about\s+(?:all\s+|your\s+|the\s+)?(?:natural\s+|organic\s+|himalayan\s+)?products?\b/i,
+    /\b(?:what|which)\s+(?:natural\s+|organic\s+|himalayan\s+)?(?:products?|items?)\s+(?:do\s+you\s+have|do\s+you\s+sell|are\s+available|do\s+you\s+offer|are\s+there)\b/i,
+    /\b(?:what|which)\s+(?:items?|products?)\s+(?:do\s+you|are)\b/i,
+    /\b(?:what\s+are\s+your\s+products?|what\s+do\s+you\s+(?:sell|have|offer|make))\b/i,
+    /\b(?:what\s+are\s+(?:the\s+)?products?\s+available)\b/i,
+    /\b(?:show|send|share|give)\s+(?:me\s+)?(?:your\s+|all\s+)?(?:products?|catalogue|catalog|menu|items?)\b/i,
+    /\b(?:about\s+your\s+products?|product\s+details?|products?\s+available)\b/i,
+    /\b(?:aapke\s+)?(?:paas\s+)?(?:kya\s+kya|kaun\s+kaun\s+se?)\s+(?:products?|items?|milta\s+hai|bechte\s+ho|hai)\b/i,
+    /\b(?:aapke\s+)?products?\s+(?:ke\s+baare\s+mein\s+batao|batao|dikhao|dikha\s+dijiye|list)\b/i,
+    /\b(?:kya\s+kya\s+milta\s+hai|kya\s+bechte\s+ho|aapke\s+yahan\s+kya\s+milta\s+hai)\b/i,
+    /\b(?:kya\s+products?\s+hain|products?\s+kya\s+hain)\b/i,
+    /(?:उत्पाद|कैटलॉग|सामान की सूची|क्या क्या उत्पाद|क्या क्या मिलता है|क्या बेचते हैं|उत्पादों की जानकारी)/i,
   ];
 
   if (cataloguePatterns.some((pattern) => pattern.test(q))) {
@@ -849,14 +851,14 @@ export function extractCustomerNameFromText(text: string): string | null {
  */
 export const TEMPLATES = {
   welcome: {
-    en: "Hello! How can we help you?",
-    hinglish: "Namaste ji! Hum aapki kya sahayata kar sakte hain?",
-    hi: "नमस्ते! हम आपकी क्या सहायता कर सकते हैं?",
+    en: "Namaste! 🙏 Welcome to Prajnaa Farmer Market – Authentic Himalayan Pure Products.\n\nHow can we help you today?\n• 🌿 Explore Our Pure Himalayan Products: {catalogueLink}\n• 📦 Track an existing order\n• 💬 Ask any product question or pricing",
+    hinglish: "Namaste ji! 🙏 Prajnaa Farmer Market mein aapka swagat hai.\n\nHum aapki kya sahayata kar sakte hain?\n• 🌿 Hamara Product Catalogue dekhein: {catalogueLink}\n• 📦 Order status check karein\n• 💬 Products ki jaankari ya price poochhein",
+    hi: "नमस्ते जी! 🙏 प्रज्ञा फार्मर मार्केट में आपका स्वागत है।\n\nहम आपकी क्या सहायता कर सकते हैं?\n• 🌿 हमारा उत्पाद कैटलॉग देखें: {catalogueLink}\n• 📦 आर्डर स्टेटस चेक करें\n• 💬 उत्पादों की जानकारी या कीमत जानें",
   },
   catalogue: {
-    en: "Hello! Here's our latest product catalogue: {catalogueLink}",
-    hinglish: "Bilkul ji! Hamara latest product catalogue yahan dekhein: {catalogueLink}",
-    hi: "जी बिल्कुल! हमारा पूरा प्रोडक्ट कैटलॉग यहाँ देखें: {catalogueLink}",
+    en: "Namaste! 🙏 Welcome to Prajnaa Farmer Market. We bring 100% pure, lab-tested, and ethically harvested natural products directly from high-altitude Himalayan farmers:\n\n🌿 *Our Top Himalayan Best-Sellers:*\n1. 🍯 *Himalayan Raw Multiflora Honey* (500g Glass Jar) – ₹550\n2. 🏔️ *Pure Himalayan Shilajit Resin* (20g Lab Certified) – ₹1,450\n3. 🧈 *A2 Badri Cow Bilona Desi Ghee* (1 Litre) – ₹2,100\n4. 🌰 *Kashmiri Mamra Almonds* (500g Premium) – ₹1,250\n5. 🌸 *Pure Kashmiri Mongra Saffron* (1g Grade A) – ₹380\n6. 🥜 *Kashmiri Kagzi Walnuts / Akhrot Kernels* (500g) – ₹650\n\n📦 *Pan-India doorstep delivery* with artisan mountain packing.\nExplore our complete product catalogue here: {catalogueLink}\n\nWhich product would you like to know more about or order?",
+    hinglish: "Namaste ji! 🙏 Prajnaa Farmer Market mein aapka swagat hai. Hum high-altitude Himalayas ke kisaano se 100% shuddh, natural aur lab-tested products direct aap tak pahunchate hain:\n\n🌿 *Hamare Top Himalayan Products:*\n1. 🍯 *Himalayan Raw Multiflora Honey* (500g) – ₹550\n2. 🏔️ *Pure Himalayan Shilajit Resin* (20g Lab Certified) – ₹1,450\n3. 🧈 *A2 Badri Cow Bilona Desi Ghee* (1 Litre) – ₹2,100\n4. 🌰 *Kashmiri Mamra Badam* (500g) – ₹1,250\n5. 🌸 *Pure Kashmiri Mongra Kesar* (1g) – ₹380\n6. 🥜 *Kashmiri Kagzi Akhrot Giri* (500g) – ₹650\n\n📦 *Poore Bharat mein fast home delivery* uplabdh hai.\nHamara latest product catalogue yahan dekhein: {catalogueLink}\n\nAapko kis product ke baare mein jaanna hai ya order book karna hai, bataiye ji?",
+    hi: "नमस्ते जी! 🙏 प्रज्ञा फार्मर मार्केट में आपका स्वागत है। हम उच्च हिमालयी क्षेत्रों के किसानों से 100% शुद्ध, प्राकृतिक और लैब-प्रमाणित उत्पाद सीधे आप तक पहुंचाते हैं:\n\n🌿 *हमारे प्रमुख हिमालयी उत्पाद:*\n1. 🍯 *हिमालयन रॉ फ्लोरा शहद* (500g) – ₹550\n2. 🏔️ *शुद्ध हिमालयन शिलाजीत रेजिन* (20g) – ₹1,450\n3. 🧈 *A2 बद्री गाय का बिलोना देसी घी* (1L) – ₹2,100\n4. 🌰 *कश्मीरी मामरा बादाम* (500g) – ₹1,250\n5. 🌸 *कश्मीरी मोंगरा केसर* (1g) – ₹380\n6. 🥜 *कश्मीरी कागज़ी अखरोट गिरी* (500g) – ₹650\n\n📦 *पूरे भारत में सुरक्षित होम डिलीवरी* उपलब्ध है।\nजी बिल्कुल! हमारा पूरा प्रोडक्ट कैटलॉग यहाँ देखें: {catalogueLink}\n\nआप किस उत्पाद की जानकारी चाहते हैं या ऑर्डर करना चाहते हैं, कृपया बताएं?",
   },
   price: {
     en: "Our {productName} ({packaging}) is available for ₹{livePrice}. View details: {productLink}",
@@ -959,9 +961,9 @@ export const TEMPLATES = {
     hi: "हमारे स्टोर एडमिन जल्द ही आपसे संपर्क करेंगे।",
   },
   unclear_fallback: {
-    en: "Sorry, I couldn't understand your query. Our store admin will connect with you shortly.",
-    hinglish: "Maaf kijiye ji, main aapki baat samajh nahi paaya. Nishant ji jald hi aapse connect karenge.",
-    hi: "क्षमा कीजिए, हम आपकी बात समझ नहीं पाए। हमारे स्टोर एडमिन जल्द ही आपसे संपर्क करेंगे।",
+    en: "Sorry, I couldn't understand your query. Our store admin will connect with you shortly. You can also explore our authentic Himalayan products catalogue here: {catalogueLink}",
+    hinglish: "Maaf kijiye ji, main aapki baat samajh nahi paaya. Nishant ji jald hi aapse connect karenge. Hamara product catalogue yahan dekhein: {catalogueLink}",
+    hi: "क्षमा कीजिए, हम आपकी बात समझ नहीं पाए। हमारे स्टोर एडमिन जल्द ही आपसे संपर्क करेंगे। हमारा प्रोडक्ट कैटलॉग यहाँ देखें: {catalogueLink}",
   },
 };
 
@@ -977,8 +979,8 @@ function fillTemplate(
     const replacement = val !== undefined && val !== null ? String(val) : "";
     filled = filled.split(`{${key}}`).join(replacement);
   }
-  // Clean up any remaining unreplaced {variable} patterns
-  return filled.replace(/\{[a-zA-Z0-9_]+\}/g, "").replace(/\s{2,}/g, " ").trim();
+  // Clean up any remaining unreplaced {variable} patterns while preserving multiline formatting
+  return filled.replace(/\{[a-zA-Z0-9_]+\}/g, "").replace(/[^\S\r\n]{2,}/g, " ").trim();
 }
 
 /**
@@ -1113,7 +1115,9 @@ export async function processSmartCustomerReply(params: {
     // 1. Pure Greeting (ONLY when the message is solely a greeting like "Hi", "Hello", "Namaste")
     case "greeting":
     case "first_welcome_greeting": {
-      replyText = TEMPLATES.welcome[detectedLanguage];
+      replyText = fillTemplate(TEMPLATES.welcome[detectedLanguage], {
+        catalogueLink: catalogueUrl,
+      });
       updateConversationContext(cleanPhone, { activeStage: "browsing" });
       break;
     }
@@ -1348,7 +1352,9 @@ export async function processSmartCustomerReply(params: {
 
     // 11. General Purity / Organic Origin
     case "general_question": {
-      replyText = TEMPLATES.general_purity[detectedLanguage];
+      replyText = fillTemplate(TEMPLATES.general_purity[detectedLanguage], {
+        catalogueLink: catalogueUrl,
+      });
       break;
     }
 
@@ -1363,8 +1369,9 @@ export async function processSmartCustomerReply(params: {
     // 13. Unclear Query / Fallback
     case "unclear_intent":
     default: {
-      setHumanAgentHandoff(cleanPhone, "Nishant (Store Desk)");
-      replyText = TEMPLATES.unclear_fallback[detectedLanguage];
+      replyText = fillTemplate(TEMPLATES.unclear_fallback[detectedLanguage], {
+        catalogueLink: catalogueUrl,
+      });
       handoffRequired = true;
       break;
     }

@@ -660,7 +660,7 @@ export function processConversationalBotReply(params: {
       replyText: [
         `Bahut badhiya ${nameLabel}! 🙏 Aapka delivery address note kar liya gaya hai.`,
         "",
-        "Himalayan farm fresh packaging Solan hub (Outer Solan Road, Solan, HP – 173212) se 2–3 din mein Speed Post dwara dispatch ho jayegi.",
+        "Himalayan farm fresh packaging Solan hub (Seva Niketan, Ward No.2, Near ITI, Solan, HP, 173212) se 2–3 din mein Speed Post dwara dispatch ho jayegi.",
         "",
         "Payment aap hamare official UPI desk *prajnaa@upi* par kar sakte hain. Payment ke baad screenshot yahan share kar dijiye taaki hum order confirm kar sakein! 🌿",
       ].join("\n"),

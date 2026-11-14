@@ -312,7 +312,7 @@ export default function PremiumCataloguePage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               sender: "customer",
-              from: "919876543210",
+              from: "web_visitor",
               to: cleanStorePhone,
               customerName: "Website Storefront Visitor",
               text: orderMsg,
@@ -858,7 +858,7 @@ export default function PremiumCataloguePage() {
         {/* Footer info */}
         <div className="mt-14 text-center text-xs text-neutral-400 space-y-2 border-t border-neutral-100 pt-8">
           <p>© {new Date().getFullYear()} Prajnaa Market • Pure Himalayan Farm Harvest</p>
-          <p>Dispatched from Solan Hub (Outer Solan Road, Solan, HP 173212) • Central Helpline: {storePhone}</p>
+          <p>Dispatched from Solan Hub (Seva Niketan, Ward No.2, Near ITI, Solan, HP, 173212) • Central Helpline: {storePhone}</p>
         </div>
       </section>
 

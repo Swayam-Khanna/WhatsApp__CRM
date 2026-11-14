@@ -133,28 +133,27 @@ export function generateInvoicePDF(order: InvoiceData): Promise<Buffer> {
       // 2. Seller Info (Left Column)
       doc
         .font("Helvetica-Bold")
-        .fontSize(9)
-        .text("Sold By:", col1X, currentY);
-      
-      doc
-        .font("Helvetica")
-        .fontSize(9)
-        .text(SELLER_CONFIG.soldBy, col1X, doc.y + 2)
-        .text(`${SELLER_CONFIG.addressLine1},`, col1X)
-        .text(`${SELLER_CONFIG.addressLine2},`, col1X)
-        .text(`${SELLER_CONFIG.city}, ${SELLER_CONFIG.state}, ${SELLER_CONFIG.pinCode}`, col1X)
-        .text(SELLER_CONFIG.country, col1X);
+        .fontSize(11)
+        .fillColor("#0A5C36")
+        .text(SELLER_CONFIG.tradeName || "PRAJNAA MARKET", col1X, currentY);
 
-      doc.moveDown(0.5);
+      doc
+        .font("Helvetica")
+        .fontSize(7.5)
+        .fillColor("#444444")
+        .text(SELLER_CONFIG.tagline || "The Himalayan Digital Marketplace for Pure & Trusted Natural Products", col1X, doc.y + 1);
+
+      doc.moveDown(0.3);
       doc
         .font("Helvetica-Bold")
-        .text(`PAN No: `, col1X, doc.y, { continued: true })
+        .fontSize(8.5)
+        .fillColor(primaryColor)
+        .text(`Powered by : ${SELLER_CONFIG.soldBy}`, col1X, doc.y)
         .font("Helvetica")
-        .text(SELLER_CONFIG.panNo)
-        .font("Helvetica-Bold")
-        .text(`GST Registration No: `, col1X, doc.y, { continued: true })
-        .font("Helvetica")
-        .text(SELLER_CONFIG.gstin);
+        .text(`Address : ${SELLER_CONFIG.addressLine1}, ${SELLER_CONFIG.addressLine2}, ${SELLER_CONFIG.city}, HP, ${SELLER_CONFIG.pinCode}`, col1X)
+        .text(`GSTIN : ${SELLER_CONFIG.gstin}   |   FSSAI No. : ${SELLER_CONFIG.fssaiNo}`, col1X)
+        .text(`Help Desk : ${SELLER_CONFIG.helpDesk}   |   Email : ${SELLER_CONFIG.email}`, col1X)
+        .text(`Website : ${SELLER_CONFIG.website}`, col1X);
 
       // 3. Customer Info (Right Column)
       const customerName = order.customerName || "Customer";

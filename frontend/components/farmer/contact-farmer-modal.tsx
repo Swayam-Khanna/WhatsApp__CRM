@@ -39,10 +39,10 @@ export function ContactFarmerModal({
 
   // Format phone number for wa.me link
   const getWhatsAppTargetNumber = () => {
-    const phone = farmerPhone || DEFAULT_CONFIG.admin_whatsapp_number || "919876543210";
+    const phone = farmerPhone || DEFAULT_CONFIG.admin_whatsapp_number || "918091265690";
     const digits = phone.replace(/\D/g, "");
     if (digits.length === 10) return `91${digits}`;
-    return digits || "919876543210";
+    return digits || "918091265690";
   };
 
   const buildWhatsAppMessage = () => {
@@ -210,7 +210,7 @@ export function ContactFarmerModal({
                     required
                     value={formData.contact}
                     onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
-                    placeholder="e.g. +91 98765 43210 or email"
+                    placeholder="e.g. +91 98XXX XXXXX or email"
                     className="w-full rounded-xl border border-neutral-300 bg-white p-3 text-xs outline-none focus:border-[#1F3B2C] transition"
                   />
                 </div>

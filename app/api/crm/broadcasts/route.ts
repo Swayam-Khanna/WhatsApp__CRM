@@ -9,36 +9,7 @@ declare global {
 }
 
 if (!globalThis.__globalBroadcastCampaigns) {
-  globalThis.__globalBroadcastCampaigns = [
-    {
-      id: "camp_autumn_ghee_2024",
-      name: "Autumn Badri Cow Ghee Fresh Batch",
-      audience: "All Opted-In Customers (345)",
-      segment: "all",
-      message:
-        "Namaste ji! 🙏 Tehri Garhwal ke high-altitude Badri cow farm se A2 Desi Ghee ka naya seasonal batch ready hai. Traditional bilona method se tayar. Order before stock finishes: https://prajnaa-farm-8zam.vercel.app/ 🧈",
-      status: "Completed",
-      sentCount: 345,
-      deliveredCount: 341,
-      readCount: 298,
-      failedCount: 4,
-      createdAt: "10 Oct 2024, 11:30 AM",
-    },
-    {
-      id: "camp_apricot_preorder_2024",
-      name: "2026 Himalayan Apricots Pre-Order Window",
-      audience: "VIP & Dry Fruit Buyers (88)",
-      segment: "vip",
-      message:
-        "Namaste ji! Ladakh Sham Valley ke pure Himalayan Sun-Dried Apricots ka pre-order window open ho gaya hai. Fresh 2026 harvest direct from orchards! 🍑",
-      status: "Completed",
-      sentCount: 88,
-      deliveredCount: 88,
-      readCount: 82,
-      failedCount: 0,
-      createdAt: "14 Oct 2024, 02:15 PM",
-    },
-  ];
+  globalThis.__globalBroadcastCampaigns = [];
 }
 
 /**
@@ -63,14 +34,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Campaign name and message or templateName are required." }, { status: 400 });
     }
 
-    const recipientList: Array<{ name: string; phone: string; id?: string }> = Array.isArray(recipients) && recipients.length > 0
-      ? recipients
-      : [
-          { name: "Priya Sharma", phone: "+91 98765 43210" },
-          { name: "Rahul Verma", phone: "+91 87654 32109" },
-          { name: "Kavita Bisht", phone: "+91 98971 23456" },
-          { name: "Amitabh Verma", phone: "+91 94120 12345" },
-        ];
+    const recipientList: Array<{ name: string; phone: string; id?: string }> = Array.isArray(recipients) ? recipients : [];
 
     let delivered = 0;
     let failed = 0;
