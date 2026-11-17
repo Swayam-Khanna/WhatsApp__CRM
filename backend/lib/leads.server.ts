@@ -57,12 +57,290 @@ declare global {
   var __globalCrmIntegrationJobs: IntegrationJob[] | undefined;
 }
 
+function getSampleSeedLeads(): LeadRecord[] {
+  const now = new Date().toISOString();
+  return [
+    {
+      id: "lead_seed_001",
+      reference: "PRJ-LD-2026-001",
+      businessModel: "b2b_wholesale",
+      contactId: "ct_seed_001",
+      contactName: "Vikram Malhotra",
+      contactPhone: "+91 98160 55555",
+      contactEmail: "vikram@malhotrastores.in",
+      businessName: "Malhotra Organic & Kirana",
+      pipelineId: "pipeline_wholesale",
+      stageId: "stage_quote_sent",
+      stageKey: "quote_sent",
+      source: "whatsapp",
+      priority: "high",
+      estimatedValuePaise: 2850000,
+      currency: "INR",
+      deliveryPostalCode: "171001",
+      ownerId: "agent_nishant",
+      ownerName: "Nishant",
+      nextAction: "Follow up on bulk honey quote delivery timeline",
+      nextFollowUpAt: new Date(Date.now() + 86400000).toISOString(),
+      accountingSyncStatus: "pending",
+      items: [
+        {
+          id: "it_1",
+          productId: "raw-honey",
+          productName: "Raw Himalayan Flora Honey (Bulk 5kg)",
+          quantity: 5,
+          unit: "5kg can",
+          indicativeUnitPricePaise: 320000,
+          indicativeTotalPaise: 1600000,
+        },
+        {
+          id: "it_2",
+          productId: "organic-almonds",
+          productName: "Mamra Almonds (500g)",
+          quantity: 10,
+          unit: "500g pack",
+          indicativeUnitPricePaise: 125000,
+          indicativeTotalPaise: 1250000,
+        },
+      ],
+      quotes: [
+        {
+          id: "qte_seed_001",
+          quoteNumber: "QTE-2026-1001",
+          leadId: "lead_seed_001",
+          version: 1,
+          subtotalPaise: 2850000,
+          discountPaise: 0,
+          taxPaise: 0,
+          totalPaise: 2850000,
+          paymentTerms: "Net 15",
+          deliveryTerms: "Standard Shipping to Shimla Store",
+          validUntil: new Date(Date.now() + 14 * 86400000).toISOString(),
+          status: "shared",
+          items: [
+            {
+              id: "qi_1",
+              productId: "raw-honey",
+              productName: "Raw Himalayan Flora Honey (Bulk 5kg)",
+              quantity: 5,
+              unit: "5kg can",
+              unitPricePaise: 320000,
+              totalPaise: 1600000,
+            },
+            {
+              id: "qi_2",
+              productId: "organic-almonds",
+              productName: "Mamra Almonds (500g)",
+              quantity: 10,
+              unit: "500g pack",
+              unitPricePaise: 125000,
+              totalPaise: 1250000,
+            },
+          ],
+          createdBy: "Nishant",
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+      activities: [
+        {
+          id: "act_seed_001",
+          leadId: "PRJ-LD-2026-001",
+          actorName: "Nishant",
+          activityType: "quote_created",
+          summary: "Quotation #QTE-2026-1001 shared via WhatsApp",
+          details: "5x Bulk Honey and 10x Mamra Almonds - Total ₹28,500 with Net 15 terms",
+          createdAt: now,
+        },
+      ],
+      tasks: [
+        {
+          id: "tsk_seed_001",
+          leadId: "lead_seed_001",
+          assignedToId: "agent_nishant",
+          assignedToName: "Nishant",
+          taskType: "whatsapp",
+          title: "Follow up on Quotation #QTE-2026-1001",
+          dueAt: new Date(Date.now() + 86400000).toISOString(),
+          status: "pending",
+          priority: "high",
+          createdAt: now,
+        },
+      ],
+      orderLinks: [],
+      createdAt: now,
+      updatedAt: now,
+      version: 1,
+    },
+    {
+      id: "lead_seed_002",
+      reference: "PRJ-LD-2026-002",
+      businessModel: "b2b_wholesale",
+      contactId: "ct_seed_002",
+      contactName: "Rohit Sharma",
+      contactPhone: "+91 98160 88888",
+      contactEmail: "rohit@sharmaayurved.com",
+      businessName: "Sharma Ayurvedic Store",
+      pipelineId: "pipeline_wholesale",
+      stageId: "stage_won",
+      stageKey: "won",
+      source: "website",
+      priority: "urgent",
+      estimatedValuePaise: 3500000,
+      currency: "INR",
+      deliveryPostalCode: "173212",
+      linkedOrderId: "ORD-8921",
+      conversionRuleApplied: "Commercial Wholesale Net 30 Terms",
+      ownerId: "agent_nishant",
+      ownerName: "Nishant",
+      accountingSyncStatus: "synced",
+      items: [
+        {
+          id: "it_3",
+          productId: "pure-shilajit",
+          productName: "Pure Himalayan Shilajit Resin (20g)",
+          quantity: 20,
+          unit: "20g jar",
+          indicativeUnitPricePaise: 175000,
+          indicativeTotalPaise: 3500000,
+        },
+      ],
+      quotes: [
+        {
+          id: "qte_seed_002",
+          quoteNumber: "QTE-2026-1002",
+          leadId: "lead_seed_002",
+          version: 1,
+          subtotalPaise: 3500000,
+          discountPaise: 0,
+          taxPaise: 0,
+          totalPaise: 3500000,
+          paymentTerms: "Net 30 Commercial",
+          deliveryTerms: "Direct Dispatch from Solan Hub",
+          validUntil: new Date(Date.now() + 30 * 86400000).toISOString(),
+          status: "converted",
+          items: [
+            {
+              id: "qi_3",
+              productId: "pure-shilajit",
+              productName: "Pure Himalayan Shilajit Resin (20g)",
+              quantity: 20,
+              unit: "20g jar",
+              unitPricePaise: 175000,
+              totalPaise: 3500000,
+            },
+          ],
+          createdBy: "Nishant",
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+      activities: [
+        {
+          id: "act_seed_002",
+          leadId: "PRJ-LD-2026-002",
+          actorName: "Nishant",
+          activityType: "order_linked",
+          summary: "Converted to Order #ORD-8921",
+          details: "Commercial wholesale dispatch authorized for Solan Ayurvedic Hub",
+          createdAt: now,
+        },
+      ],
+      tasks: [],
+      orderLinks: [
+        {
+          id: "ol_seed_001",
+          leadId: "lead_seed_002",
+          orderId: "ORD-8921",
+          orderNumber: "#ORD-8921",
+          businessModel: "b2b_wholesale",
+          conversionType: "wholesale_approved_credit",
+          totalPaise: 3500000,
+          paymentStatus: "credit_terms",
+          createdAt: now,
+        },
+      ],
+      createdAt: now,
+      updatedAt: now,
+      version: 2,
+    },
+    {
+      id: "lead_seed_003",
+      reference: "PRJ-LD-2026-003",
+      businessModel: "b2c_retail",
+      contactId: "ct_seed_003",
+      contactName: "Sunita Devi",
+      contactPhone: "+91 98161 22334",
+      contactEmail: "sunita.devi@outlook.com",
+      pipelineId: "pipeline_retail",
+      stageId: "stage_negotiation",
+      stageKey: "negotiation",
+      source: "whatsapp",
+      priority: "normal",
+      estimatedValuePaise: 245000,
+      currency: "INR",
+      deliveryPostalCode: "176215",
+      ownerId: "agent_nishant",
+      ownerName: "Nishant",
+      nextAction: "Confirm dispatch date for Pahadi Ghee batch",
+      nextFollowUpAt: new Date(Date.now() + 2 * 86400000).toISOString(),
+      accountingSyncStatus: "not_applicable",
+      items: [
+        {
+          id: "it_4",
+          productId: "desi-ghee",
+          productName: "Pahadi Badri Cow Desi Ghee (1L)",
+          quantity: 1,
+          unit: "1L jar",
+          indicativeUnitPricePaise: 245000,
+          indicativeTotalPaise: 245000,
+        },
+      ],
+      quotes: [
+        {
+          id: "qte_seed_003",
+          quoteNumber: "QTE-2026-1003",
+          leadId: "lead_seed_003",
+          version: 1,
+          subtotalPaise: 245000,
+          discountPaise: 0,
+          taxPaise: 0,
+          totalPaise: 245000,
+          paymentTerms: "UPI / Prepaid",
+          deliveryTerms: "Standard Shipping (2-3 days)",
+          validUntil: new Date(Date.now() + 7 * 86400000).toISOString(),
+          status: "shared",
+          items: [
+            {
+              id: "qi_4",
+              productId: "desi-ghee",
+              productName: "Pahadi Badri Cow Desi Ghee (1L)",
+              quantity: 1,
+              unit: "1L jar",
+              unitPricePaise: 245000,
+              totalPaise: 245000,
+            },
+          ],
+          createdBy: "Nishant",
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+      activities: [],
+      tasks: [],
+      orderLinks: [],
+      createdAt: now,
+      updatedAt: now,
+      version: 1,
+    },
+  ];
+}
+
 function initializeSeedData() {
   if (!globalThis.__globalCrmAccounts) {
     globalThis.__globalCrmAccounts = [];
   }
-  if (!globalThis.__globalCrmLeads) {
-    globalThis.__globalCrmLeads = [];
+  if (!globalThis.__globalCrmLeads || (globalThis.__globalCrmLeads.length === 0 && process.env.NODE_ENV !== "test")) {
+    globalThis.__globalCrmLeads = getSampleSeedLeads();
   }
   if (!globalThis.__globalCrmCreditApprovals) {
     globalThis.__globalCrmCreditApprovals = [];
@@ -163,7 +441,17 @@ export class LeadsService {
    */
   static async getLeadById(id: string): Promise<LeadRecord | null> {
     initializeSeedData();
-    const lead = (globalThis.__globalCrmLeads || []).find((l) => l.id === id || l.reference === id);
+    const clean = (id || "").trim().toLowerCase();
+    const cleanNoHash = clean.replace(/^#+/, "");
+    const lead = (globalThis.__globalCrmLeads || []).find(
+      (l) =>
+        l.id === id ||
+        l.reference === id ||
+        l.id.toLowerCase() === clean ||
+        l.reference.toLowerCase() === clean ||
+        (l.linkedOrderId && (l.linkedOrderId.toLowerCase() === clean || l.linkedOrderId.toLowerCase() === cleanNoHash)) ||
+        (Array.isArray(l.quotes) && l.quotes.some((q) => q.id === id || q.quoteNumber.toLowerCase() === clean))
+    );
     return lead || null;
   }
 
@@ -766,7 +1054,7 @@ export class LeadsService {
       taxPaise: 0,
       totalPaise,
       paymentTerms: data.paymentTerms || (lead.businessModel === "b2b_wholesale" ? "15 Days Credit" : "Prepaid UPI"),
-      deliveryTerms: data.deliveryTerms || "India Post Speed Post Door Delivery",
+      deliveryTerms: data.deliveryTerms || "Shipping Door Delivery",
       validUntil: new Date(Date.now() + (data.validDays || 14) * 86400 * 1000).toISOString(),
       status: "draft",
       items: quoteItems,

@@ -51,7 +51,7 @@ const META_TEMPLATES = [
     category: "MARKETING",
     language: "en, hi",
     status: "APPROVED",
-    text: "Namaste {{1}} ji! Celebrate this season with genuine Himalayan wellness. Prajnaa Gift Boxes featuring Mongra Saffron, Walnuts, and Multi-Flora Honey are now ready with complimentary India Post Speed Post shipping.",
+    text: "Namaste {{1}} ji! Celebrate this season with genuine Himalayan wellness. Prajnaa Gift Boxes featuring Mongra Saffron, Walnuts, and Multi-Flora Honey are now ready with complimentary Shipping.",
     buttons: ["Explore Gifts"],
   },
 ];

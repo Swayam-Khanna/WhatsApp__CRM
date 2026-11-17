@@ -16,7 +16,7 @@ export interface CarrierConfig {
 
 export const SUPPORTED_CARRIERS: CarrierConfig[] = [
   { id: "delhivery", name: "Delhivery", urlTemplate: "" },
-  { id: "india_post", name: "India Post", urlTemplate: "" },
+  { id: "india_post", name: "Shipping", urlTemplate: "" },
   { id: "blue_dart", name: "Blue Dart", urlTemplate: "" },
   { id: "dtdc", name: "DTDC", urlTemplate: "" },
   { id: "xpressbees", name: "Xpressbees", urlTemplate: "" },

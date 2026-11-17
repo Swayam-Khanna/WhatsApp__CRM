@@ -31,8 +31,8 @@ const PIPELINE_STAGES: Array<{ id: FulfillmentOrder["stage"]; label: string; des
   { id: "awaiting_payment", label: "Awaiting Payment", description: "WhatsApp UPI instructions sent", color: "border-amber-500/40 bg-amber-500/5 text-amber-800 dark:text-amber-300" },
   { id: "payment_confirmed", label: "Payment Confirmed", description: "Verified & ready for queue", color: "border-blue-500/40 bg-blue-500/5 text-blue-800 dark:text-blue-300" },
   { id: "packing", label: "Packing (2–3 Days)", description: "Sorting, inspection & sealing", color: "border-purple-500/40 bg-purple-500/5 text-purple-800 dark:text-purple-300" },
-  { id: "ready_for_dispatch", label: "Ready for Dispatch", description: "Manifested for India Post", color: "border-emerald-500/40 bg-emerald-500/5 text-emerald-800 dark:text-emerald-300" },
-  { id: "shipped_india_post", label: "Dispatched (India Post)", description: "In transit with Speed Post", color: "border-sky-500/40 bg-sky-500/5 text-sky-800 dark:text-sky-300" },
+  { id: "ready_for_dispatch", label: "Ready for Dispatch", description: "Manifested for Shipping", color: "border-emerald-500/40 bg-emerald-500/5 text-emerald-800 dark:text-emerald-300" },
+  { id: "shipped_india_post", label: "Dispatched (Shipping)", description: "In transit with Shipping carrier", color: "border-sky-500/40 bg-sky-500/5 text-sky-800 dark:text-sky-300" },
   { id: "delivered", label: "Delivered", description: "Completed & feedback requested", color: "border-emerald-600/40 bg-emerald-600/10 text-emerald-900 dark:text-emerald-200" },
 ];
 
@@ -81,9 +81,9 @@ export default function WhatsAppCrmFulfillmentPage() {
     if (order.stage === "packing") {
       msg = `Namaste ${order.customerName} ji! 🙏 Aapke Prajnaa Market order #${order.orderNumber} ki packaging shuru ho chuki hai (Day ${order.processingDay} of 3). Pure Himalayan produce ko temperature-controlled corrugation mein pack kiya ja raha hai.`;
     } else if (order.stage === "ready_for_dispatch") {
-      msg = `Namaste ${order.customerName} ji! 🌿 Aapka order #${order.orderNumber} packing complete karke dispatch bay mein prepare kar diya gaya hai. India Post Speed Post pickup scheduled hai.`;
+      msg = `Namaste ${order.customerName} ji! 🌿 Aapka order #${order.orderNumber} packing complete karke dispatch bay mein prepare kar diya gaya hai. Shipping pickup scheduled hai.`;
     } else if (order.stage === "shipped_india_post") {
-      msg = `Namaste ${order.customerName} ji! 📦 Aapka Prajnaa parcel dispatch ho chuka hai! Consignment ID: ${order.consignmentNumber || "ED839102914IN"}. Track on India Post website.`;
+      msg = `Namaste ${order.customerName} ji! 📦 Aapka Prajnaa parcel dispatch ho chuka hai! Consignment ID: ${order.consignmentNumber || "ED839102914IN"}. Track on shipping portal.`;
     } else {
       msg = `Namaste ${order.customerName} ji! 🙏 Order #${order.orderNumber} update: Status is currently ${order.stage.replace(/_/g, " ")}. Team Prajnaa Market.`;
     }
@@ -105,7 +105,7 @@ export default function WhatsAppCrmFulfillmentPage() {
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Track orders from Himalayan farmer harvest through packaging quality control and India Post Speed Post dispatch.
+            Track orders from Himalayan farmer harvest through packaging quality control and Shipping dispatch.
           </p>
         </div>
 
@@ -284,7 +284,7 @@ export default function WhatsAppCrmFulfillmentPage() {
                   <th className="py-3 px-4">Customer</th>
                   <th className="py-3 px-4">Stage</th>
                   <th className="py-3 px-4">Method & Payment</th>
-                  <th className="py-3 px-4">Consignment (India Post)</th>
+                  <th className="py-3 px-4">Consignment (Shipping)</th>
                   <th className="py-3 px-4">Total</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>

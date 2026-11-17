@@ -233,7 +233,7 @@ export default function AdminShippingPage() {
         setMetaSpeedPost(data.payload);
       }
 
-      toast.success(`Updated ${service === "india_post" ? "India Post" : "Speed Post"} tariff sheet!`);
+      toast.success(`Updated ${service === "india_post" ? "Standard Shipping" : "Express Shipping"} tariff sheet!`);
     } catch (err: any) {
       toast.error(err.message || "Failed to save tariff slabs");
     } finally {
@@ -342,17 +342,17 @@ export default function AdminShippingPage() {
     if (adjustmentTarget === "india_post") {
       const updated = adjustmentPreview.map(({ oldLocal, oldWithinState, oldZoneMetro, oldOtherStates, ...rest }) => rest);
       setIndiaPostSlabs(updated);
-      toast.success("Staged adjustment to India Post tariffs. Click Save Tariffs to commit.");
+      toast.success("Staged adjustment to Standard Shipping tariffs. Click Save Tariffs to commit.");
     } else if (adjustmentTarget === "speed_post") {
       const updated = adjustmentPreview.map(({ oldLocal, oldWithinState, oldZoneMetro, oldOtherStates, ...rest }) => rest);
       setSpeedPostSlabs(updated);
-      toast.success("Staged adjustment to Speed Post tariffs. Click Save Tariffs to commit.");
+      toast.success("Staged adjustment to Express Shipping tariffs. Click Save Tariffs to commit.");
     } else if (adjustmentTarget === "packaging_india_post") {
       setIndiaPostSlabs((prev) => prev.map(s => {
         const match = adjustmentPreview.find(p => p.weight_upto_gm === s.weight_upto_gm);
         return { ...s, packaging_cost: match ? match.cost : s.packaging_cost };
       }));
-      toast.success("Staged adjustment to India Post Packaging. Click Save Tariffs to commit.");
+      toast.success("Staged adjustment to Standard Shipping Packaging. Click Save Tariffs to commit.");
     } else if (adjustmentTarget === "packaging_speed_post") {
       setSpeedPostSlabs((prev) => prev.map(s => {
         const match = adjustmentPreview.find(p => p.weight_upto_gm === s.weight_upto_gm);
@@ -426,8 +426,8 @@ export default function AdminShippingPage() {
       <div className="flex border-b border-border gap-2 overflow-x-auto pb-1 scrollbar-thin">
         {[
           { id: "config", label: "General Config" },
-          { id: "india_post", label: "India Post rates" },
-          { id: "speed_post", label: "Speed Post rates" },
+          { id: "india_post", label: "Shipping rates" },
+          { id: "speed_post", label: "Express rates" },
           { id: "adjustments", label: "Global adjusts" },
           { id: "calculator", label: "Rate tester" },
           { id: "change_log", label: "Change Logs" },
@@ -593,11 +593,11 @@ export default function AdminShippingPage() {
               </h4>
               <div className="space-y-2">
                 <div className="flex justify-between border-b border-border pb-1.5">
-                  <span className="text-muted-foreground">India Post Slabs</span>
+                  <span className="text-muted-foreground">Standard Shipping Slabs</span>
                   <span className="font-semibold">{indiaPostSlabs.length} Slabs</span>
                 </div>
                 <div className="flex justify-between border-b border-border pb-1.5">
-                  <span className="text-muted-foreground">Speed Post Slabs</span>
+                  <span className="text-muted-foreground">Express Shipping Slabs</span>
                   <span className="font-semibold">{speedPostSlabs.length} Slabs</span>
                 </div>
                 <div className="flex justify-between">
@@ -610,13 +610,13 @@ export default function AdminShippingPage() {
         </div>
       )}
 
-      {/* 2. SHIPPING TARIFF TABLES (INDIA POST / SPEED POST) */}
+      {/* 2. SHIPPING TARIFF TABLES (SHIPPING / EXPRESS SHIPPING) */}
       {(activeTab === "india_post" || activeTab === "speed_post") && (
         <div className="space-y-4 animate-fade-up">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-secondary/30 p-4 rounded-2xl border border-border">
             <div>
               <span className="text-xs font-medium text-muted-foreground block">
-                Editing: <strong className="text-foreground">{activeTab === "india_post" ? "India Post Parcel" : "Speed Post"}</strong> weight slabs.
+                Editing: <strong className="text-foreground">{activeTab === "india_post" ? "Standard Shipping Parcel" : "Express Shipping Parcel"}</strong> weight slabs.
               </span>
               {activeTab === "india_post" && metaIndiaPost && metaIndiaPost.last_updated && (
                 <span className="text-[10px] text-muted-foreground">
@@ -763,10 +763,10 @@ export default function AdminShippingPage() {
                   }}
                   className="h-10 w-full rounded-xl border border-border bg-background px-4 outline-none focus:border-primary"
                 >
-                  <option value="india_post">India Post Slabs (Postage Only)</option>
-                  <option value="speed_post">Speed Post Slabs (Postage Only)</option>
-                  <option value="packaging_india_post">India Post Slabs (Packaging Only)</option>
-                  <option value="packaging_speed_post">Speed Post Slabs (Packaging Only)</option>
+                  <option value="india_post">Standard Shipping Slabs (Postage Only)</option>
+                  <option value="speed_post">Express Shipping Slabs (Postage Only)</option>
+                  <option value="packaging_india_post">Standard Shipping Slabs (Packaging Only)</option>
+                  <option value="packaging_speed_post">Express Shipping Slabs (Packaging Only)</option>
                 </select>
               </div>
 
@@ -917,8 +917,8 @@ export default function AdminShippingPage() {
                   onChange={(e: any) => setCalcService(e.target.value)}
                   className="h-10 w-full rounded-xl border border-border bg-background px-4 outline-none focus:border-primary"
                 >
-                  <option value="india_post">India Post Parcel</option>
-                  <option value="speed_post">Speed Post Parcel</option>
+                  <option value="india_post">Standard Shipping Parcel</option>
+                  <option value="speed_post">Express Shipping Parcel</option>
                 </select>
               </div>
 

@@ -1175,7 +1175,7 @@ export default function OrderDetailPage({
                       <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
                         Shipping Carrier
                       </span>
-                      <p className="font-semibold text-foreground truncate">{order.carrier_name || "India Post (Speed Post)"}</p>
+                      <p className="font-semibold text-foreground truncate">{order.carrier_name || "Shipping"}</p>
                     </div>
 
                     <div className="space-y-1 min-w-0">

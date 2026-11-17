@@ -242,7 +242,7 @@ export const quotes = pgTable("quotes", {
   taxPaise: integer("tax_paise").default(0).notNull(),
   totalPaise: integer("total_paise").notNull(),
   paymentTerms: text("payment_terms").notNull(), // "Prepaid UPI / Bank Transfer", "15 Days Credit", "30 Days Credit"
-  deliveryTerms: text("delivery_terms").default("Door delivery via India Post Speed Post"),
+  deliveryTerms: text("delivery_terms").default("Door delivery via Shipping"),
   validUntil: timestamp("valid_until").notNull(),
   status: text("status").default("draft").notNull(), // "draft", "shared", "accepted", "rejected", "expired", "converted"
   sharedViaWhatsAppAt: timestamp("shared_via_whatsapp_at"),

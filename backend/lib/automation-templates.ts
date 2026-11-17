@@ -20,6 +20,8 @@
  * and are KEPT SEPARATE from the CRM Inbox manual templates to prevent UI clutter.
  */
 
+import { INDIAN_CONVERSATION_TEMPLATES } from "./automation-templates-indian";
+
 export type SupportedLanguage = "en" | "hinglish" | "hi";
 
 export interface AutomatedTemplate {
@@ -37,7 +39,11 @@ export interface AutomatedTemplate {
     | "payment_enquiries"
     | "shipping_delivery"
     | "complaints_returns_refunds"
-    | "human_handoff_unknown";
+    | "human_handoff_unknown"
+    | "indian_conversational_expressions"
+    | "indian_pricing_bargaining"
+    | "customer_hesitation_trust"
+    | "followup_incomplete";
   name: string;
   intent: string;
   subIntent: string;
@@ -48,7 +54,7 @@ export interface AutomatedTemplate {
   shouldSend?: boolean;
 }
 
-export const AUTOMATED_TEMPLATES: AutomatedTemplate[] = [
+const BASE_AUTOMATED_TEMPLATES: AutomatedTemplate[] = [
   // ==========================================
   // CATEGORY 1: GREETINGS AND WELCOME (10 templates)
   // ==========================================
@@ -400,9 +406,9 @@ export const AUTOMATED_TEMPLATES: AutomatedTemplate[] = [
     name: "Pan-India Delivery Assistance",
     intent: "general_assistance",
     subIntent: "pan_india",
-    en: "Yes, we deliver pan-India via India Post Speed Post directly to your doorstep with protective artisan packaging.",
-    hinglish: "Ji haan, hum poore Bharat mein India Post Speed Post dwara surakshit packaging ke saath doorstep delivery karte hain.",
-    hi: "जी हाँ, हम पूरे भारत में इंडिया पोस्ट स्पीड पोस्ट के माध्यम से सुरक्षित पैकेजिंग के साथ होम डिलीवरी करते हैं।",
+    en: "Yes, we deliver pan-India via Shipping directly to your doorstep with protective artisan packaging.",
+    hinglish: "Ji haan, hum poore Bharat mein Shipping dwara surakshit packaging ke saath doorstep delivery karte hain.",
+    hi: "जी हाँ, हम पूरे भारत में शिपिंग के माध्यम से सुरक्षित पैकेजिंग के साथ होम डिलीवरी करते हैं।",
     variables: [],
   },
   {
@@ -948,9 +954,9 @@ export const AUTOMATED_TEMPLATES: AutomatedTemplate[] = [
     name: "Order Ready For Dispatch",
     intent: "order_status",
     subIntent: "ready_dispatch",
-    en: "Your order #{orderNumber} is packed and scheduled for handover to India Post Speed Post today.",
-    hinglish: "Aapka order #{orderNumber} pack ho chuka hai aur aaj hi India Post Speed Post ko handover kiya ja raha hai ji.",
-    hi: "आपका ऑर्डर #{orderNumber} पैक हो चुका है और आज ही इंडिया पोस्ट स्पीड पोस्ट को सौंपा जा रहा है जी।",
+    en: "Your order #{orderNumber} is packed and scheduled for handover to Shipping today.",
+    hinglish: "Aapka order #{orderNumber} pack ho chuka hai aur aaj hi Shipping ko handover kiya ja raha hai ji.",
+    hi: "आपका ऑर्डर #{orderNumber} पैक हो चुका है और आज ही शिपिंग को सौंपा जा रहा है जी।",
     variables: ["orderNumber"],
   },
   {
@@ -1132,9 +1138,9 @@ export const AUTOMATED_TEMPLATES: AutomatedTemplate[] = [
     name: "Carrier & Logistics Partner",
     intent: "shipping_delivery",
     subIntent: "carrier_info",
-    en: "We partner with India Post Speed Post for the most reliable pan-India reach, covering even remote PIN codes.",
-    hinglish: "Hum India Post Speed Post se deliver karte hain taki har chote-bade shahar aur gaon tak parcel surakshit pahunche.",
-    hi: "हम इंडिया पोस्ट स्पीड पोस्ट द्वारा पार्सल भेजते हैं ताकि हर पिनकोड तक सुरक्षित पहुंच सुनिश्चित हो सके।",
+    en: "We partner with trusted Shipping carriers for the most reliable pan-India reach, covering even remote PIN codes.",
+    hinglish: "Hum reliable Shipping partners dwara deliver karte hain taki har chote-bade shahar aur gaon tak parcel surakshit pahunche.",
+    hi: "हम विश्वसनीय शिपिंग पार्टनर्स द्वारा पार्सल भेजते हैं ताकि हर पिनकोड तक सुरक्षित पहुंच सुनिश्चित हो सके।",
     variables: [],
   },
   {
@@ -1343,6 +1349,11 @@ export const AUTOMATED_TEMPLATES: AutomatedTemplate[] = [
     hi: "स्वचालित सहायता पुनः सक्रिय है जी। बताएं, हिमालयी उत्पादों में आप क्या देखना चाहेंगे?",
     variables: [],
   },
+];
+
+export const AUTOMATED_TEMPLATES: AutomatedTemplate[] = [
+  ...BASE_AUTOMATED_TEMPLATES,
+  ...INDIAN_CONVERSATION_TEMPLATES,
 ];
 
 /**

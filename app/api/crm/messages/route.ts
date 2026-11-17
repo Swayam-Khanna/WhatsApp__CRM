@@ -4,53 +4,92 @@ import {
   sendWhatsAppMediaMessage,
   getWhatsAppIntegrationStatus,
 } from "../../../../backend/lib/whatsapp.server.ts";
-import { db, isPostgresConfigured } from "../../../../backend/db.ts";
+import {
+  db as pgDb,
+  isPostgresConfigured,
+  isPostgresAvailable,
+  reportPostgresFailure,
+  reportPostgresSuccess,
+} from "../../../../backend/db.ts";
 import { crmMessages } from "../../../../backend/schema/crm.ts";
 import { desc, or, ilike, eq } from "drizzle-orm";
 import { getDatabase } from "../../../../lib/mongodb.ts";
+import {
+  getStoredMessages,
+  saveStoredMessage,
+  getDeletedContacts,
+  recordDeletedContact,
+  resurrectContact,
+  isContactDeleted,
+} from "../../../../backend/lib/crm-store.server.ts";
 
 export const dynamic = "force-dynamic";
 
+// In-memory response cache to protect DB and reduce server CPU & RAM churn
+interface MessagesCacheEntry {
+  data: any;
+  timestamp: number;
+}
+const messagesCache = new Map<string, MessagesCacheEntry>();
+
+function invalidateMessagesCache() {
+  messagesCache.clear();
+}
+
 /**
  * GET /api/crm/messages
- * Retrieves live WhatsApp messages feed from PostgreSQL (primary) & MongoDB (fallback) and integration health.
+ * Retrieves live WhatsApp messages feed combining Persistent Disk Store, PostgreSQL & MongoDB.
+ * Filters out deleted contacts and returns authoritative deleted lists for universal multi-device sync.
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const phone = searchParams.get("phone");
+  const cacheKey = phone ? phone.replace(/\D/g, "").slice(-10) : "all";
+
+  // 1. Serve from in-memory cache if fresh (2.5 second TTL)
+  const cached = messagesCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < 2500) {
+    return NextResponse.json(cached.data);
+  }
+
   const health = getWhatsAppIntegrationStatus();
+  const deletedInfo = getDeletedContacts();
+  const deletedPhoneSet = new Set(deletedInfo.phones.map((p) => p.replace(/\D/g, "").slice(-10)));
+  const deletedCustIdSet = new Set(deletedInfo.customerIds);
 
   try {
     const cleanPhone = phone ? phone.replace(/\D/g, "").slice(-10) : "";
     let pgMessages: any[] = [];
 
-    // 1. Primary storage: PostgreSQL via Drizzle ORM (when configured)
-    if (isPostgresConfigured) {
+    // 2. Primary relational storage: PostgreSQL via Drizzle ORM (when configured & available)
+    if (isPostgresAvailable()) {
       try {
         if (cleanPhone) {
-          pgMessages = await db
+          pgMessages = await pgDb
             .select()
             .from(crmMessages)
             .where(or(ilike(crmMessages.from, `%${cleanPhone}%`), ilike(crmMessages.to, `%${cleanPhone}%`)))
             .orderBy(desc(crmMessages.createdAt))
-            .limit(500);
+            .limit(100);
         } else {
-          pgMessages = await db
+          pgMessages = await pgDb
             .select()
             .from(crmMessages)
             .orderBy(desc(crmMessages.createdAt))
-            .limit(500);
+            .limit(100);
         }
+        reportPostgresSuccess();
       } catch (pgErr: any) {
+        reportPostgresFailure(pgErr);
         console.warn("[PostgreSQL] Messages query note:", pgErr?.message || pgErr);
       }
     }
 
-    // 2. Secondary fallback storage: MongoDB Atlas
+    // 3. Secondary fallback storage: MongoDB Atlas
     let dbMessages: any[] = [];
     try {
-      const fetchWithTimeout = async () => {
-        const mongoDb = await getDatabase();
+      const mongoDb = await getDatabase();
+      if (mongoDb) {
         const query = cleanPhone
           ? {
               $or: [
@@ -60,56 +99,55 @@ export async function GET(req: NextRequest) {
             }
           : {};
 
-        return await mongoDb
+        dbMessages = await mongoDb
           .collection("crm_messages")
           .find(query)
           .sort({ createdAt: -1, timestamp: -1 })
-          .limit(500)
+          .limit(100)
           .toArray();
-      };
-
-      dbMessages = await Promise.race([
-        fetchWithTimeout(),
-        new Promise<any[]>((_, reject) =>
-          setTimeout(() => reject(new Error("MongoDB query timeout")), 4000)
-        ),
-      ]);
+      }
     } catch (mongoErr) {
-      // In PostgreSQL-first deployments, MongoDB timeout/skip is expected
+      // In PostgreSQL-first or file-first deployments, MongoDB timeout/skip is handled gracefully
     }
 
-    const isDuplicateMessage = (m: any, o: any) => {
-      if (m.id && o.id && m.id === o.id) return true;
-      const sameFrom = (m.from || "").replace(/\D/g, "").slice(-10) === (o.from || "").replace(/\D/g, "").slice(-10);
-      const sameTo = (m.to || "").replace(/\D/g, "").slice(-10) === (o.to || "").replace(/\D/g, "").slice(-10);
-      const sameText = (m.text || "").trim() === (o.text || "").trim();
-      const sameDir = (m.direction || m.sender) === (o.direction || o.sender);
-      const timeDiff = Math.abs(
-        new Date(m.timestamp || m.createdAt || 0).getTime() - new Date(o.timestamp || o.createdAt || 0).getTime()
-      );
-      return sameFrom && sameTo && sameText && sameDir && timeDiff < 4000;
-    };
+    // 4. Base persistent store (disk-backed, survives server restarts and multi-device access)
+    const storedBase = getStoredMessages();
 
-    const allMsgs = [...(globalThis.__globalWhatsAppFeed || []), ...(pgMessages || []), ...(dbMessages || [])];
-    let uniqueMsgs = allMsgs.filter((m, idx, arr) => idx === arr.findIndex((o) => isDuplicateMessage(m, o)));
+    // Fast O(N) deduplication using Hash Sets
+    const seenIds = new Set<string>();
+    const seenSignatures = new Set<string>();
+    const uniqueMsgs: any[] = [];
 
-    // Exclude any messages from permanently deleted contacts
-    try {
-      const db = await getDatabase();
-      if (db) {
-        const deletedDocs = await db.collection("crm_deleted_contacts").find({}).toArray();
-        if (deletedDocs && deletedDocs.length > 0) {
-          const deletedPhoneSet = new Set<string>(deletedDocs.map((d: any) => (d.phone || "").replace(/\D/g, "").slice(-10)).filter(Boolean));
-          uniqueMsgs = uniqueMsgs.filter((m: any) => {
-            const mFrom = (m.from || "").replace(/\D/g, "").slice(-10);
-            const mTo = (m.to || "").replace(/\D/g, "").slice(-10);
-            return !deletedPhoneSet.has(mFrom) && !deletedPhoneSet.has(mTo);
-          });
-        }
-      }
-    } catch {}
+    const allMsgs = [...storedBase, ...(pgMessages || []), ...(dbMessages || [])];
 
-    // Sanitize any malformed duplicate origin URLs (e.g. from previously stored messages)
+    for (const m of allMsgs) {
+      if (!m) continue;
+      if (m.id && seenIds.has(m.id)) continue;
+
+      const mFrom = (m.from || "").replace(/\D/g, "").slice(-10);
+      const mTo = (m.to || "").replace(/\D/g, "").slice(-10);
+
+      // Exclude messages belonging to deleted contacts
+      if (mFrom && deletedPhoneSet.has(mFrom)) continue;
+      if (mTo && deletedPhoneSet.has(mTo)) continue;
+      if (m.customerId && deletedCustIdSet.has(m.customerId)) continue;
+
+      // Filter by phone if specified
+      if (cleanPhone && mFrom !== cleanPhone && mTo !== cleanPhone) continue;
+
+      const textTrim = (m.text || "").trim();
+      const timeMs = Math.floor(new Date(m.timestamp || m.createdAt || 0).getTime() / 4000); // 4-sec bucket
+      const sig = `${mFrom}_${mTo}_${textTrim}_${timeMs}`;
+
+      if (seenSignatures.has(sig)) continue;
+
+      if (m.id) seenIds.add(m.id);
+      seenSignatures.add(sig);
+      uniqueMsgs.push(m);
+      if (uniqueMsgs.length >= 200) break;
+    }
+
+    // Sanitize any malformed duplicate origin URLs
     const hostHeader = req.headers.get("host") || "";
     const isLocalEnv = !hostHeader || hostHeader.includes("localhost") || hostHeader.includes("127.0.0.1");
     const cleanOrigin = isLocalEnv ? `http://${hostHeader || "127.0.0.1:3000"}` : `https://${hostHeader || "crm.prajnaa.in"}`;
@@ -124,37 +162,30 @@ export async function GET(req: NextRequest) {
       return m;
     });
 
-    (globalThis.__globalWhatsAppFeed || []).forEach((m: any) => {
-      if (typeof m.text === "string" && (m.text.includes("/catalogue") || m.text.includes("/customer") || m.text.includes("/catalog"))) {
-        m.text = m.text
-          .replace(/https?:\/\/[^\s]+https?:\/\/[^\s]*\/(?:catalogue|customer|catalog)([^\s]*)/gi, `${cleanOrigin}/catalogue$1`)
-          .replace(/https?:\/\/[^\s]+http\/[^\s]*\/(?:catalogue|customer|catalog)([^\s]*)/gi, `${cleanOrigin}/catalogue$1`);
-      }
-    });
-
-    return NextResponse.json({
+    const responsePayload = {
       success: true,
       messages: cleanedMsgs,
+      deletedPhones: deletedInfo.phones,
+      deletedCustomerIds: deletedInfo.customerIds,
       health,
-      storage: "hybrid",
-    });
-  } catch (err: any) {
-    console.error("[CRM Messages GET] Error:", err?.message || err);
-        const isDuplicateMessage = (m: any, o: any) => {
-      if (m.id && o.id && m.id === o.id) return true;
-      const sameFrom = (m.from || "").replace(/\D/g, "").slice(-10) === (o.from || "").replace(/\D/g, "").slice(-10);
-      const sameTo = (m.to || "").replace(/\D/g, "").slice(-10) === (o.to || "").replace(/\D/g, "").slice(-10);
-      const sameText = (m.text || "").trim() === (o.text || "").trim();
-      const sameDir = (m.direction || m.sender) === (o.direction || o.sender);
-      const timeDiff = Math.abs(
-        new Date(m.timestamp || m.createdAt || 0).getTime() - new Date(o.timestamp || o.createdAt || 0).getTime()
-      );
-      return sameFrom && sameTo && sameText && sameDir && timeDiff < 4000;
+      storage: "persistent_hybrid",
     };
 
-    const feed = globalThis.__globalWhatsAppFeed || [];
-    const cleanFeed = feed.filter((m, idx, arr) => idx === arr.findIndex((o) => isDuplicateMessage(m, o)));
-    return NextResponse.json({ success: true, messages: cleanFeed, health, storage: "memory_fallback" });
+    // Cache the compiled payload for 2.5s
+    messagesCache.set(cacheKey, { data: responsePayload, timestamp: Date.now() });
+
+    return NextResponse.json(responsePayload);
+  } catch (err: any) {
+    console.error("[CRM Messages GET] Error:", err?.message || err);
+    const feed = getStoredMessages();
+    return NextResponse.json({
+      success: true,
+      messages: feed,
+      deletedPhones: deletedInfo.phones,
+      deletedCustomerIds: deletedInfo.customerIds,
+      health,
+      storage: "persistent_fallback",
+    });
   }
 }
 
@@ -162,6 +193,7 @@ export async function GET(req: NextRequest) {
  * POST /api/crm/messages
  * Sends a WhatsApp message.
  * If sender === "customer", records inbound message and immediately fires an automated reply.
+ * Persists universally to disk, PostgreSQL, and MongoDB so every device gets the exact same state.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -184,15 +216,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Recipient phone 'to' and message content are required" }, { status: 400 });
     }
 
-    if (!globalThis.__globalWhatsAppFeed) {
-      globalThis.__globalWhatsAppFeed = [];
-    }
-
-    let db: any = null;
+    let mongoDb: any = null;
     try {
-      db = await getDatabase();
+      mongoDb = await getDatabase();
     } catch (dbErr) {
-      console.warn("[MongoDB] Operating in memory fallback:", dbErr);
+      console.warn("[MongoDB] Operating in persistent disk fallback:", dbErr);
     }
 
     // SCENARIO A: Inbound Customer Message (Triggers Instant Automated Reply)
@@ -200,6 +228,11 @@ export async function POST(req: NextRequest) {
       const fromClean = (to || "").replace(/\D/g, "").slice(-10);
       const { processSmartCustomerReply } = await import("../../../../backend/lib/smart-assistant.server.ts");
       const host = req.headers.get("host") || undefined;
+
+      // Resurrect contact if customer contacts again
+      if (fromClean) {
+        resurrectContact(fromClean, customerId);
+      }
 
       const botResult = await processSmartCustomerReply({
         customerPhone: to,
@@ -209,29 +242,6 @@ export async function POST(req: NextRequest) {
       });
 
       const resolvedName = (botResult as any)?.updatedCustomerName || customerName || "Customer";
-
-      // If updated customer name found, propagate to past messages in feed & DB
-      if (botResult.updatedCustomerName && fromClean) {
-        (globalThis.__globalWhatsAppFeed || []).forEach((m: any) => {
-          const mFrom = (m.from || "").replace(/\D/g, "").slice(-10);
-          const mTo = (m.to || "").replace(/\D/g, "").slice(-10);
-          if (mFrom === fromClean || mTo === fromClean) {
-            m.customerName = botResult.updatedCustomerName;
-          }
-        });
-
-        if (db) {
-          db.collection("crm_messages").updateMany(
-            {
-              $or: [
-                { from: { $regex: fromClean } },
-                { to: { $regex: fromClean } },
-              ],
-            },
-            { $set: { customerName: botResult.updatedCustomerName } }
-          ).catch(() => {});
-        }
-      }
 
       const customerMsgRecord = {
         id: `msg_cust_${Date.now()}`,
@@ -245,13 +255,44 @@ export async function POST(req: NextRequest) {
         status: "delivered",
         customerId,
         orderNumber,
-        createdAt: new Date(),
+        createdAt: new Date().toISOString(),
       };
 
-      globalThis.__globalWhatsAppFeed.unshift(customerMsgRecord);
-      if (db) {
+      // 1. Persist to shared disk store
+      saveStoredMessage(customerMsgRecord);
+
+      // 2. Persist to PostgreSQL if configured & available
+      if (isPostgresAvailable()) {
         try {
-          await db.collection("crm_messages").insertOne(customerMsgRecord);
+          await pgDb
+            .insert(crmMessages)
+            .values({
+              id: customerMsgRecord.id,
+              direction: "inbound",
+              sender: "customer",
+              from: customerMsgRecord.from,
+              to: customerMsgRecord.to,
+              customerName: resolvedName,
+              text: customerMsgRecord.text,
+              type: "text",
+              timestamp: new Date(customerMsgRecord.timestamp),
+              status: "delivered",
+              customerId: customerId || null,
+              orderNumber: orderNumber || null,
+              createdAt: new Date(),
+            })
+            .onConflictDoNothing();
+          reportPostgresSuccess();
+        } catch (pgErr) {
+          reportPostgresFailure(pgErr);
+          console.warn("[PostgreSQL] Inbound persist note:", pgErr);
+        }
+      }
+
+      // 3. Persist to MongoDB if available
+      if (mongoDb) {
+        try {
+          await mongoDb.collection("crm_messages").insertOne(customerMsgRecord);
         } catch (e) {
           console.warn("[MongoDB] Note: Failed to persist customer msg:", e);
         }
@@ -277,36 +318,76 @@ export async function POST(req: NextRequest) {
           orderNumber,
           mode: replyResult.mode,
           whatsappUrl: replyResult.whatsappUrl || null,
-          createdAt: new Date(),
+          createdAt: new Date().toISOString(),
         };
 
-        globalThis.__globalWhatsAppFeed.unshift(autoReplyRecord);
-        if (db) {
+        // Persist auto-reply universally
+        saveStoredMessage(autoReplyRecord);
+
+        if (isPostgresAvailable()) {
           try {
-            await db.collection("crm_messages").insertOne(autoReplyRecord);
+            await pgDb
+              .insert(crmMessages)
+              .values({
+                id: autoReplyRecord.id,
+                direction: "outbound",
+                sender: "business",
+                from: autoReplyRecord.from,
+                to: autoReplyRecord.to,
+                customerName: resolvedName,
+                text: autoReplyRecord.text,
+                type: "text",
+                timestamp: new Date(autoReplyRecord.timestamp),
+                status: "sent",
+                customerId: customerId || null,
+                orderNumber: orderNumber || null,
+                mode: replyResult.mode,
+                whatsappUrl: replyResult.whatsappUrl || null,
+                createdAt: new Date(),
+              })
+              .onConflictDoNothing();
+            reportPostgresSuccess();
+          } catch (pgErr) {
+            reportPostgresFailure(pgErr);
+            console.warn("[PostgreSQL] Auto-reply persist note:", pgErr);
+          }
+        }
+
+        if (mongoDb) {
+          try {
+            await mongoDb.collection("crm_messages").insertOne(autoReplyRecord);
           } catch (e) {
             console.warn("[MongoDB] Note: Failed to persist auto reply msg:", e);
           }
         }
       }
 
+      invalidateMessagesCache();
+
       return NextResponse.json({
         success: true,
         inboundMessage: customerMsgRecord,
         autoReply: autoReplyRecord,
-        storage: db ? "mongodb" : "memory_fallback",
+        storage: "persistent_universal",
       });
     }
 
     // SCENARIO B: Outbound Staff / Business Message
     const cleanTo = (to || "").replace(/\D/g, "");
 
+    // Resurrect contact if staff sends an outbound message
+    if (cleanTo) {
+      resurrectContact(cleanTo, customerId);
+    }
+
     // Human takeover safeguard: pause conflicting automated bot replies for this customer
     try {
       const { setHumanAgentHandoff } = await import("../../../../backend/lib/smart-assistant.server.ts");
       setHumanAgentHandoff(cleanTo, "CRM Staff Desk");
     } catch {}
-    const recentDuplicate = (globalThis.__globalWhatsAppFeed || []).find(
+
+    const storedMsgs = getStoredMessages();
+    const recentDuplicate = storedMsgs.find(
       (m: any) =>
         m.direction === "outbound" &&
         (m.to || "").replace(/\D/g, "") === cleanTo &&
@@ -343,6 +424,7 @@ export async function POST(req: NextRequest) {
       sender: "business",
       from: process.env.ADMIN_WHATSAPP_NUMBER || "918091265690",
       to: result.recipientPhone || cleanTo,
+      customerName: customerName || null,
       text,
       type: type || "text",
       mediaId: mediaId || null,
@@ -355,50 +437,53 @@ export async function POST(req: NextRequest) {
       orderNumber,
       mode: result.mode,
       whatsappUrl: result.whatsappUrl || null,
-      createdAt: new Date(),
+      createdAt: new Date().toISOString(),
     };
 
-    globalThis.__globalWhatsAppFeed.unshift(messageRecord);
+    // 1. Save to persistent disk store (Primary shared resilience)
+    saveStoredMessage(messageRecord);
 
-    // 1. Save permanently to PostgreSQL (Primary)
-    let persistedInPg = false;
-    try {
-      await db
-        .insert(crmMessages)
-        .values({
-          id: messageRecord.id,
-          direction: "outbound",
-          sender: "business",
-          from: messageRecord.from,
-          to: messageRecord.to,
-          customerName: customerName || null,
-          text: messageRecord.text,
-          type: messageRecord.type || "text",
-          mediaId: messageRecord.mediaId || null,
-          mimeType: messageRecord.mimeType || null,
-          timestamp: new Date(messageRecord.timestamp),
-          status: "sent",
-          customerId: customerId || null,
-          orderNumber: orderNumber || null,
-          mode: result.mode,
-          whatsappUrl: result.whatsappUrl || null,
-          createdAt: messageRecord.createdAt,
-        })
-        .onConflictDoNothing();
-      persistedInPg = true;
-    } catch (pgErr: any) {
-      console.warn("[PostgreSQL] Note: Failed to persist outbound message:", pgErr?.message || pgErr);
+    // 2. Save permanently to PostgreSQL (when configured & available)
+    if (isPostgresAvailable()) {
+      try {
+        await pgDb
+          .insert(crmMessages)
+          .values({
+            id: messageRecord.id,
+            direction: "outbound",
+            sender: "business",
+            from: messageRecord.from,
+            to: messageRecord.to,
+            customerName: customerName || null,
+            text: messageRecord.text,
+            type: messageRecord.type || "text",
+            mediaId: messageRecord.mediaId || null,
+            mimeType: messageRecord.mimeType || null,
+            timestamp: new Date(messageRecord.timestamp),
+            status: "sent",
+            customerId: customerId || null,
+            orderNumber: orderNumber || null,
+            mode: result.mode,
+            whatsappUrl: result.whatsappUrl || null,
+            createdAt: new Date(),
+          })
+          .onConflictDoNothing();
+        reportPostgresSuccess();
+      } catch (pgErr: any) {
+        reportPostgresFailure(pgErr);
+        console.warn("[PostgreSQL] Outbound message note:", pgErr?.message || pgErr);
+      }
     }
 
-    // 2. Save permanently to MongoDB Atlas (Fallback) & update conversation state
-    if (db) {
+    // 3. Save permanently to MongoDB Atlas (when available)
+    if (mongoDb) {
       try {
-        await db.collection("crm_messages").insertOne(messageRecord);
+        await mongoDb.collection("crm_messages").insertOne(messageRecord);
 
         const to10 = cleanTo.slice(-10);
         if (to10) {
           const formattedPhone = to10.length === 10 ? `+91 ${to10.slice(0, 5)} ${to10.slice(5)}` : `+${to10}`;
-          await db.collection("crm_conversations").updateOne(
+          await mongoDb.collection("crm_conversations").updateOne(
             { phone: to10 },
             {
               $set: {
@@ -423,21 +508,23 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    invalidateMessagesCache();
+
     return NextResponse.json({
       success: true,
       result,
       messageRecord,
-      storage: db ? "mongodb" : "memory_fallback",
+      storage: "persistent_universal",
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Failed to send WhatsApp message" }, { status: 500 });
   }
 }
 
-
 /**
  * DELETE /api/crm/messages
- * Permanently deletes a customer contact and all of their messages from MongoDB Atlas and in-memory feed.
+ * Permanently deletes a customer contact and all of their messages from disk store, MongoDB Atlas, and PostgreSQL.
+ * Synchronizes the deletion across all devices so no device displays ghost chats.
  */
 export async function DELETE(req: NextRequest) {
   try {
@@ -451,27 +538,19 @@ export async function DELETE(req: NextRequest) {
 
     const cleanPhone = (phone || "").replace(/\D/g, "").slice(-10);
 
-    // 1. Delete from in-memory feed
-    if (globalThis.__globalWhatsAppFeed) {
-      globalThis.__globalWhatsAppFeed = globalThis.__globalWhatsAppFeed.filter((m: any) => {
-        const mFrom = (m.from || "").replace(/\D/g, "").slice(-10);
-        const mTo = (m.to || "").replace(/\D/g, "").slice(-10);
-        const matchPhone = cleanPhone && (mFrom === cleanPhone || mTo === cleanPhone);
-        const matchId = customerId && m.customerId === customerId;
-        return !matchPhone && !matchId;
-      });
-    }
+    // 1. Mark permanently deleted in persistent store & purge messages/inquiries
+    recordDeletedContact(cleanPhone, customerId);
 
     // 2. Clear active conversation session
     if (cleanPhone && globalThis.__crmChatSessions) {
       globalThis.__crmChatSessions.delete(cleanPhone);
     }
 
-    // 3. Delete permanently from MongoDB Atlas
+    // 3. Delete from MongoDB Atlas if available
     let deletedCount = 0;
     try {
-      const db = await getDatabase();
-      if (db) {
+      const mongoDb = await getDatabase();
+      if (mongoDb) {
         const orClauses: any[] = [];
         if (cleanPhone) {
           orClauses.push({ from: { $regex: cleanPhone } });
@@ -482,19 +561,17 @@ export async function DELETE(req: NextRequest) {
         }
 
         if (orClauses.length > 0) {
-          const res = await db.collection("crm_messages").deleteMany({ $or: orClauses });
+          const res = await mongoDb.collection("crm_messages").deleteMany({ $or: orClauses });
           deletedCount = res.deletedCount;
           if (cleanPhone) {
-            await db.collection("crm_conversations").deleteMany({ phone: cleanPhone });
-            // Remove draft/inquiry orders for this phone so order sync won't recreate the customer
-            await db.collection("crm_orders").deleteMany({
+            await mongoDb.collection("crm_conversations").deleteMany({ phone: cleanPhone });
+            await mongoDb.collection("crm_orders").deleteMany({
               $and: [
                 { customerPhone: { $regex: cleanPhone } },
-                { $or: [{ orderNumber: /INQUIRY/i }, { id: /inq_/i }, { totalPaise: 0 }] }
-              ]
+                { $or: [{ orderNumber: /INQUIRY/i }, { id: /inq_/i }, { totalPaise: 0 }] },
+              ],
             });
-            // Record in crm_deleted_contacts so it is permanently excluded
-            await db.collection("crm_deleted_contacts").updateOne(
+            await mongoDb.collection("crm_deleted_contacts").updateOne(
               { phone: cleanPhone },
               { $set: { phone: cleanPhone, customerId: customerId || null, deletedAt: new Date() } },
               { upsert: true }
@@ -503,39 +580,42 @@ export async function DELETE(req: NextRequest) {
         }
       }
     } catch (dbErr) {
-      console.warn("[MongoDB] Delete error:", dbErr);
+      console.warn("[MongoDB] Delete note:", dbErr);
     }
 
-    // Also delete permanently from PostgreSQL if available
-    try {
-      const { db: pgDb } = await import("../../../../backend/db.ts");
-      const { crmMessages } = await import("../../../../backend/schema/crm.ts");
-      const { or, ilike, eq } = await import("drizzle-orm");
-      if (cleanPhone && customerId) {
-        await pgDb
-          .delete(crmMessages)
-          .where(
-            or(
-              ilike(crmMessages.from, `%${cleanPhone}%`),
-              ilike(crmMessages.to, `%${cleanPhone}%`),
-              eq(crmMessages.customerId, customerId)
-            )
-          );
-      } else if (cleanPhone) {
-        await pgDb
-          .delete(crmMessages)
-          .where(
-            or(ilike(crmMessages.from, `%${cleanPhone}%`), ilike(crmMessages.to, `%${cleanPhone}%`))
-          );
-      } else if (customerId) {
-        await pgDb.delete(crmMessages).where(eq(crmMessages.customerId, customerId));
-      }
-    } catch (pgErr) {}
+    // 4. Delete permanently from PostgreSQL if available
+    if (isPostgresConfigured) {
+      try {
+        if (cleanPhone && customerId) {
+          await pgDb
+            .delete(crmMessages)
+            .where(
+              or(
+                ilike(crmMessages.from, `%${cleanPhone}%`),
+                ilike(crmMessages.to, `%${cleanPhone}%`),
+                eq(crmMessages.customerId, customerId)
+              )
+            );
+        } else if (cleanPhone) {
+          await pgDb
+            .delete(crmMessages)
+            .where(
+              or(ilike(crmMessages.from, `%${cleanPhone}%`), ilike(crmMessages.to, `%${cleanPhone}%`))
+            );
+        } else if (customerId) {
+          await pgDb.delete(crmMessages).where(eq(crmMessages.customerId, customerId));
+        }
+      } catch (pgErr) {}
+    }
+
+    invalidateMessagesCache();
 
     return NextResponse.json({
       success: true,
-      message: "Contact and all messages deleted permanently",
+      message: "Contact and all messages deleted permanently across all devices",
       deletedCount,
+      deletedPhones: getDeletedContacts().phones,
+      deletedCustomerIds: getDeletedContacts().customerIds,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Failed to delete contact messages" }, { status: 500 });

@@ -38,6 +38,7 @@ interface LeadDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   leadId: string | null;
+  initialLead?: LeadRecord | null;
   onUpdate: () => void;
   onOpenWhatsApp?: (phone: string, text?: string) => void;
   onViewOrder?: (orderNumberOrId: string, lead?: LeadRecord) => void;
@@ -50,6 +51,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   isOpen,
   onClose,
   leadId,
+  initialLead,
   onUpdate,
   onOpenWhatsApp,
   onViewOrder,
@@ -57,8 +59,9 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   teamMembers = [],
   products,
 }) => {
-  const [lead, setLead] = useState<LeadRecord | null>(null);
+  const [lead, setLead] = useState<LeadRecord | null>(initialLead || null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Sub-modal states
   const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
@@ -80,17 +83,67 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
 
   React.useEffect(() => {
     if (isOpen && leadId) {
-      loadLead(leadId);
+      const fallback =
+        (initialLead && (initialLead.id === leadId || initialLead.reference === leadId))
+          ? initialLead
+          : typeof window !== "undefined"
+          ? (() => {
+              try {
+                const cachedRaw = localStorage.getItem("crm_cached_leads");
+                if (cachedRaw) {
+                  const list: LeadRecord[] = JSON.parse(cachedRaw);
+                  return list.find((l) => l.id === leadId || l.reference === leadId) || null;
+                }
+              } catch {}
+              return null;
+            })()
+          : null;
+
+      if (fallback) {
+        setLead(fallback);
+      }
+      loadLead(leadId, fallback);
     } else {
       setLead(null);
+      setLoadError(null);
     }
-  }, [isOpen, leadId]);
+  }, [isOpen, leadId, initialLead]);
 
-  const loadLead = async (id: string) => {
+  const loadLead = async (id: string, fallback?: LeadRecord | null) => {
     setIsLoading(true);
-    const l = await leadsService.fetchLead(id);
-    setLead(l);
-    setIsLoading(false);
+    setLoadError(null);
+    try {
+      const l = await leadsService.fetchLead(id);
+      if (l) {
+        setLead(l);
+      } else if (fallback) {
+        setLead(fallback);
+      } else {
+        let cached: LeadRecord | null = null;
+        if (typeof window !== "undefined") {
+          try {
+            const raw = localStorage.getItem("crm_cached_leads");
+            if (raw) {
+              const list: LeadRecord[] = JSON.parse(raw);
+              cached = list.find((item) => item.id === id || item.reference === id) || null;
+            }
+          } catch {}
+        }
+        if (cached) {
+          setLead(cached);
+        } else {
+          setLoadError(`Lead record #${id} could not be found.`);
+        }
+      }
+    } catch (err: any) {
+      if (fallback) {
+        setLead(fallback);
+      } else {
+        setLoadError(err.message || "Failed to load lead details");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (!isOpen || !leadId) return null;
@@ -812,8 +865,39 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
               )}
             </div>
           </div>
+        ) : isLoading ? (
+          <div className="p-16 flex flex-col items-center justify-center space-y-3">
+            <div className="h-8 w-8 rounded-full border-2 border-emerald-600 border-t-transparent animate-spin" />
+            <p className="text-neutral-500 font-medium text-xs">Loading quotation and lead details...</p>
+          </div>
         ) : (
-          <div className="p-12 text-center text-neutral-400">Loading lead information...</div>
+          <div className="p-12 text-center space-y-3">
+            <div className="h-10 w-10 mx-auto rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 flex items-center justify-center">
+              <AlertCircle className="h-5 w-5" />
+            </div>
+            <p className="text-sm font-bold text-neutral-800 dark:text-slate-200">
+              {loadError || "Lead record could not be found."}
+            </p>
+            <p className="text-xs text-neutral-500 max-w-sm mx-auto">
+              The quotation or lead details could not be retrieved from the server or cache.
+            </p>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => loadLead(leadId, initialLead)}
+                className="px-3.5 py-1.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 text-xs font-bold cursor-pointer"
+              >
+                Retry
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Bottom Operational Action Bar */}

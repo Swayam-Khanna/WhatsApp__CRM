@@ -58,14 +58,14 @@ export interface FulfillmentOrder {
     pricePaise: number;
     image?: string;
   }>;
-  stage: "awaiting_payment" | "payment_confirmed" | "packing" | "ready_for_dispatch" | "shipped_india_post" | "delivered";
+  stage: "awaiting_payment" | "payment_confirmed" | "packing" | "ready_for_dispatch" | "shipped_india_post" | "shipped_shipping" | "delivered";
   paymentMethod: "whatsapp" | "cod" | "razorpay" | "cashfree";
   paymentStatus: "pending" | "collected" | "refunded";
   placedAt: string;
   packingStartedAt?: string;
   processingDay: number; // 1, 2, or 3
   consignmentNumber?: string;
-  carrier: "India Post Speed Post" | "India Post Registered" | "Delhivery";
+  carrier: "Shipping" | "Shipping (Standard)" | "Shipping (Express)" | "India Post Speed Post" | "India Post Registered" | "Delhivery";
   notes?: string;
 }
 
@@ -195,11 +195,11 @@ const INITIAL_AUTOMATIONS: AutomationRule[] = [
   },
   {
     id: "auto_4",
-    name: "Speed Post Dispatch Alert",
+    name: "Shipping Dispatch Alert",
     trigger: "parcel_dispatched",
-    condition: "Consignment ID (ED...IN) assigned",
+    condition: "Consignment ID assigned",
     action: "Send short dispatch alert with tracking link",
-    messageTemplate: "Good news {{customer_name}} ji! Aapka order dispatch ho gaya hai. Tracking: https://www.indiapost.gov.in (Consignment: {{consignment_id}})",
+    messageTemplate: "Good news {{customer_name}} ji! Aapka order dispatch ho gaya hai. Tracking: Shipping Portal (Consignment: {{consignment_id}})",
     enabled: true,
     executionsCount: 169,
   },

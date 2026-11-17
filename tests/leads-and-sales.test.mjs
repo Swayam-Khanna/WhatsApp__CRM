@@ -218,7 +218,7 @@ describe("PRAJANAA LEADS & SALES MANAGEMENT MODULE", () => {
         },
       ],
       paymentTerms: "Prepaid 50% Advance",
-      deliveryTerms: "Dispatch within 3 days via India Post",
+      deliveryTerms: "Dispatch within 3 days via Shipping",
       validDays: 14,
       createdBy: "Nishant",
     });

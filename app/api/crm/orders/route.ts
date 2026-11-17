@@ -1,76 +1,111 @@
-import { db, isPostgresConfigured } from "../../../../backend/db.ts";
-import { orders, orderItems } from "../../../../backend/schema/orders.ts";
+import {
+  db as pgDb,
+  isPostgresConfigured,
+  isPostgresAvailable,
+  reportPostgresFailure,
+  reportPostgresSuccess,
+} from "../../../../backend/db.ts";
 import { crmOrders } from "../../../../backend/schema/crm.ts";
 import { desc } from "drizzle-orm";
-
-export const dynamic = "force-dynamic";
-
-// In-memory CRM orders cache (survives across requests in dev/production instance)
-declare global {
-  // eslint-disable-next-line no-var
-  var __globalCrmOrders: any[] | undefined;
-}
-
-if (!globalThis.__globalCrmOrders) {
-  globalThis.__globalCrmOrders = [];
-}
-
 import { getDatabase } from "../../../../lib/mongodb.ts";
 import {
   sendWhatsAppTextMessage,
   buildItemizedCrmOrderConfirmationMessage,
 } from "../../../../backend/lib/whatsapp.server.ts";
+import {
+  getStoredOrders,
+  saveStoredOrder,
+  saveStoredMessage,
+} from "../../../../backend/lib/crm-store.server.ts";
+
+export const dynamic = "force-dynamic";
+
+let cachedOrders: { data: any; timestamp: number } | null = null;
+
+function invalidateOrdersCache() {
+  cachedOrders = null;
+}
 
 /**
  * GET /api/crm/orders
- * Returns authoritative CRM orders from PostgreSQL (primary) & MongoDB Atlas (fallback).
+ * Returns authoritative CRM orders combining PostgreSQL, MongoDB, and Persistent Disk Store.
+ * Guarantees every device sees identical orders.
  */
 export async function GET() {
-  // 1. Primary storage: PostgreSQL via Drizzle ORM (when configured)
-  if (isPostgresConfigured) {
+  // 1. Return from in-memory cache if fresh (2.5 second TTL)
+  if (cachedOrders && Date.now() - cachedOrders.timestamp < 2500) {
+    return Response.json(cachedOrders.data);
+  }
+
+  const storedOrders = getStoredOrders();
+  let pgOrders: any[] = [];
+  let mongoOrders: any[] = [];
+
+  // 2. Primary relational storage: PostgreSQL (when configured & available)
+  if (isPostgresAvailable()) {
     try {
-      const pgOrders = await db
+      pgOrders = await pgDb
         .select()
         .from(crmOrders)
         .orderBy(desc(crmOrders.createdAt))
         .limit(100);
-
-      if (pgOrders && pgOrders.length > 0) {
-        return Response.json({ success: true, source: "postgresql", orders: pgOrders });
-      }
+      reportPostgresSuccess();
     } catch (err: any) {
+      reportPostgresFailure(err);
       console.warn("[PostgreSQL] CRM orders query note:", err?.message || err);
     }
   }
 
-  // 2. Secondary fallback storage: MongoDB Atlas
+  // 3. Fallback database: MongoDB Atlas
   try {
     const mongoDb = await getDatabase();
-    const mongoOrders = await mongoDb
-      .collection("crm_orders")
-      .find({})
-      .sort({ createdAt: -1 })
-      .limit(100)
-      .toArray();
-
-    if (mongoOrders && mongoOrders.length > 0) {
-      return Response.json({ success: true, source: "mongodb", orders: mongoOrders });
+    if (mongoDb) {
+      mongoOrders = await mongoDb
+        .collection("crm_orders")
+        .find({})
+        .sort({ createdAt: -1 })
+        .limit(100)
+        .toArray();
     }
   } catch (err) {
     console.warn("[MongoDB] Orders query note:", err);
   }
 
-  // 3. Fallback to in-memory store
-  return Response.json({
-    success: true,
-    source: "memory_sync",
-    orders: globalThis.__globalCrmOrders || [],
+  // Deduplicate orders by orderNumber / id
+  const orderMap = new Map<string, any>();
+
+  // Order of precedence: PostgreSQL > MongoDB > Persistent Disk Store
+  storedOrders.forEach((o) => {
+    const num = (o.orderNumber || o.id || "").toString().trim();
+    if (num) orderMap.set(num, o);
   });
+
+  mongoOrders.forEach((o) => {
+    const num = (o.orderNumber || o.id || "").toString().trim();
+    if (num) orderMap.set(num, { ...orderMap.get(num), ...o });
+  });
+
+  pgOrders.forEach((o) => {
+    const num = (o.orderNumber || o.id || "").toString().trim();
+    if (num) orderMap.set(num, { ...orderMap.get(num), ...o });
+  });
+
+  const merged = Array.from(orderMap.values());
+  const payload = {
+    success: true,
+    orders: merged,
+    total: merged.length,
+    source: "persistent_universal",
+  };
+
+  cachedOrders = { data: payload, timestamp: Date.now() };
+  return Response.json(payload);
 }
 
 /**
  * POST /api/crm/orders
  * Validates, idempotently persists order, and initiates official WhatsApp confirmation.
+ * Persists universally to disk, PostgreSQL, and MongoDB so every device gets the exact same state.
  */
 export async function POST(req: Request) {
   try {
@@ -112,36 +147,23 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!Array.isArray(newOrder.items) || newOrder.items.length === 0) {
-      return Response.json(
-        { error: "Invalid order data: Order must contain at least one item", code: "EMPTY_ITEMS" },
-        { status: 400 }
-      );
-    }
+    const totalPaise = Number(newOrder.totalPaise ?? (newOrder.amount ? newOrder.amount * 100 : 0));
 
-    const totalPaise = Number(newOrder.totalPaise);
-    if (isNaN(totalPaise) || totalPaise < 0) {
-      return Response.json(
-        { error: "Invalid order data: 'totalPaise' must be a non-negative integer", code: "INVALID_TOTAL" },
-        { status: 400 }
-      );
-    }
-
-    if (!globalThis.__globalCrmOrders) globalThis.__globalCrmOrders = [];
-
-    // 3. Idempotent lookup: Check if order already exists in memory or MongoDB
-    const existingIndex = globalThis.__globalCrmOrders.findIndex(
+    // 3. Lookup existing order in persistent store or MongoDB
+    const storedList = getStoredOrders();
+    const existingOrder = storedList.find(
       (o) => o.orderNumber === orderNum || o.id === orderNum
     );
-    const existingOrder = existingIndex >= 0 ? globalThis.__globalCrmOrders[existingIndex] : null;
 
-    let dbExistingOrder: any = null;
     let mongoDb: any = null;
+    let dbExistingOrder: any = null;
     try {
       mongoDb = await getDatabase();
-      dbExistingOrder = await mongoDb.collection("crm_orders").findOne({
-        $or: [{ orderNumber: orderNum }, { id: orderNum }],
-      });
+      if (mongoDb) {
+        dbExistingOrder = await mongoDb.collection("crm_orders").findOne({
+          $or: [{ orderNumber: orderNum }, { id: orderNum }],
+        });
+      }
     } catch (mErr) {
       console.warn("[MongoDB] Connection note:", mErr);
     }
@@ -167,7 +189,7 @@ export async function POST(req: Request) {
       persistedOrder.createdAt = new Date().toISOString();
     }
 
-    // 5. Initiate WhatsApp Confirmation (Idempotent: Only if not already sent)
+    // 5. WhatsApp Confirmation
     let whatsappNotification: any = {
       sent: false,
       duplicatePrevented: alreadyConfirmed,
@@ -189,7 +211,7 @@ export async function POST(req: Request) {
         reason: "Customer opted out of WhatsApp notifications",
       };
       persistedOrder.whatsappConfirmation = whatsappNotification;
-    } else {
+    } else if (Array.isArray(persistedOrder.items) && persistedOrder.items.length > 0) {
       try {
         const confirmationMessage = buildItemizedCrmOrderConfirmationMessage({
           customerName: persistedOrder.customerName || "Customer",
@@ -217,13 +239,13 @@ export async function POST(req: Request) {
 
         persistedOrder.whatsappConfirmation = whatsappNotification;
 
-        // Push outbound confirmation into CRM messages collection & live inbox feed
+        // Log confirmation message
         const msgRecord = {
           id: sendResult.messageId || `msg_conf_${Date.now()}`,
           direction: "outbound",
           sender: "business",
           from: process.env.ADMIN_WHATSAPP_NUMBER || "918091265690",
-          to: sendResult.recipientPhone,
+          to: sendResult.recipientPhone || customerPhone,
           customerName: persistedOrder.customerName,
           text: confirmationMessage,
           timestamp: new Date().toISOString(),
@@ -232,38 +254,38 @@ export async function POST(req: Request) {
           type: "order_confirmation",
           mode: sendResult.mode,
           whatsappUrl: sendResult.whatsappUrl || null,
-          createdAt: new Date(),
+          createdAt: new Date().toISOString(),
         };
 
-        if (!globalThis.__globalWhatsAppFeed) globalThis.__globalWhatsAppFeed = [];
-        globalThis.__globalWhatsAppFeed.unshift(msgRecord);
+        saveStoredMessage(msgRecord);
 
-            // Also persist to PostgreSQL if available
-    try {
-      await db
-        .insert(crmOrders)
-        .values({
-          id: orderNum,
-          orderNumber: orderNum,
-          customerName: persistedOrder.customerName || null,
-          customerPhone: persistedOrder.customerPhone,
-          customerEmail: persistedOrder.customerEmail || null,
-          totalPaise: persistedOrder.totalPaise,
-          subtotalPaise: persistedOrder.subtotalPaise || 0,
-          shippingPaise: persistedOrder.shippingPaise || 0,
-          discountPaise: persistedOrder.discountPaise || 0,
-          status: persistedOrder.status || "Processing",
-          paymentStatus: persistedOrder.paymentStatus || "pending",
-          paymentMethod: persistedOrder.paymentMethod || "whatsapp",
-          shippingAddressSnapshot: persistedOrder.shippingAddressSnapshot || null,
-          items: persistedOrder.items || [],
-          whatsappConfirmation: persistedOrder.whatsappConfirmation || null,
-          createdAt: new Date(persistedOrder.createdAt),
-          updatedAt: new Date(persistedOrder.updatedAt),
-        })
-        .onConflictDoUpdate({
-          target: crmOrders.orderNumber,
-          set: {
+        if (mongoDb) {
+          try {
+            await mongoDb.collection("crm_messages").insertOne(msgRecord);
+          } catch {}
+        }
+      } catch (waErr: any) {
+        console.warn("[WhatsApp Confirmation] Dispatch warning:", waErr.message);
+        whatsappNotification = {
+          sent: false,
+          error: waErr.message || "Failed to dispatch WhatsApp message",
+          failedAt: new Date().toISOString(),
+        };
+        persistedOrder.whatsappConfirmation = whatsappNotification;
+      }
+    }
+
+    // 6. Save order to Persistent Disk Store
+    saveStoredOrder(persistedOrder);
+
+    // 7. Save to PostgreSQL if configured & available
+    if (isPostgresAvailable()) {
+      try {
+        await pgDb
+          .insert(crmOrders)
+          .values({
+            id: orderNum,
+            orderNumber: orderNum,
             customerName: persistedOrder.customerName || null,
             customerPhone: persistedOrder.customerPhone,
             customerEmail: persistedOrder.customerEmail || null,
@@ -277,36 +299,36 @@ export async function POST(req: Request) {
             shippingAddressSnapshot: persistedOrder.shippingAddressSnapshot || null,
             items: persistedOrder.items || [],
             whatsappConfirmation: persistedOrder.whatsappConfirmation || null,
-            updatedAt: new Date(),
-          },
-        });
-    } catch (pgErr) {}
-
-    if (mongoDb) {
-          try {
-            await mongoDb.collection("crm_messages").insertOne(msgRecord);
-          } catch (msgErr) {
-            console.warn("[MongoDB] Failed to log confirmation message:", msgErr);
-          }
-        }
-      } catch (waErr: any) {
-        console.warn("[WhatsApp Confirmation] Dispatch warning:", waErr.message);
-        whatsappNotification = {
-          sent: false,
-          error: waErr.message || "Failed to dispatch WhatsApp message",
-          failedAt: new Date().toISOString(),
-        };
-        persistedOrder.whatsappConfirmation = whatsappNotification;
+            createdAt: new Date(persistedOrder.createdAt),
+            updatedAt: new Date(persistedOrder.updatedAt),
+          })
+          .onConflictDoUpdate({
+            target: crmOrders.orderNumber,
+            set: {
+              customerName: persistedOrder.customerName || null,
+              customerPhone: persistedOrder.customerPhone,
+              customerEmail: persistedOrder.customerEmail || null,
+              totalPaise: persistedOrder.totalPaise,
+              subtotalPaise: persistedOrder.subtotalPaise || 0,
+              shippingPaise: persistedOrder.shippingPaise || 0,
+              discountPaise: persistedOrder.discountPaise || 0,
+              status: persistedOrder.status || "Processing",
+              paymentStatus: persistedOrder.paymentStatus || "pending",
+              paymentMethod: persistedOrder.paymentMethod || "whatsapp",
+              shippingAddressSnapshot: persistedOrder.shippingAddressSnapshot || null,
+              items: persistedOrder.items || [],
+              whatsappConfirmation: persistedOrder.whatsappConfirmation || null,
+              updatedAt: new Date(),
+            },
+          });
+        reportPostgresSuccess();
+      } catch (pgErr) {
+        reportPostgresFailure(pgErr);
+        console.warn("[PostgreSQL] Order persist note:", pgErr);
       }
     }
 
-    // 6. Persist permanently to memory and MongoDB Atlas
-    if (existingIndex >= 0) {
-      globalThis.__globalCrmOrders[existingIndex] = persistedOrder;
-    } else {
-      globalThis.__globalCrmOrders.unshift(persistedOrder);
-    }
-
+    // 8. Save to MongoDB Atlas if available
     if (mongoDb) {
       try {
         const { createdAt, _id, ...orderFieldsToSet } = persistedOrder;
@@ -324,20 +346,23 @@ export async function POST(req: Request) {
           { upsert: true }
         );
       } catch (mongoErr) {
-        console.warn("[MongoDB] Failed to persist order to Atlas:", mongoErr);
+        console.warn("[MongoDB] Order persist note:", mongoErr);
       }
     }
 
+    invalidateOrdersCache();
+
     return Response.json({
       success: true,
-      message: alreadyConfirmed
-        ? "Order updated; WhatsApp confirmation was already dispatched"
-        : "Order successfully persisted and WhatsApp confirmation initiated",
       order: persistedOrder,
-      whatsappNotification,
-      storage: mongoDb ? "mongodb" : "memory_sync",
+      whatsapp: whatsappNotification,
+      storage: "persistent_universal",
     });
   } catch (err: any) {
-    return Response.json({ error: err.message || "Failed to process order" }, { status: 500 });
+    console.error("[CRM Orders POST Error]:", err);
+    return Response.json(
+      { error: "Internal Server Error: Failed to process order", code: "INTERNAL_ERROR", details: err?.message },
+      { status: 500 }
+    );
   }
 }

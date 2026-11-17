@@ -81,7 +81,7 @@ const allNavItems: NavItem[] = [
       },
       {
         to: "/admin/whatsapp-crm/tracking",
-        label: "India Post Speed Post",
+        label: "Shipping & Tracking",
         icon: <Truck className="h-3.5 w-3.5" />,
       },
       {

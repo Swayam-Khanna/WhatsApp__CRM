@@ -59,7 +59,7 @@ export default function WhatsAppCrmTrackingPage() {
   };
 
   const handleSendWhatsAppTracking = (c: IndiaPostConsignment) => {
-    const text = `Namaste ${c.customerName} ji! 📦 Aapka Prajnaa Market order #${c.orderNumber} dispatch ho chuka hai.\n\n• Carrier: India Post Speed Post\n• Consignment ID: ${c.consignmentNumber}\n• Destination: Pincode ${c.destinationPincode}\n\nAap is consignment number ko India Post official portal par track kar sakte hain: https://www.indiapost.gov.in/_layouts/15/dpt.cept.tracking/trackconsignment.aspx\n\nDhanyavaad ji! 🌿`;
+    const text = `Namaste ${c.customerName} ji! 📦 Aapka Prajnaa Market order #${c.orderNumber} dispatch ho chuka hai.\n\n• Carrier: Shipping\n• Consignment ID: ${c.consignmentNumber}\n• Destination: Pincode ${c.destinationPincode}\n\nAap is consignment number ko official shipping portal par track kar sakte hain: https://www.indiapost.gov.in/_layouts/15/dpt.cept.tracking/trackconsignment.aspx\n\nDhanyavaad ji! 🌿`;
     toast.success(`WhatsApp dispatch update sent to ${c.customerPhone}`);
   };
 
@@ -103,14 +103,14 @@ export default function WhatsAppCrmTrackingPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="font-display text-2xl font-bold text-foreground">
-              India Post Speed Post Tracking Desk
+              Shipping &amp; Consignment Tracking Desk
             </h1>
             <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200">
               National Carrier Integrated
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Manage Speed Post consignments, track parcels across India Post sorting hubs, and trigger verified WhatsApp delivery updates.
+            Manage shipping consignments, track parcels across sorting hubs, and trigger verified WhatsApp delivery updates.
           </p>
         </div>
 
@@ -191,7 +191,7 @@ export default function WhatsAppCrmTrackingPage() {
                   rel="noopener noreferrer"
                   className="px-3 py-1.5 rounded-xl border border-border bg-secondary hover:bg-secondary/80 text-foreground text-xs font-medium flex items-center gap-1"
                 >
-                  India Post Portal <ExternalLink className="h-3 w-3" />
+                  Shipping Portal <ExternalLink className="h-3 w-3" />
                 </a>
               </div>
             </div>
@@ -221,7 +221,7 @@ export default function WhatsAppCrmTrackingPage() {
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl space-y-5">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h3 className="font-display font-bold text-base text-foreground">
-                Link India Post Consignment
+                Link Shipping Consignment
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}

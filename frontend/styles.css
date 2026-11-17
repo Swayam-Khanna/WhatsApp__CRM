@@ -439,15 +439,58 @@ div[data-nextjs-dialog-overlay] {
     visibility: hidden !important;
   }
 
-  /* When the invoice modal is open, hide the rest of the CRM dashboard */
-  body:has(#prajnaa-tax-invoice-modal-overlay) > div > *:not(#prajnaa-tax-invoice-modal-overlay),
-  body:has(#prajnaa-tax-invoice) > div > *:not(:has(#prajnaa-tax-invoice)) {
+  /* When the invoice modal is open, hide dashboard and main workspace chrome */
+  body:has(#prajnaa-tax-invoice) aside,
+  body:has(#prajnaa-tax-invoice) header,
+  body:has(#prajnaa-tax-invoice) main,
+  body:has(#prajnaa-tax-invoice) nav,
+  body:has(#prajnaa-tax-invoice) footer,
+  body:has(#prajnaa-tax-invoice) .print\:hidden,
+  body:has(#prajnaa-tax-invoice-modal-overlay) aside,
+  body:has(#prajnaa-tax-invoice-modal-overlay) header,
+  body:has(#prajnaa-tax-invoice-modal-overlay) main,
+  body:has(#prajnaa-tax-invoice-modal-overlay) nav,
+  body:has(#prajnaa-tax-invoice-modal-overlay) footer {
     display: none !important;
+    visibility: hidden !important;
   }
 
   /* Modal backdrop and card reset for print */
-  #prajnaa-tax-invoice-modal-overlay,
-  #prajnaa-tax-invoice-modal-card,
+  #prajnaa-tax-invoice-modal-overlay {
+    position: static !important;
+    inset: auto !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    max-height: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  #prajnaa-tax-invoice-modal-card {
+    position: static !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    max-height: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
   #prajnaa-tax-invoice-preview-wrapper {
     position: static !important;
     background: #ffffff !important;
@@ -459,23 +502,21 @@ div[data-nextjs-dialog-overlay] {
     max-height: none !important;
     max-width: 100% !important;
     width: 100% !important;
+    height: auto !important;
     overflow: visible !important;
     display: block !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    inset: auto !important;
   }
 
   /* Render ONLY the official tax invoice container */
   #prajnaa-tax-invoice {
     display: block !important;
     visibility: visible !important;
-    position: relative !important;
+    position: static !important;
     width: 100% !important;
-    max-width: 820px !important;
+    max-width: 100% !important;
     margin: 0 auto !important;
-    padding: 0 !important;
-    border: none !important;
+    padding: 10px 18px !important;
+    border: 1px solid #d1d5db !important;
     box-shadow: none !important;
     border-radius: 0 !important;
     background: #ffffff !important;

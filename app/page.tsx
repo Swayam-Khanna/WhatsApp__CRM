@@ -815,7 +815,7 @@ const getOrderStatusNotificationText = (
       return `Namaste ${custName}! ⏳\n\nUpdate on your Prajnaa Market order *${orderNumTag}*:\nYour order has been confirmed and is now being *processed* by our Himalayan harvest team. 🌿\n\nWe are carefully preparing your authentic natural produce directly from the farms. You will receive another notification as soon as your parcel is packed!\n\n*Team Prajnaa Market* 🌿`;
 
     case "packed":
-      return `Namaste ${custName}! 📦\n\nGreat news! Your Prajnaa Market order *${orderNumTag}* has been *quality-checked and carefully packed*. 🌿\n\nIt is safely sealed and prepared for dispatch via India Post Speed Post. We will share your tracking consignment details as soon as it is handed over to the courier!\n\n*Team Prajnaa Market* 🌿`;
+      return `Namaste ${custName}! 📦\n\nGreat news! Your Prajnaa Market order *${orderNumTag}* has been *quality-checked and carefully packed*. 🌿\n\nIt is safely sealed and prepared for dispatch via Shipping. We will share your tracking consignment details as soon as it is handed over to the courier!\n\n*Team Prajnaa Market* 🌿`;
 
     case "shipped":
     case "partiallyshipped":
@@ -826,7 +826,7 @@ const getOrderStatusNotificationText = (
       return `Namaste ${custName}! 📍\n\nTransit Update for order *${orderNumTag}*:\nYour parcel has reached *${currentLoc}* and is moving smoothly towards your destination address. 🌿${trackingPart}\nPure Himalayan farm goodness is on its way to you!\n\n*Team Prajnaa Market* 🌿`;
 
     case "outfordelivery":
-      return `Namaste ${custName}! 🛵\n\nExciting update! Your Prajnaa Market order *${orderNumTag}* is *out for delivery today*! 🎉\n\nThe delivery executive / India Post postman will be arriving with your parcel shortly. Please keep your phone reachable to receive your fresh farm harvest! 🌿\n\n*Team Prajnaa Market* 🌿`;
+      return `Namaste ${custName}! 🛵\n\nExciting update! Your Prajnaa Market order *${orderNumTag}* is *out for delivery today*! 🎉\n\nThe delivery executive will be arriving with your parcel shortly. Please keep your phone reachable to receive your fresh farm harvest! 🌿\n\n*Team Prajnaa Market* 🌿`;
 
     case "deliveringtomorrow":
       return `Namaste ${custName}! 🚚\n\nZaroori Delivery Update for order *${orderNumTag}*:\nAapka parcel local delivery hub pahunch chuka hai aur *kal deliver ho jayega*. 🌿\n\nKripya delivery receive karne ke liye available rahein. Prajnaa Himalayan harvest choose karne ke liye dhanyawad!\n\n*Team Prajnaa Market* 🌿`;
@@ -1093,6 +1093,10 @@ export default function PrajnaaMasterCrmApp() {
   const [inputMessage, setInputMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const notifiedOrdersRef = useRef<Set<string>>(new Set());
+  const lastSyncedOrdersHashRef = useRef<string>("");
+  const lastSyncedMessagesHashRef = useRef<string>("");
+  const isSyncingOrdersRef = useRef<boolean>(false);
+  const isSyncingMessagesRef = useRef<boolean>(false);
 
   // Media lightbox & upload state
   const [selectedLightboxMedia, setSelectedLightboxMedia] = useState<{ url: string; type?: string; title?: string } | null>(null);
@@ -1160,158 +1164,72 @@ export default function PrajnaaMasterCrmApp() {
   // Dedicated, bulletproof print engine for Official Tax Invoice
   const handlePrintInvoice = () => {
     if (typeof window === "undefined") return;
+    try {
+      window.print();
+    } catch (e) {
+      console.error("Print error, opening standalone printable invoice:", e);
+      handleOpenInvoiceNewTab();
+    }
+  };
 
+  // Standalone printable invoice window (failsafe for any browser popup/extension environment)
+  const handleOpenInvoiceNewTab = () => {
+    if (typeof window === "undefined") return;
     const invoiceEl = document.getElementById("prajnaa-tax-invoice");
     if (!invoiceEl) {
       window.print();
       return;
     }
-
-    // Clean up any existing print iframe
-    const oldFrame = document.getElementById("prajnaa-print-frame");
-    if (oldFrame && oldFrame.parentNode) {
-      oldFrame.parentNode.removeChild(oldFrame);
-    }
-
-    // Create isolated invisible iframe for printing
-    const iframe = document.createElement("iframe");
-    iframe.id = "prajnaa-print-frame";
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "0";
-    iframe.style.visibility = "hidden";
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (!doc) {
+    const orderNum = selectedOrderForView?.orderNumber || "Invoice";
+    const printWin = window.open("", "_blank");
+    if (!printWin) {
+      toast.info("Opening direct print dialog...");
       window.print();
       return;
     }
-
-    // Extract all stylesheets and style blocks from current document
-    let stylesHtml = "";
-    document.querySelectorAll("link[rel='stylesheet'], style").forEach((node) => {
-      stylesHtml += node.outerHTML;
-    });
-
-    const invoiceTitle = selectedOrderForView?.orderNumber
-      ? `Tax Invoice - ${selectedOrderForView.orderNumber}`
-      : "Tax Invoice - Prajnaa Market";
-
-    doc.open();
-    doc.write(`
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>${invoiceTitle}</title>
-        ${stylesHtml}
-        <style>
-          @page {
-            size: A4 portrait;
-            margin: 6mm 8mm;
-          }
-          * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-            box-sizing: border-box;
-          }
-          html, body {
-            background: #ffffff !important;
-            color: #111827 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: visible !important;
-            width: 100% !important;
-            height: auto !important;
-            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-          }
-          #prajnaa-tax-invoice {
-            box-shadow: none !important;
-            border: none !important;
-            max-width: 100% !important;
-            width: 100% !important;
-            margin: 0 auto !important;
-            padding: 0 !important;
-            display: block !important;
-            visibility: visible !important;
-          }
-          .print-keep {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
-          table {
-            page-break-inside: auto;
-          }
-          tr {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
-        </style>
-      </head>
-      <body class="bg-white">
-        <div style="width: 100%; max-width: 820px; margin: 0 auto; padding: 4px;">
-          ${invoiceEl.outerHTML}
-        </div>
-      </body>
-      </html>
-    `);
-    doc.close();
-
-    const executePrint = () => {
-      try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-      } catch (err) {
-        console.warn("Iframe print fallback triggered:", err);
-        window.print();
-      } finally {
-        setTimeout(() => {
-          const frame = document.getElementById("prajnaa-print-frame");
-          if (frame && frame.parentNode) {
-            frame.parentNode.removeChild(frame);
-          }
-        }, 2000);
-      }
-    };
-
-    // Ensure images (such as Prajnaa logo) are loaded prior to opening print preview
-    const images = iframe.contentDocument?.images;
-    if (images && images.length > 0) {
-      let pending = images.length;
-      let fired = false;
-      const done = () => {
-        if (!fired) {
-          fired = true;
-          executePrint();
-        }
-      };
-      for (let i = 0; i < images.length; i++) {
-        if (images[i].complete) {
-          pending--;
-        } else {
-          images[i].onload = () => {
-            pending--;
-            if (pending <= 0) done();
-          };
-          images[i].onerror = () => {
-            pending--;
-            if (pending <= 0) done();
-          };
-        }
-      }
-      if (pending <= 0) {
-        setTimeout(done, 100);
-      } else {
-        setTimeout(done, 500); // Fail-safe timeout
-      }
-    } else {
-      setTimeout(executePrint, 150);
+    printWin.document.open();
+    printWin.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tax Invoice - Prajnaa Market - ${orderNum}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @page { size: A4 portrait; margin: 6mm 8mm; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box; }
+    html, body { background: #f3f4f6; color: #111827; margin: 0; padding: 20px; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; flex-direction: column; align-items: center; }
+    #prajnaa-tax-invoice { width: 100%; max-width: 820px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #d1d5db; margin: 0 auto; background: #ffffff; border-radius: 8px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border-color: #d1d5db; }
+    @media print {
+      html, body { padding: 0 !important; margin: 0 !important; background: #ffffff !important; }
+      .no-print { display: none !important; }
+      #prajnaa-tax-invoice { border: 1px solid #d1d5db !important; box-shadow: none !important; border-radius: 0 !important; width: 100% !important; max-width: 100% !important; margin: 0 !important; }
     }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="width: 100%; max-width: 820px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; background: #ffffff; padding: 12px 18px; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+    <div>
+      <strong style="font-size: 14px; color: #111827;">Prajnaa Market Official Tax Invoice</strong>
+      <span style="font-size: 12px; color: #6b7280; display: block;">Order #${orderNum} &bull; Ready for A4 Print / PDF</span>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button onclick="window.print()" style="background: #047857; color: white; border: none; padding: 8px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 13px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); display: flex; align-items: center; gap: 6px;">
+        🖨️ Print / Save as PDF
+      </button>
+      <button onclick="window.close()" style="background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; padding: 8px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 13px;">
+        Close
+      </button>
+    </div>
+  </div>
+  <div style="width: 100%; max-width: 820px;">
+    ${invoiceEl.outerHTML}
+  </div>
+</body>
+</html>`);
+    printWin.document.close();
   };
   const [globalSearch, setGlobalSearch] = useState<string>("");
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState<boolean>(false);
@@ -1662,6 +1580,39 @@ export default function PrajnaaMasterCrmApp() {
         } catch {}
       }
 
+      // 0. Synchronize authoritative team roster & metadata from server (ensures multi-device consistency)
+      fetch("/api/crm/team")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.team && Array.isArray(data.team) && data.team.length > 0) {
+            setTeamMembers(data.team);
+            try {
+              localStorage.setItem("prajnaa_crm_team", JSON.stringify(data.team));
+            } catch {}
+          }
+        })
+        .catch(() => {});
+
+      // Synchronize deleted contacts and customer notes from server
+      fetch("/api/crm/sync")
+        .then((res) => res.json())
+        .then((syncData) => {
+          if (syncData && syncData.success) {
+            if (Array.isArray(syncData.deletedPhones)) {
+              syncData.deletedPhones.forEach((p: string) => {
+                const clean = p.replace(/\D/g, "").slice(-10);
+                if (clean) deletedCustomerIdsRef.current.add(clean);
+              });
+            }
+            if (Array.isArray(syncData.deletedCustomerIds)) {
+              syncData.deletedCustomerIds.forEach((id: string) => {
+                if (id) deletedCustomerIdsRef.current.add(id);
+              });
+            }
+          }
+        })
+        .catch(() => {});
+
       // Check 24-Hour Active Session
       try {
         const sessionStr = localStorage.getItem("prajnaa_crm_session");
@@ -1761,7 +1712,8 @@ export default function PrajnaaMasterCrmApp() {
           }
 
           const combinedMap = new Map();
-          [...ordersFromLocal, ...ordersFromApi].forEach((ord: any) => {
+          // Server orders take strict precedence over device local storage
+          [...ordersFromApi, ...ordersFromLocal].forEach((ord: any) => {
             const key = ord.orderNumber || ord.id;
             if (key && !combinedMap.has(key)) {
               combinedMap.set(key, ord);
@@ -1770,6 +1722,14 @@ export default function PrajnaaMasterCrmApp() {
 
           const allOrders = Array.from(combinedMap.values());
           if (allOrders.length > 0) {
+            try {
+              localStorage.setItem("prajnaa_crm_orders", JSON.stringify(allOrders));
+            } catch {}
+            const currentOrdersHash = `${allOrders.length}_${allOrders[0]?.id || ""}_${allOrders[0]?.status || ""}_${allOrders[0]?.paymentStatus || ""}`;
+            if (currentOrdersHash === lastSyncedOrdersHashRef.current) {
+              return;
+            }
+            lastSyncedOrdersHashRef.current = currentOrdersHash;
             setCrmOrders(allOrders);
 
             // Dynamically propagate orders into Customers, Messages, and Shipments
@@ -1866,7 +1826,7 @@ export default function PrajnaaMasterCrmApp() {
                   if (alreadyHasOrderMsg) return prevMsgs;
 
                   // Store/Business sends the FIRST message with complete order details fetched from Prajnaa portal
-                  const businessFirstMessage = `Namaste ${ord.customerName || "ji"}! 🙏 Prajnaa Market se connect karne ke liye dhanyawad.\n\nAapne hamare Prajnaa portal se yeh saman order kiya hai:\n\n📦 *Order ID:* ${orderNumTag}\n🌾 *Saman / Items:* ${itemsSummary}\n💰 *Total Amount:* ₹${orderTotal.toLocaleString("en-IN")}\n📍 *Delivery Address:* ${snap.line1 || snap.addressLine1 || "Dehradun"}, ${snap.city || "Dehradun"} - ${snap.postalCode || "248001"}\n🚚 *Shipping Mode:* India Post Speed Post (2-3 din me dispatch)\n\nHum aapka order organic farms se pack kar rahe hain. Kisi bhi jaankari ya payment confirmation ke liye aap yahan reply kar sakte hain! 🌿`;
+                  const businessFirstMessage = `Namaste ${ord.customerName || "ji"}! 🙏 Prajnaa Market se connect karne ke liye dhanyawad.\n\nAapne hamare Prajnaa portal se yeh saman order kiya hai:\n\n📦 *Order ID:* ${orderNumTag}\n🌾 *Saman / Items:* ${itemsSummary}\n💰 *Total Amount:* ₹${orderTotal.toLocaleString("en-IN")}\n📍 *Delivery Address:* ${snap.line1 || snap.addressLine1 || "Dehradun"}, ${snap.city || "Dehradun"} - ${snap.postalCode || "248001"}\n🚚 *Shipping Mode:* Standard Shipping (2-3 din me dispatch)\n\nHum aapka order organic farms se pack kar rahe hain. Kisi bhi jaankari ya payment confirmation ke liye aap yahan reply kar sakte hain! 🌿`;
 
                   const newMessages: Message[] = [
                     {
@@ -1988,9 +1948,29 @@ export default function PrajnaaMasterCrmApp() {
         try {
           const res = await fetch("/api/crm/messages");
           const json = await res.json();
-          if (!json || !json.success || !Array.isArray(json.messages) || json.messages.length === 0) return;
+          if (!json || !json.success) return;
+
+          // Ingest authoritative deleted contacts list from backend to sync across all devices
+          if (Array.isArray(json.deletedPhones)) {
+            json.deletedPhones.forEach((p: string) => {
+              const clean = p.replace(/\D/g, "").slice(-10);
+              if (clean) deletedCustomerIdsRef.current.add(clean);
+            });
+          }
+          if (Array.isArray(json.deletedCustomerIds)) {
+            json.deletedCustomerIds.forEach((id: string) => {
+              if (id) deletedCustomerIdsRef.current.add(id);
+            });
+          }
+
+          if (!Array.isArray(json.messages) || json.messages.length === 0) return;
 
           const dbMsgs: any[] = json.messages;
+          const currentMessagesHash = `${dbMsgs.length}_${dbMsgs[0]?.id || ""}_${dbMsgs[0]?.timestamp || dbMsgs[0]?.createdAt || ""}`;
+          if (currentMessagesHash === lastSyncedMessagesHashRef.current) {
+            return;
+          }
+          lastSyncedMessagesHashRef.current = currentMessagesHash;
           const adminPhoneClean = "8091265690";
 
           // Group all messages by conversation key (10-digit customer counterparty phone)
@@ -2011,17 +1991,9 @@ export default function PrajnaaMasterCrmApp() {
               return;
             }
 
-            // Automatically resurrect contact if a live incoming or new message arrives
+            // Exclude messages belonging to deleted contacts
             if (deletedCustomerIdsRef.current.has(cleanPhone)) {
-              deletedCustomerIdsRef.current.delete(cleanPhone);
-              try {
-                if (typeof window !== "undefined") {
-                  const p1 = JSON.parse(localStorage.getItem("prajnaa_deleted_phones") || "[]").filter((p: string) => p !== cleanPhone);
-                  localStorage.setItem("prajnaa_deleted_phones", JSON.stringify(p1));
-                  const p2 = JSON.parse(localStorage.getItem("prajnaa_deleted_customer_ids") || "[]").filter((id: string) => !id.includes(cleanPhone));
-                  localStorage.setItem("prajnaa_deleted_customer_ids", JSON.stringify(p2));
-                }
-              } catch {}
+              return;
             }
 
             if (!msgsByCustomerPhone[cleanPhone]) {
@@ -2030,9 +2002,15 @@ export default function PrajnaaMasterCrmApp() {
             msgsByCustomerPhone[cleanPhone].push(m);
           });
 
-          // 1. Determine customer changes and new unknown customers
+          // 1. Determine customer changes and filter out any deleted contacts
           let custsModified = false;
-          const nextCustomers = [...customersRef.current];
+          let nextCustomers = customersRef.current.filter((c) => {
+            const cPhone = (c.phone || "").replace(/\D/g, "").slice(-10);
+            return !deletedCustomerIdsRef.current.has(c.id) && !(cPhone && deletedCustomerIdsRef.current.has(cPhone));
+          });
+          if (nextCustomers.length !== customersRef.current.length) {
+            custsModified = true;
+          }
 
           // A: Update existing customers matching each phone
           nextCustomers.forEach((cust, idx) => {
@@ -2245,25 +2223,58 @@ export default function PrajnaaMasterCrmApp() {
         }
       };
 
-      syncCrmOrders();
-      syncCrmMessages();
-      const interval = setInterval(() => {
-        syncCrmOrders();
-        syncCrmMessages();
-      }, 1000);
-
-      const handleWindowFocus = () => {
-        syncCrmOrders();
-        syncCrmMessages();
+      // Concurrency guards to prevent overlapping in-flight network requests
+      const safeSyncOrders = async () => {
+        if (isSyncingOrdersRef.current) return;
+        if (typeof document !== "undefined" && document.hidden) return;
+        isSyncingOrdersRef.current = true;
+        try {
+          await syncCrmOrders();
+        } finally {
+          isSyncingOrdersRef.current = false;
+        }
       };
-      window.addEventListener("focus", handleWindowFocus);
-      window.addEventListener("prajnaa_order_placed", syncCrmOrders);
-      window.addEventListener("storage", syncCrmOrders);
 
-      return () => { window.removeEventListener("focus", handleWindowFocus);
+      const safeSyncMessages = async () => {
+        if (isSyncingMessagesRef.current) return;
+        if (typeof document !== "undefined" && document.hidden) return;
+        isSyncingMessagesRef.current = true;
+        try {
+          await syncCrmMessages();
+        } finally {
+          isSyncingMessagesRef.current = false;
+        }
+      };
+
+      // Initial startup sync
+      safeSyncOrders();
+      safeSyncMessages();
+
+      // Memory-friendly 5-second polling interval (skips when browser tab is inactive/hidden)
+      const interval = setInterval(() => {
+        if (typeof document !== "undefined" && document.hidden) return;
+        safeSyncOrders();
+        safeSyncMessages();
+      }, 5000);
+
+      const handleVisibilityOrFocus = () => {
+        if (typeof document !== "undefined" && !document.hidden) {
+          safeSyncOrders();
+          safeSyncMessages();
+        }
+      };
+
+      window.addEventListener("focus", handleVisibilityOrFocus);
+      document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+      window.addEventListener("prajnaa_order_placed", safeSyncOrders);
+      window.addEventListener("storage", safeSyncOrders);
+
+      return () => {
         clearInterval(interval);
-        window.removeEventListener("prajnaa_order_placed", syncCrmOrders);
-        window.removeEventListener("storage", syncCrmOrders);
+        window.removeEventListener("focus", handleVisibilityOrFocus);
+        document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
+        window.removeEventListener("prajnaa_order_placed", safeSyncOrders);
+        window.removeEventListener("storage", safeSyncOrders);
       };
     }
   }, []);
@@ -2410,6 +2421,13 @@ export default function PrajnaaMasterCrmApp() {
     if (typeof window !== "undefined") {
       localStorage.setItem("prajnaa_crm_team", JSON.stringify(updated));
     }
+    try {
+      fetch("/api/crm/team", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team: updated }),
+      }).catch(() => {});
+    } catch {}
   };
 
   // Open Cancel Credentials / Revocation Modal
@@ -2726,7 +2744,7 @@ export default function PrajnaaMasterCrmApp() {
           }
         }
       } catch {}
-    }, 5000);
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [isAuthenticated]);
@@ -2893,6 +2911,13 @@ export default function PrajnaaMasterCrmApp() {
     setTeamMembers(updatedTeam);
     try {
       localStorage.setItem("prajnaa_crm_team", JSON.stringify(updatedTeam));
+    } catch {}
+    try {
+      fetch("/api/crm/team", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team: updatedTeam }),
+      }).catch(() => {});
     } catch {}
 
     setCurrentUser(newMember);
@@ -3271,11 +3296,24 @@ export default function PrajnaaMasterCrmApp() {
       try {
         localStorage.setItem("prajnaa_crm_orders", JSON.stringify(updated));
       } catch {}
+      try {
+        const orderToSync = updated.find((o) => {
+          const num = String(o.orderNumber || o.id || "");
+          return num === cleanNum || `#${num}` === ordNum;
+        });
+        if (orderToSync) {
+          fetch("/api/crm/orders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(orderToSync),
+          }).catch(() => {});
+        }
+      } catch {}
       return updated;
     });
 
     // 5. Build official WhatsApp payment confirmation message
-    const receiptMsg = `Namaste ${customerName} ji! 🙏\n\nPrajnaa Market se aapke order *${ordNum}* ka payment (₹${amountFormatted}) successfully confirm ho gaya hai. ✅\n\n💰 *Payment Status:* PAID (Received & Verified)\n📦 *Order Status:* In Processing & Packaging\n📍 *Fulfillment Hub:* Prajnaa Himalayan Hub, Dehradun\n\nAapka parcel fresh Himalayan batch se pack kiya ja raha hai. Dispatch hote hi India Post Speed Post tracking consignment details hum yahan send kar denge! 🌿\n\nDhanyavaad ji!\n*Team Prajnaa Market*`;
+    const receiptMsg = `Namaste ${customerName} ji! 🙏\n\nPrajnaa Market se aapke order *${ordNum}* ka payment (₹${amountFormatted}) successfully confirm ho gaya hai. ✅\n\n💰 *Payment Status:* PAID (Received & Verified)\n📦 *Order Status:* In Processing & Packaging\n📍 *Fulfillment Hub:* Prajnaa Himalayan Hub, Dehradun\n\nAapka parcel fresh Himalayan batch se pack kiya ja raha hai. Dispatch hote hi Shipping tracking consignment details hum yahan send kar denge! 🌿\n\nDhanyavaad ji!\n*Team Prajnaa Market*`;
 
     // 6. Find customer & record message in CRM chat thread
     const cleanPhone = (targetOrder.customerPhone || "").replace(/\D/g, "");
@@ -3553,6 +3591,17 @@ export default function PrajnaaMasterCrmApp() {
     setCustomers((prev) =>
       prev.map((c) => (c.id === currentCustomer.id ? { ...c, notes: customerNotes } : c))
     );
+    try {
+      fetch("/api/crm/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: currentCustomer.id,
+          phone: currentCustomer.phone,
+          notes: customerNotes,
+        }),
+      }).catch(() => {});
+    } catch {}
     toast.success(`Internal notes saved for ${currentCustomer.name}!`);
   };
 
@@ -3690,7 +3739,7 @@ export default function PrajnaaMasterCrmApp() {
       const discountLine = totalDiscount > 0 ? `\n🏷️ *Discount Given:* -₹${totalDiscount.toLocaleString("en-IN")}` : "";
       const deliveryLine = `\n🚚 *Delivery Charges:* ₹${shipping.toLocaleString("en-IN")}`;
 
-      const firstMsgText = `Namaste ${newOrderCustomerName.trim()}! 🙏 Prajnaa Market se connect karne ke liye dhanyawad.\n\nAapne hamare Prajnaa portal se yeh saman order kiya hai:\n\n📦 *Order ID:* ${fullOrderNum}\n🌾 *Produce Items:*\n• ${itemsBreakdown}\n\n💵 *Produce Subtotal:* ₹${subtotal.toLocaleString("en-IN")}${discountLine}${deliveryLine}\n💰 *Total Amount Payable:* ₹${total.toLocaleString("en-IN")}\n📍 *Delivery Address:* ${newOrderAddress || "Civil Lines"}, ${newOrderCity || "Dehradun"} - ${newOrderPincode || "248001"}\n🚚 *Shipping Mode:* India Post Speed Post (2-3 din me dispatch)\n\nHum aapka order organic farms se pack kar rahe hain. Kisi bhi jaankari ya payment confirmation ke liye aap yahan reply kar sakte hain! 🌿`;
+      const firstMsgText = `Namaste ${newOrderCustomerName.trim()}! 🙏 Prajnaa Market se connect karne ke liye dhanyawad.\n\nAapne hamare Prajnaa portal se yeh saman order kiya hai:\n\n📦 *Order ID:* ${fullOrderNum}\n🌾 *Produce Items:*\n• ${itemsBreakdown}\n\n💵 *Produce Subtotal:* ₹${subtotal.toLocaleString("en-IN")}${discountLine}${deliveryLine}\n💰 *Total Amount Payable:* ₹${total.toLocaleString("en-IN")}\n📍 *Delivery Address:* ${newOrderAddress || "Civil Lines"}, ${newOrderCity || "Dehradun"} - ${newOrderPincode || "248001"}\n🚚 *Shipping Mode:* Standard Shipping (2-3 din me dispatch)\n\nHum aapka order organic farms se pack kar rahe hain. Kisi bhi jaankari ya payment confirmation ke liye aap yahan reply kar sakte hain! 🌿`;
 
       setMessagesMap((prev) => {
         const existing = prev[targetCustId] || [];
@@ -4129,7 +4178,7 @@ export default function PrajnaaMasterCrmApp() {
         const existing = updated[cust.id] || [];
         const orderTag = cust.latestOrder?.orderNumber || "#PJ-ORD-7650";
         const amountDue = cust.latestOrder?.amount || 1850;
-        const reminderText = `Namaste ${cust.name}! 🙏 Prajnaa Market se aapke order ${orderTag} (₹${amountDue.toLocaleString("en-IN")}) ke payment ke liye official UPI QR code share kiya gaya hai.\n\n📲 *Official UPI ID:* prajnaa@upi\n🏦 *Account Name:* Prajnaa Himalayan Harvest\n\nPayment hote hi confirmation screenshot yahan share kar dein taki hum parcel India Post Speed Post se turant dispatch kar sakein! 🌿`;
+        const reminderText = `Namaste ${cust.name}! 🙏 Prajnaa Market se aapke order ${orderTag} (₹${amountDue.toLocaleString("en-IN")}) ke payment ke liye official UPI QR code share kiya gaya hai.\n\n📲 *Official UPI ID:* prajnaa@upi\n🏦 *Account Name:* Prajnaa Himalayan Harvest\n\nPayment hote hi confirmation screenshot yahan share kar dein taki hum parcel Shipping se turant dispatch kar sakein! 🌿`;
 
         const newMsg: Message = {
           id: `msg_upi_${Date.now()}_${cust.id}`,
@@ -4152,7 +4201,7 @@ export default function PrajnaaMasterCrmApp() {
   // Operational Action 2: Open Shipping Manifest
   const handleOpenShippingManifest = () => {
     setActiveNav("shipments");
-    toast.success("Opened India Post Speed Post Dispatch Manifest!");
+    toast.success("Opened Shipping Dispatch Manifest!");
   };
 
   // Operational Action 3: Reorder from Cooperative
@@ -4650,7 +4699,7 @@ export default function PrajnaaMasterCrmApp() {
         o.paymentStatus || "Pending",
         o.paymentMethod || "UPI",
         o.orderStatus || "Processing",
-        "India Post Speed Post",
+        "Shipping",
         trackingId,
         trackingUrl,
         o.whatsappConfirmation ? "Yes" : "No"
@@ -4931,7 +4980,7 @@ export default function PrajnaaMasterCrmApp() {
       "Dispatch Date",
       "Carrier",
       "Shipment Status",
-      "Official India Post Tracking Link"
+      "Official Shipping Tracking Link"
     ];
 
     let deliveredShipments = 0;
@@ -4950,7 +4999,7 @@ export default function PrajnaaMasterCrmApp() {
         s.customer || "Customer",
         s.city || "Dehradun",
         s.date || new Date().toISOString().split("T")[0],
-        "India Post Speed Post",
+        "Shipping",
         s.status || "In Transit",
         s.trackingId ? `https://www.indiapost.gov.in/_layouts/15/dpt.cptc.va/trackconsignment.aspx` : ""
       ];
@@ -4958,15 +5007,15 @@ export default function PrajnaaMasterCrmApp() {
 
     const summaryCards = [
       { label: "Total Parcels", value: unifiedShipments.length },
-      { label: "In Transit Speed Post", value: transitShipments },
+      { label: "In Transit Shipments", value: transitShipments },
       { label: "Delivered Consignments", value: deliveredShipments },
-      { label: "Primary Carrier", value: "India Post Speed Post" }
+      { label: "Primary Carrier", value: "Shipping" }
     ];
 
     downloadStyledExcelSheet({
-      filename: "Prajnaa_SpeedPost_Shipments",
-      sheetTitle: "Prajnaa Market — Speed Post Shipments & Logistics Dispatch",
-      subtitle: "India Post Speed Post Consignment Log, Dispatches & Live Tracking",
+      filename: "Prajnaa_Shipments",
+      sheetTitle: "Prajnaa Market — Shipments & Logistics Dispatch",
+      subtitle: "Shipping Consignment Log, Dispatches & Live Tracking",
       headers,
       rows,
       summaryCards
@@ -4990,7 +5039,7 @@ export default function PrajnaaMasterCrmApp() {
       ["Fulfillment", "Total Recorded Orders", unifiedOrders.length, "All active and completed orders"],
       ["Fulfillment", "Completed & Delivered Orders", completedOrders.length, "Orders successfully delivered to customers"],
       ["Fulfillment", "Pending Processing Orders", pendingOrders.length, "Orders awaiting packaging or payment clearance"],
-      ["Fulfillment", "Speed Post Shipments In Transit", shippedOrders.length, "Parcels currently dispatched via India Post Speed Post"],
+      ["Fulfillment", "Shipments In Transit", shippedOrders.length, "Parcels currently dispatched via Shipping"],
       ["Customer CRM", "Total Verified Customers", customers.length, "Opted-in clients with registered WhatsApp numbers"],
       ["Customer CRM", "VIP Customer Count", vipCustomers.length, "High-value clients with spending > ₹5,000"],
       ["Inventory & Catalog", "Active Himalayan SKUs", productsList.length, "Live products available in catalogue"],
@@ -5443,7 +5492,7 @@ export default function PrajnaaMasterCrmApp() {
   // VIEW: AUTHENTICATED CRM WORKSPACE (With Active Theme & RBAC)
   // =========================================================
   return (
-    <div className={`flex h-screen w-screen overflow-hidden ${themeStyles.mainBg} font-sans antialiased`}>
+    <div className={`flex h-screen w-screen overflow-hidden print:h-auto print:w-auto print:overflow-visible print:bg-white ${themeStyles.mainBg} font-sans antialiased`}>
       {/* Mobile Drawer Backdrop Overlay */}
       {mobileMenuOpen && (
         <div
@@ -5456,7 +5505,7 @@ export default function PrajnaaMasterCrmApp() {
       {/* 1. LEFT SIDEBAR (Desktop Fixed + Mobile Slide-over Drawer) */}
       {/* ========================================================= */}
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-50 w-[270px] md:w-[240px] shrink-0 ${themeStyles.sidebarBg} flex flex-col justify-between select-none shadow-2xl md:shadow-xl border-r transition-transform duration-300 ease-in-out ${
+        className={`print:hidden fixed md:static inset-y-0 left-0 z-50 w-[270px] md:w-[240px] shrink-0 ${themeStyles.sidebarBg} flex flex-col justify-between select-none shadow-2xl md:shadow-xl border-r transition-transform duration-300 ease-in-out ${
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
@@ -5673,7 +5722,7 @@ export default function PrajnaaMasterCrmApp() {
       {/* ========================================================= */}
       {/* 2. MAIN WORKSPACE (Header + Screen Content)                */}
       {/* ========================================================= */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden pb-14 md:pb-0 relative">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden pb-14 md:pb-0 relative print:hidden">
         {/* TOP HEADER BAR (With Theme Switcher & Role Badge) */}
         <header className={`h-[56px] md:h-[62px] px-3 md:px-6 ${themeStyles.headerBg} border-b flex items-center justify-between shrink-0 z-30 shadow-2xs`}>
           <div className="flex items-center gap-2">
@@ -6253,7 +6302,7 @@ export default function PrajnaaMasterCrmApp() {
                             <div>
                               <div className="px-3.5 py-1.5 bg-neutral-50/50 text-[10px] font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
                                 <Truck className="h-3 w-3 text-blue-600" />
-                                <span>Ready for India Post Speed Post Dispatch</span>
+                                <span>Ready for Shipping Dispatch</span>
                               </div>
                               {pendingDispatchNotifications.map((ord) => (
                                 <button
@@ -6469,6 +6518,37 @@ export default function PrajnaaMasterCrmApp() {
                     trackingNumber: `ET${Math.floor(100000000 + Math.random() * 900000000)}IN`,
                   };
                   setSelectedOrderForView(leadOrder);
+                } else {
+                  const fallbackOrder: Order = {
+                    id: cleanId,
+                    orderNumber: orderNumberOrId.startsWith("#") ? orderNumberOrId : `#${orderNumberOrId}`,
+                    customerName: "Prajnaa Wholesale Customer",
+                    customerPhone: "+91 98160 88888",
+                    customerEmail: "contact@market.prajnaa.in",
+                    shippingAddress: "Solan, Himachal Pradesh – 173212",
+                    itemsCount: 1,
+                    amount: 3500,
+                    subtotal: 3500,
+                    discount: 0,
+                    shipping: 0,
+                    paymentStatus: "Paid",
+                    orderStatus: "Delivered",
+                    date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+                    time: "10:30 AM",
+                    items: [
+                      {
+                        name: "Pure Himalayan Produce Harvest",
+                        weight: "Standard Batch Pack",
+                        qty: 1,
+                        price: 3500,
+                        total: 3500,
+                        image: "🍯",
+                      },
+                    ],
+                    paymentMethod: "B2B Commercial Terms",
+                    trackingNumber: `ET${Math.floor(100000000 + Math.random() * 900000000)}IN`,
+                  };
+                  setSelectedOrderForView(fallbackOrder);
                 }
                 setActiveNav("order_details");
               }}
@@ -8398,7 +8478,7 @@ export default function PrajnaaMasterCrmApp() {
                 </div>
               </div>
 
-              {/* Card 2: India Post Speed Post Queue */}
+              {/* Card 2: Shipping Dispatch Queue */}
               <div className={`p-5 rounded-2xl border shadow-2xs space-y-3 flex flex-col justify-between ${themeStyles.cardBg}`}>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -8410,7 +8490,7 @@ export default function PrajnaaMasterCrmApp() {
                     </span>
                   </div>
                   <div>
-                    <h4 className="font-bold text-sm text-neutral-900 dark:text-white">India Post Speed Post Queue</h4>
+                    <h4 className="font-bold text-sm text-neutral-900 dark:text-white">Shipping Dispatch Queue</h4>
                     <p className="text-xs text-neutral-500 mt-0.5">
                       Himalayan raw honey and A2 cow ghee ready for booking at Dehradun Head Post Office.
                     </p>
@@ -8914,7 +8994,7 @@ export default function PrajnaaMasterCrmApp() {
                     </div>
 
                     <div className="flex justify-between text-neutral-600 dark:text-slate-400">
-                      <span>India Post Speed Post Delivery:</span>
+                      <span>Shipping Delivery:</span>
                       <span className="font-mono font-semibold text-neutral-900 dark:text-white">
                         ₹{Number(selectedOrderForView.shipping || 0).toLocaleString("en-IN")}
                       </span>
@@ -10996,7 +11076,7 @@ export default function PrajnaaMasterCrmApp() {
             <div>
               <h2 className="text-lg sm:text-xl font-bold text-neutral-900 dark:text-white">CRM & WhatsApp Settings</h2>
               <p className="text-xs text-neutral-500 mt-0.5">
-                Manage official WhatsApp Business API configuration, Meta webhooks, payment credentials, and India Post dispatch hubs.
+                Manage official WhatsApp Business API configuration, Meta webhooks, payment credentials, and shipping dispatch hubs.
               </p>
             </div>
 
@@ -11108,14 +11188,14 @@ export default function PrajnaaMasterCrmApp() {
                 </div>
               </div>
 
-              {/* Card 2: India Post & Payment Gateways */}
+              {/* Card 2: Shipping & Payment Gateways */}
               <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-neutral-200 dark:border-slate-800 shadow-2xs space-y-4 text-neutral-900 dark:text-white">
                 <div className="flex items-center justify-between border-b border-neutral-100 dark:border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
                     <span className="text-xl">🇮🇳</span>
                     <div>
-                      <h3 className="font-bold text-sm">Fulfillment & UPI Gateway</h3>
-                      <p className="text-[11px] text-neutral-500">Speed Post Hubs & QR Payment</p>
+                      <h3 className="font-bold text-sm">Fulfillment &amp; UPI Gateway</h3>
+                      <p className="text-[11px] text-neutral-500">Shipping Hubs &amp; QR Payment</p>
                     </div>
                   </div>
                 </div>
@@ -11142,7 +11222,7 @@ export default function PrajnaaMasterCrmApp() {
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-bold text-neutral-700 dark:text-slate-300">Official India Post Consignment Portal</label>
+                    <label className="text-[11px] font-bold text-neutral-700 dark:text-slate-300">Official Shipping Tracking Portal</label>
                     <input
                       type="text"
                       disabled
@@ -12062,7 +12142,7 @@ export default function PrajnaaMasterCrmApp() {
                     )}
 
                     <div className="flex justify-between text-neutral-600">
-                      <span>India Post Speed Post Delivery (Manual Charge)</span>
+                      <span>Shipping Delivery (Manual Charge)</span>
                       <span className="font-mono font-bold text-neutral-800">
                         ₹{shipping.toLocaleString("en-IN")}
                       </span>
@@ -12294,6 +12374,21 @@ export default function PrajnaaMasterCrmApp() {
                     );
                     try {
                       localStorage.setItem("prajnaa_crm_orders", JSON.stringify(updated));
+                    } catch {}
+                    try {
+                      const orderToSync = updated.find(
+                        (o) =>
+                          `#${o.orderNumber || o.id}` === selectedOrderForView.orderNumber ||
+                          String(o.orderNumber || o.id) === selectedOrderForView.orderNumber ||
+                          String(o.orderNumber || o.id).replace(/^#+/, "") === selectedOrderForView.orderNumber.replace(/^#+/, "")
+                      );
+                      if (orderToSync) {
+                        fetch("/api/crm/orders", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(orderToSync),
+                        }).catch(() => {});
+                      }
                     } catch {}
                     return updated;
                   });
@@ -12833,7 +12928,7 @@ export default function PrajnaaMasterCrmApp() {
                     </span>
                   </h3>
                   <p className="text-[11px] text-neutral-500 dark:text-slate-400">
-                    Complies with Rule 46 of CGST Rules, 2017 & India Post Speed Post fulfillment
+                    Complies with Rule 46 of CGST Rules, 2017 &amp; Shipping fulfillment
                   </p>
                 </div>
               </div>
@@ -12841,8 +12936,18 @@ export default function PrajnaaMasterCrmApp() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  onClick={handleOpenInvoiceNewTab}
+                  className="px-3.5 py-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-neutral-800 dark:text-neutral-200 font-semibold text-xs border border-neutral-300 dark:border-slate-600 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  title="Open invoice in new standalone window for printing or saving"
+                >
+                  <ExternalLink className="h-3.5 w-3.5 text-neutral-600 dark:text-neutral-300" />
+                  <span>Open Standalone / New Tab</span>
+                </button>
+                <button
+                  type="button"
                   onClick={handlePrintInvoice}
                   className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
+                  title="Direct print dialog (or Save as PDF)"
                 >
                   <Printer className="h-3.5 w-3.5" />
                   <span>Print Invoice / Save as PDF</span>
@@ -12863,206 +12968,127 @@ export default function PrajnaaMasterCrmApp() {
               id="prajnaa-tax-invoice-preview-wrapper"
               className="flex-1 overflow-y-auto p-4 sm:p-8 bg-neutral-200/60 dark:bg-slate-950 flex justify-center items-start print:p-0 print:m-0 print:bg-white print:overflow-visible"
             >
-              {/* THE OFFICIAL TAX INVOICE A4 SHEET */}
+              {/* THE OFFICIAL TAX INVOICE A4 SHEET (MATCHING REFERENCE FORMAT) */}
               <div
                 id="prajnaa-tax-invoice"
-                className="bg-white text-neutral-900 p-6 sm:p-8 w-full max-w-[850px] h-fit min-h-fit shadow-xl rounded-2xl print:rounded-none print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full space-y-4 text-xs font-sans border border-neutral-300 print:border-none my-4 print:my-0"
+                className="bg-white text-neutral-900 p-6 sm:p-8 w-full max-w-[850px] h-fit min-h-fit shadow-xl rounded-xl print:rounded-none print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full space-y-3 text-xs font-sans border border-neutral-300 my-4 print:my-0"
               >
-                {/* 1. Header: Brand Letterhead & Tax Invoice Heading */}
-                <div className="space-y-3">
-                  {/* The Official Header Card (Matching Prajnaa Market Letterhead) */}
-                  <div className="rounded-2xl border-2 border-[#0A5C36] p-4 sm:p-5 bg-white shadow-xs relative overflow-hidden space-y-3">
-                    {/* Top Brand Logo & Marketplace Title */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-emerald-100">
-                      <div className="flex items-center gap-3.5">
-                        <img
-                          src="/prajnaa-logo.png"
-                          alt="Prajnaa Farmer Market"
-                          className="h-12 sm:h-14 w-auto object-contain shrink-0"
-                        />
-                        <div className="h-10 w-[2px] bg-[#0A5C36] hidden sm:block shrink-0" />
-                        <div className="min-w-0">
-                          <h1 className="text-lg sm:text-xl font-black text-[#0A5C36] tracking-tight uppercase leading-none font-display">
-                            PRAJNAA MARKET
-                          </h1>
-                          <p className="text-[11px] sm:text-xs font-semibold text-neutral-800 tracking-tight mt-1">
-                            The Himalayan Digital Marketplace for Pure &amp; Trusted Natural Products
-                          </p>
-                        </div>
-                      </div>
+                {/* 1. Header: Left Company Brand & Right TAX INVOICE Heading */}
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-2 border-b border-neutral-300">
+                  {/* Left: Prajnaa Logo & Official Business Info */}
+                  <div className="flex flex-col items-start space-y-1">
+                    <img
+                      src="/prajnaa-logo.png"
+                      alt="Prajnaa"
+                      className="h-14 sm:h-16 w-auto object-contain mb-1"
+                    />
+                    <div className="text-[11px] text-neutral-800 leading-tight space-y-0.5 font-sans pt-1">
+                      <p className="font-mono text-xs font-bold text-neutral-900">
+                        GSTIN: 02ARWPN7184K1Z1 &bull; FSSAI: 20923014000132
+                      </p>
+                      <p className="font-mono text-xs font-semibold text-neutral-800">Phone: 8979768681</p>
+                      <p className="text-xs text-neutral-700">Email: prajnaafarm@gmail.com &bull; Web: market.prajnaa.in</p>
+                      <p className="text-[10.5px] text-neutral-500">Seva Niketan, Ward No.2, Near ITI, Solan, HP 173212</p>
                     </div>
-
-                    {/* Business & Registration Information Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-xs sm:text-[13px] text-neutral-800 pt-0.5">
-                      {/* Left Column */}
-                      <div className="space-y-1.5">
-                        {/* Powered by */}
-                        <div className="flex items-center gap-2 font-bold text-neutral-900">
-                          <Store className="h-4 w-4 text-[#0A5C36] shrink-0" />
-                          <span>Powered by : <strong className="font-extrabold text-[#0A5C36]">AVBT Enterprises</strong></span>
-                        </div>
-
-                        {/* Address */}
-                        <div className="flex items-start gap-2 font-medium">
-                          <MapPin className="h-4 w-4 text-[#0A5C36] shrink-0 mt-0.5" />
-                          <span className="leading-snug">Address : Seva Niketan, Ward No.2, Near ITI, Solan, HP, 173212</span>
-                        </div>
-
-                        {/* Website */}
-                        <div className="flex items-center gap-2 font-medium">
-                          <Globe className="h-4 w-4 text-[#0A5C36] shrink-0" />
-                          <span>Website : <a href="https://market.prajnaa.in/" target="_blank" rel="noreferrer" className="text-[#0A5C36] underline font-semibold">https://market.prajnaa.in/</a></span>
-                        </div>
-                      </div>
-
-                      {/* Right Column */}
-                      <div className="space-y-1.5">
-                        {/* GSTIN & FSSAI */}
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                          <div className="flex items-center gap-1.5 font-bold">
-                            <span className="text-[#0A5C36] font-mono text-sm leading-none shrink-0 font-bold">║▌</span>
-                            <span>GSTIN : <strong className="font-mono text-[#0A5C36]">02ARWPN7184K1Z1</strong></span>
-                          </div>
-                          <span className="text-neutral-300 hidden sm:inline">|</span>
-                          <div className="flex items-center gap-1.5 font-bold">
-                            <span className="px-1.5 py-0.5 rounded bg-amber-50 border border-amber-300 text-[#003893] italic font-black text-[11px] tracking-tighter">
-                              fssai
-                            </span>
-                            <span>Fssai No.: <strong className="font-mono text-neutral-900">20923014000132</strong></span>
-                          </div>
-                        </div>
-
-                        {/* Help Desk */}
-                        <div className="flex items-center gap-2 font-bold">
-                          <Headphones className="h-4 w-4 text-[#0A5C36] shrink-0" />
-                          <span>Help Desk : <strong className="font-mono text-neutral-900">8979768681</strong></span>
-                        </div>
-
-                        {/* Email */}
-                        <div className="flex items-center gap-2 font-medium">
-                          <Mail className="h-4 w-4 text-[#0A5C36] shrink-0" />
-                          <span>Email : <a href="mailto:prajnaafarm@gmail.com" className="text-neutral-900 underline font-semibold">prajnaafarm@gmail.com</a></span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Bottom Accent Line */}
-                    <div className="h-[3px] bg-gradient-to-r from-[#0A5C36] via-[#15803d] to-emerald-200 rounded-full w-full mt-2" />
                   </div>
 
-                  {/* Tax Invoice Details & Recipient Copy Strip */}
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5 p-3 rounded-xl bg-neutral-50 border border-neutral-200 text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="inline-block bg-[#0A5C36] text-white px-3 py-1 rounded-lg font-bold text-xs uppercase tracking-wider">
-                        TAX INVOICE
-                      </span>
-                      <span className="text-[11px] font-semibold text-neutral-600">Original for Recipient</span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-mono">
-                      <div>
-                        <span className="text-neutral-500">Invoice No: </span>
-                        <strong className="text-neutral-900 font-bold">INV-{selectedOrderForView.orderNumber.replace(/[^a-zA-Z0-9]/g, "")}</strong>
-                      </div>
-                      <div>
-                        <span className="text-neutral-500">Date: </span>
-                        <strong className="text-neutral-900 font-bold">{selectedOrderForView.date}</strong>
-                      </div>
-                      <div>
-                        <span className="text-neutral-500">Order Ref: </span>
-                        <strong className="text-emerald-800 font-bold">{selectedOrderForView.orderNumber}</strong>
-                      </div>
-                      <div>
-                        <span className="text-neutral-500">Place of Supply: </span>
-                        <strong className="text-neutral-900 font-bold">Himachal Pradesh (02)</strong>
-                      </div>
-                    </div>
+                  {/* Right: TAX INVOICE Header */}
+                  <div className="text-left sm:text-right pt-1">
+                    <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-wider text-neutral-900 uppercase">
+                      TAX INVOICE
+                    </h1>
+                    <p className="text-[10px] text-neutral-500 font-medium">Original for Recipient</p>
                   </div>
                 </div>
 
-                {/* 2. Customer & Transport Logistics Section */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Billed To / Consignee */}
-                  <div className="p-3.5 rounded-xl border border-neutral-200 bg-neutral-50/70 space-y-1 text-[11px]">
-                    <div className="flex items-center justify-between border-b border-neutral-200 pb-1 mb-1.5">
-                      <span className="font-bold uppercase tracking-wider text-[10px] text-neutral-500">
-                        Billed & Shipped To (Customer)
-                      </span>
-                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-sm bg-emerald-100 text-emerald-800">
-                        Verified Patron
-                      </span>
+                {/* 2. Metadata Box (Enclosed Grid Table) */}
+                {(() => {
+                  const rawOrderNum = selectedOrderForView.orderNumber || "000006";
+                  const cleanNum = rawOrderNum.replace(/[^a-zA-Z0-9]/g, "");
+                  const invoiceNumDisplay = rawOrderNum.toUpperCase().startsWith("INV")
+                    ? rawOrderNum.toUpperCase()
+                    : `INV-${cleanNum.padStart(6, "0")}`;
+
+                  const today = new Date();
+                  const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                  const pad = (n: number) => String(n).padStart(2, "0");
+                  const defaultDueDate = `${pad(endOfMonth.getDate())}/${pad(endOfMonth.getMonth() + 1)}/${endOfMonth.getFullYear()}`;
+                  const invoiceDateDisplay = selectedOrderForView.date || `${pad(today.getDate())}/${pad(today.getMonth() + 1)}/${today.getFullYear()}`;
+
+                  return (
+                    <div className="border border-neutral-300 grid grid-cols-1 sm:grid-cols-2 text-xs">
+                      {/* Left Sub-Box: Invoice #, Date, Terms, Due Date */}
+                      <div className="p-2.5 sm:border-r border-neutral-300 space-y-1">
+                        <div className="grid grid-cols-12 gap-1">
+                          <span className="col-span-5 text-neutral-600 font-medium">#</span>
+                          <span className="col-span-7 font-bold text-neutral-900">: {invoiceNumDisplay}</span>
+                        </div>
+                        <div className="grid grid-cols-12 gap-1">
+                          <span className="col-span-5 text-neutral-600 font-medium">Invoice Date</span>
+                          <span className="col-span-7 font-bold text-neutral-900">: {invoiceDateDisplay}</span>
+                        </div>
+                        <div className="grid grid-cols-12 gap-1">
+                          <span className="col-span-5 text-neutral-600 font-medium">Terms</span>
+                          <span className="col-span-7 font-bold text-neutral-900">: Due end of the month</span>
+                        </div>
+                        <div className="grid grid-cols-12 gap-1">
+                          <span className="col-span-5 text-neutral-600 font-medium">Due Date</span>
+                          <span className="col-span-7 font-bold text-neutral-900">: {defaultDueDate}</span>
+                        </div>
+                      </div>
+
+                      {/* Right Sub-Box: Place Of Supply */}
+                      <div className="p-2.5 border-t sm:border-t-0 border-neutral-300">
+                        <div className="grid grid-cols-12 gap-1">
+                          <span className="col-span-5 text-neutral-600 font-medium">Place Of Supply</span>
+                          <span className="col-span-7 font-bold text-neutral-900">: Himachal Pradesh (02)</span>
+                        </div>
+                      </div>
                     </div>
-                    <h4 className="font-bold text-xs text-neutral-900">
-                      {selectedOrderForView.customerName || "Customer Patron"}
+                  );
+                })()}
+
+                {/* 3. Bill To Section (Gray Header Bar + Customer Details) */}
+                <div className="border border-neutral-300">
+                  <div className="bg-[#f4f5f7] px-3 py-1 font-bold text-neutral-800 text-xs border-b border-neutral-300">
+                    Bill To
+                  </div>
+                  <div className="p-3 text-xs space-y-1 bg-white">
+                    <h4 className="font-bold text-sm text-[#1d4ed8]">
+                      {selectedOrderForView.customerName || "GuruKripa Kariyana Store"}
                     </h4>
-                    <p className="font-mono text-neutral-600">
-                      Phone: <strong>{selectedOrderForView.customerPhone || "N/A"}</strong>
-                    </p>
-                    {selectedOrderForView.customerEmail && (
-                      <p className="text-neutral-600 truncate">Email: {selectedOrderForView.customerEmail}</p>
+                    {selectedOrderForView.shippingAddress && (
+                      <p className="text-neutral-700 leading-snug">
+                        {selectedOrderForView.shippingAddress}
+                      </p>
                     )}
-                    <p className="text-neutral-700 leading-snug pt-0.5">
-                      Address: {selectedOrderForView.shippingAddress || "N/A"}
-                    </p>
-                    <p className="text-[10px] text-neutral-500">
-                      State / Code: {selectedOrderForView.shippingAddress?.toLowerCase().includes("uttarakhand")
-                        ? "Uttarakhand (05)"
-                        : selectedOrderForView.shippingAddress?.toLowerCase().includes("delhi")
-                        ? "Delhi (07)"
-                        : "Himachal Pradesh (02)"}
-                    </p>
-                  </div>
-
-                  {/* Logistics Dispatch & India Post */}
-                  <div className="p-3.5 rounded-xl border border-neutral-200 bg-neutral-50/70 space-y-1 text-[11px]">
-                    <div className="flex items-center justify-between border-b border-neutral-200 pb-1 mb-1.5">
-                      <span className="font-bold uppercase tracking-wider text-[10px] text-neutral-500">
-                        Fulfillment & Speed Post Dispatch
-                      </span>
-                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-sm bg-sky-100 text-sky-800 font-mono">
-                        Speed Post
-                      </span>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-neutral-500">Carrier:</span>
-                        <strong className="text-neutral-800">India Post (Speed Post Parcel)</strong>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-neutral-500">Consignment No:</span>
-                        <strong className="font-mono text-emerald-800 font-bold">
-                          {selectedOrderForView.trackingNumber || "Pending Booking"}
-                        </strong>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-neutral-500">Dispatch Hub:</span>
-                        <span className="text-neutral-800">Solan Head Post Office (HPO), Himachal Pradesh - 173212</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-neutral-500">Fulfillment Status:</span>
-                        <strong className="text-neutral-900 capitalize font-mono">
-                          {selectedOrderForView.orderStatus}
-                        </strong>
-                      </div>
-                      <div className="flex justify-between pt-0.5 text-[10px] text-neutral-500 border-t border-neutral-200">
-                        <span>Insurance Cover:</span>
-                        <span className="text-emerald-700 font-semibold">100% In-Transit Protected</span>
-                      </div>
-                    </div>
+                    {selectedOrderForView.customerPhone && (
+                      <p className="text-neutral-600">
+                        Phone: {selectedOrderForView.customerPhone}
+                      </p>
+                    )}
                   </div>
                 </div>
 
-                {/* 3. Itemized Goods Table */}
+                {/* 4. Subject Line */}
+                <div className="py-1 text-xs">
+                  <span className="font-bold text-neutral-800 block text-[11px]">Subject :</span>
+                  <p className="font-semibold text-neutral-800 text-xs mt-0.5">
+                    Pure Himalayan Natural Produce &amp; Farm Fresh Harvest
+                  </p>
+                </div>
+
+                {/* 5. Itemized Goods & Two-Level GST Table (Matching Reference Format) */}
                 {(() => {
                   const rawItems = selectedOrderForView.items && selectedOrderForView.items.length > 0
                     ? selectedOrderForView.items
                     : [
                         {
-                          name: "Himalayan Artisanal Produce Package",
-                          weight: "Standard Pack",
+                          name: "Garam Masala LP3",
+                          weight: "pcs",
                           qty: selectedOrderForView.itemsCount || 1,
-                          price: Number(selectedOrderForView.amount || 0),
-                          total: Number(selectedOrderForView.amount || 0),
+                          price: Number(selectedOrderForView.amount || 63.50),
+                          total: Number(selectedOrderForView.amount || 63.50),
                         },
                       ];
 
@@ -13081,158 +13107,249 @@ export default function PrajnaaMasterCrmApp() {
                       const found = productsList.find(
                         (p) => p.name.toLowerCase() === (it.name || "").toLowerCase() || p.id === it.productId
                       );
-                      price = found?.price || 450;
+                      price = found?.price || 63.50;
                       total = price * qty;
                     }
 
-                    let packWeight = it.weight || "Standard Pack";
-                    const nameL = (it.name || it.productName || "").toLowerCase();
-                    if (nameL.includes("5kg") || nameL.includes("5 kg")) packWeight = "5kg Bulk Pack";
-                    else if (nameL.includes("1kg") || nameL.includes("1 kg")) packWeight = "1kg Pack";
-                    else if (nameL.includes("250g") || nameL.includes("250 g")) packWeight = "250g Pack";
-                    else if (nameL.includes("1l") || nameL.includes("1 litre")) packWeight = "1 Litre";
+                    let packUnit = "pcs";
+                    const nameL = (it.name || it.productName || it.weight || "").toLowerCase();
+                    if (nameL.includes("kg")) packUnit = "kg";
+                    else if (nameL.includes("litre") || nameL.includes("1l")) packUnit = "ltr";
+                    else if (nameL.includes("gm") || nameL.includes("g")) packUnit = "pcs";
 
                     return {
                       ...it,
-                      name: it.name || it.productName || "Himalayan Produce",
+                      name: it.name || it.productName || "Garam Masala LP3",
                       qty,
                       price,
                       total,
-                      weight: packWeight,
+                      unit: packUnit,
                     };
                   });
 
-                  const computedSubtotal = parsedInvoiceItems.reduce((acc, it) => acc + (it.price * it.qty), 0);
+                  const computedGrossTotal = parsedInvoiceItems.reduce((acc, it) => acc + it.total, 0);
                   const discountVal = Number(selectedOrderForView.discount || 0);
                   const shippingVal = Number(selectedOrderForView.shipping || 0);
-                  const computedTotal = Math.max(0, computedSubtotal - discountVal + shippingVal);
+                  const computedTotal = Math.max(0, computedGrossTotal - discountVal + shippingVal);
                   const finalInvoiceAmount = selectedOrderForView.amount != null && selectedOrderForView.amount > 0 && selectedOrderForView.amount === computedTotal
                     ? selectedOrderForView.amount
                     : computedTotal;
-                  const discountPct = computedSubtotal > 0 && discountVal > 0
-                    ? ((discountVal / computedSubtotal) * 100).toFixed(1)
-                    : "0";
-                  const gstVal = finalInvoiceAmount > 0 ? (finalInvoiceAmount * 0.05 / 1.05) : 0;
+
+                  // 5% GST calculations (2.5% CGST + 2.5% SGST)
+                  const taxableSubtotal = Math.round((finalInvoiceAmount / 1.05) * 100) / 100;
+                  const totalTax = Math.round((finalInvoiceAmount - taxableSubtotal) * 100) / 100;
+                  const totalCgst = Math.round((totalTax / 2) * 100) / 100;
+                  const totalSgst = Math.round((totalTax - totalCgst) * 100) / 100;
+                  const roundingVal = Math.round((finalInvoiceAmount - (taxableSubtotal + totalCgst + totalSgst)) * 100) / 100;
+
+                  const isPaid = (selectedOrderForView.paymentStatus || "").toLowerCase() === "paid" ||
+                                 (selectedOrderForView.paymentStatus || "").toLowerCase() === "collected";
 
                   return (
                     <>
-                      <div className="border border-neutral-300 rounded-xl overflow-hidden shadow-2xs">
-                        <table className="w-full text-left text-xs border-collapse">
-                          <thead className="bg-[#0F3D2E] text-white text-[11px]">
-                            <tr>
-                              <th className="py-2 px-3 font-semibold text-center w-8">#</th>
-                              <th className="py-2 px-3 font-semibold">Description of Produce & Harvest</th>
-                              <th className="py-2 px-3 font-semibold text-center w-24">HSN Code</th>
-                              <th className="py-2 px-3 font-semibold text-center w-16">Qty</th>
-                              <th className="py-2 px-3 font-semibold text-right w-24">Unit Rate</th>
-                              <th className="py-2 px-3 font-semibold text-right w-28">Amount (₹)</th>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse border border-neutral-300">
+                          <thead>
+                            {/* Level 1 Table Header */}
+                            <tr className="bg-[#f4f5f7] text-neutral-800 text-[11px] font-bold">
+                              <th rowSpan={2} className="border border-neutral-300 py-1.5 px-2 text-center w-8">#</th>
+                              <th rowSpan={2} className="border border-neutral-300 py-1.5 px-2 text-left">Item &amp; Description</th>
+                              <th rowSpan={2} className="border border-neutral-300 py-1.5 px-2 text-center w-20">HSN/SAC</th>
+                              <th rowSpan={2} className="border border-neutral-300 py-1.5 px-2 text-center w-16">Qty</th>
+                              <th rowSpan={2} className="border border-neutral-300 py-1.5 px-2 text-right w-16">Rate</th>
+                              <th colSpan={2} className="border border-neutral-300 py-1 px-2 text-center">CGST</th>
+                              <th colSpan={2} className="border border-neutral-300 py-1 px-2 text-center">SGST</th>
+                              <th rowSpan={2} className="border border-neutral-300 py-1.5 px-2 text-right w-20">Amount</th>
+                            </tr>
+                            {/* Level 2 Sub-Headers for CGST & SGST */}
+                            <tr className="bg-[#f4f5f7] text-neutral-800 text-[10px] font-bold">
+                              <th className="border border-neutral-300 py-1 px-1.5 text-center w-12">%</th>
+                              <th className="border border-neutral-300 py-1 px-1.5 text-right w-14">Amt</th>
+                              <th className="border border-neutral-300 py-1 px-1.5 text-center w-12">%</th>
+                              <th className="border border-neutral-300 py-1 px-1.5 text-right w-14">Amt</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-neutral-200 text-neutral-800 bg-white">
-                            {parsedInvoiceItems.map((it, idx) => (
-                              <tr key={idx} className="hover:bg-neutral-50/80">
-                                <td className="py-2 px-3 text-center font-mono text-[11px] text-neutral-500">{idx + 1}</td>
-                                <td className="py-2 px-3">
-                                  <span className="font-bold text-neutral-900 block">{it.name}</span>
-                                  <span className="text-[10px] text-neutral-500 font-mono">
-                                    Pack / Weight: {it.weight} • Certified Himalayan Single-Origin
-                                  </span>
-                                  {it.discount && Number(it.discount) > 0 ? (
-                                    <span className="block text-[10px] text-emerald-700 font-medium">
-                                      Product Discount: -₹{Number(it.discount).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    </span>
-                                  ) : null}
-                                </td>
-                                <td className="py-2 px-3 text-center font-mono text-[11px] text-neutral-600">
-                                  {getProductHsn(it.name)}
-                                </td>
-                                <td className="py-2 px-3 text-center font-mono font-bold">{it.qty}</td>
-                                <td className="py-2 px-3 text-right font-mono">
-                                  ₹{it.price.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </td>
-                                <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900">
-                                  ₹{it.total.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </td>
-                              </tr>
-                            ))}
+                          <tbody className="divide-y divide-neutral-300 text-neutral-800 bg-white">
+                            {parsedInvoiceItems.map((it, idx) => {
+                              const itemTaxable = Math.round((it.total / 1.05) * 100) / 100;
+                              const itemTax = Math.round((it.total - itemTaxable) * 100) / 100;
+                              const cgstAmt = Math.round((itemTax / 2) * 100) / 100;
+                              const sgstAmt = Math.round((itemTax - cgstAmt) * 100) / 100;
+
+                              return (
+                                <tr key={idx} className="hover:bg-neutral-50/80">
+                                  <td className="border border-neutral-300 py-2 px-2 text-center font-mono text-[11px] text-neutral-600">
+                                    {idx + 1}
+                                  </td>
+                                  <td className="border border-neutral-300 py-2 px-2.5">
+                                    <span className="font-semibold text-neutral-900 block">{it.name}</span>
+                                  </td>
+                                  <td className="border border-neutral-300 py-2 px-2 text-center font-mono text-[11px] text-neutral-600">
+                                    {getProductHsn(it.name) || "09109990"}
+                                  </td>
+                                  <td className="border border-neutral-300 py-2 px-2 text-center font-mono">
+                                    <div className="font-medium">{it.qty.toFixed(2)}</div>
+                                    <div className="text-[10px] text-neutral-500 font-sans">{it.unit}</div>
+                                  </td>
+                                  <td className="border border-neutral-300 py-2 px-2 text-right font-mono text-neutral-900">
+                                    {it.price.toFixed(2)}
+                                  </td>
+                                  <td className="border border-neutral-300 py-2 px-1 text-center font-mono text-[11px] text-neutral-700">
+                                    2.5%
+                                  </td>
+                                  <td className="border border-neutral-300 py-2 px-1.5 text-right font-mono text-neutral-700">
+                                    {cgstAmt.toFixed(2)}
+                                  </td>
+                                  <td className="border border-neutral-300 py-2 px-1 text-center font-mono text-[11px] text-neutral-700">
+                                    2.5%
+                                  </td>
+                                  <td className="border border-neutral-300 py-2 px-1.5 text-right font-mono text-neutral-700">
+                                    {sgstAmt.toFixed(2)}
+                                  </td>
+                                  <td className="border border-neutral-300 py-2 px-2 text-right font-mono font-medium text-neutral-900">
+                                    {it.total.toFixed(2)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
 
-                      {/* 4. Commercial Summary & Tax Calculation */}
-                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-1 print-keep">
-                        {/* Left (7 cols): Words, Payment Details & Notes */}
-                        <div className="sm:col-span-7 space-y-2">
-                          <div className="p-3 rounded-xl border border-neutral-200 bg-neutral-50/80 space-y-1">
-                            <span className="text-[10px] font-bold uppercase text-neutral-500 tracking-wider block">
-                              Invoice Total in Words:
+                      {/* 6. Bottom Section: Split 2 Columns matching Reference Image */}
+                      <div className="border border-neutral-300 border-t-0 grid grid-cols-1 sm:grid-cols-12 text-xs">
+                        {/* Left Column (col-span-7): Words, Notes & Bank Account Details */}
+                        <div className="sm:col-span-7 p-3.5 sm:border-r border-neutral-300 space-y-3.5">
+                          <div>
+                            <span className="font-bold text-neutral-800 block text-[11px] mb-0.5">
+                              Total In Words
                             </span>
-                            <p className="font-bold text-neutral-900 text-xs">
-                              {numberToWordsIndian(finalInvoiceAmount)}
+                            <p className="font-serif italic font-bold text-neutral-900 text-xs">
+                              Indian Rupee {numberToWordsIndian(finalInvoiceAmount).replace(/Rupees Only$/i, "").trim()} Only
                             </p>
                           </div>
 
-                          <div className="p-3 rounded-xl border border-neutral-200 bg-neutral-50/50 space-y-1 text-[11px]">
-                            <div className="flex items-center justify-between border-b border-neutral-100 pb-1">
-                              <span className="font-bold text-neutral-600">Payment Method:</span>
-                              <strong className="text-neutral-900">{selectedOrderForView.paymentMethod || "UPI Direct"}</strong>
-                            </div>
-                            <div className="flex items-center justify-between border-b border-neutral-100 pb-1">
-                              <span className="font-bold text-neutral-600">Payment Status:</span>
-                              <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded">
-                                ● {selectedOrderForView.paymentStatus || "Paid"}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-neutral-500">Transaction Desk:</span>
-                              <span className="font-mono text-[10px] text-neutral-700">Official Desk (prajnaa@upi)</span>
-                            </div>
+                          <div>
+                            <span className="font-bold text-neutral-800 block text-[11px] mb-0.5">
+                              Notes
+                            </span>
+                            <p className="text-neutral-700 text-xs">
+                              Thanks for your business.
+                            </p>
                           </div>
 
-                          <div className="text-[10px] text-neutral-500 space-y-0.5 leading-relaxed pt-0.5">
-                            <p className="font-semibold text-neutral-700">Terms & Harvest Warranty:</p>
-                            <p>• Certified pesticide-free Himalayan single-origin farm harvest with zero adulteration.</p>
-                            <p>• Goods dispatched via India Post Speed Post are tracked and insured under postal transit rules.</p>
-                            <p>• For queries or re-orders, reach concierge at <strong>+91 80912 65690</strong> on WhatsApp.</p>
+                          {/* Official Bank Account Information */}
+                          <div className="text-[11px] text-neutral-800 space-y-0.5 leading-snug pt-1 font-sans">
+                            <p><span className="font-semibold text-neutral-900">A/c Name -</span> Prajnaa Market (AVBT Enterprises)</p>
+                            <p><span className="font-semibold text-neutral-900">A/c No.</span> 033311501090034</p>
+                            <p><span className="font-semibold text-neutral-900">IFSC :</span> NESF0000333</p>
+                            <p><span className="font-semibold text-neutral-900">UPI ID :</span> prajnaa@upi / nisha6652054@slc</p>
+                            <p className="text-neutral-600">Slice Small Finance Bank, Koramangala Bangalore Branch</p>
                           </div>
                         </div>
 
-                        {/* Right (5 cols): Calculation Box */}
-                        <div className="sm:col-span-5">
-                          <div className="p-3 rounded-xl border border-neutral-300 bg-neutral-50/70 space-y-2 text-xs">
-                            <div className="flex justify-between text-neutral-600">
-                              <span>Produce Subtotal:</span>
-                              <span className="font-mono font-semibold text-neutral-900">
-                                ₹{computedSubtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </span>
+                        {/* Right Column (col-span-5): Calculation Box & Signatory Seal */}
+                        <div className="sm:col-span-5 p-3.5 flex flex-col justify-between border-t sm:border-t-0 border-neutral-300 space-y-4">
+                          <div className="space-y-1.5 text-xs">
+                            <div className="flex justify-between text-neutral-700">
+                              <span>Sub Total</span>
+                              <span className="font-mono font-medium">{taxableSubtotal.toFixed(2)}</span>
                             </div>
-
-                            <div className="flex justify-between text-neutral-600">
-                              <span>Speed Post Delivery:</span>
-                              <span className="font-mono font-semibold text-neutral-900">
-                                ₹{shippingVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </span>
+                            <div className="flex justify-between text-neutral-700">
+                              <span>CGST2.5 (2.5%)</span>
+                              <span className="font-mono font-medium">{totalCgst.toFixed(2)}</span>
                             </div>
-
-                            {discountVal > 0 && (
-                              <div className="flex justify-between text-emerald-700 font-semibold">
-                                <span>Discount Applied ({discountPct}%):</span>
-                                <span className="font-mono font-bold">-₹{discountVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <div className="flex justify-between text-neutral-700">
+                              <span>SGST2.5 (2.5%)</span>
+                              <span className="font-mono font-medium">{totalSgst.toFixed(2)}</span>
+                            </div>
+                            {shippingVal > 0 ? (
+                              <div className="flex justify-between text-neutral-700">
+                                <span>Shipping</span>
+                                <span className="font-mono font-medium">{shippingVal.toFixed(2)}</span>
+                              </div>
+                            ) : (
+                              <div className="flex justify-between text-neutral-700">
+                                <span>Rounding</span>
+                                <span className="font-mono font-medium">{roundingVal.toFixed(2)}</span>
                               </div>
                             )}
 
-                            <div className="flex justify-between text-[11px] text-neutral-500 pt-1 border-t border-neutral-200">
-                              <span>Applicable GST (5% Included):</span>
-                              <span className="font-mono">
-                                ₹{gstVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            <div className="flex justify-between items-center text-sm font-bold text-neutral-900 pt-1.5 border-t border-neutral-300">
+                              <span>Total</span>
+                              <span className="font-mono font-extrabold text-base">₹{finalInvoiceAmount.toFixed(2)}</span>
+                            </div>
+
+                            <div className="flex justify-between text-xs text-neutral-700">
+                              <span>Payment Made</span>
+                              <span className="font-mono font-semibold text-red-600">
+                                {isPaid ? `(-) ${finalInvoiceAmount.toFixed(2)}` : "0.00"}
                               </span>
                             </div>
 
-                            <div className="flex justify-between items-center text-sm font-extrabold text-neutral-900 pt-2 border-t-2 border-neutral-300">
-                              <span>Total Amount:</span>
-                              <span className="text-base font-mono text-emerald-800 font-extrabold">
-                                ₹{finalInvoiceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            <div className="flex justify-between text-xs font-bold text-neutral-900 pt-1 border-t border-neutral-200">
+                              <span>Balance Due</span>
+                              <span className="font-mono font-bold">
+                                ₹{isPaid ? "0.00" : finalInvoiceAmount.toFixed(2)}
                               </span>
+                            </div>
+                          </div>
+
+                          {/* Signatory Section with Official Prajnaa Market Round Stamp Seal */}
+                          <div className="pt-2 text-right">
+                            <p className="text-[11px] font-semibold text-neutral-800">
+                              For Prajnaa Market
+                            </p>
+                            <p className="text-[10px] text-neutral-500 italic">
+                              (Authorized Signatory)
+                            </p>
+                            <div className="flex justify-end mt-2">
+                              {/* Authentic Round Rubber Stamp Seal for Prajnaa Market */}
+                              <svg
+                                viewBox="0 0 160 160"
+                                className="w-24 h-24 sm:w-28 sm:h-28 inline-block select-none transform rotate-[-6deg] text-[#0A5C36]"
+                              >
+                                {/* Outer double circular border */}
+                                <circle cx="80" cy="80" r="74" fill="none" stroke="currentColor" strokeWidth="2.5" />
+                                <circle cx="80" cy="80" r="54" fill="none" stroke="currentColor" strokeWidth="1.2" />
+
+                                <defs>
+                                  <path id="stampPathTop" d="M 24,80 A 56,56 0 0,1 136,80" fill="none" />
+                                  <path id="stampPathBottom" d="M 136,80 A 56,56 0 0,1 24,80" fill="none" />
+                                </defs>
+
+                                <text fill="currentColor" fontSize="10.5" fontWeight="bold" letterSpacing="2.2">
+                                  <textPath href="#stampPathTop" startOffset="50%" textAnchor="middle">
+                                    PRAJNAA MARKET
+                                  </textPath>
+                                </text>
+
+                                <text fill="currentColor" fontSize="11" fontWeight="bold" letterSpacing="3">
+                                  <textPath href="#stampPathBottom" startOffset="50%" textAnchor="middle">
+                                    ★ SOLAN ★
+                                  </textPath>
+                                </text>
+
+                                {/* Center Signature Script */}
+                                <path
+                                  d="M 45,86 Q 58,62 70,86 T 95,78 T 115,88"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.2"
+                                  strokeLinecap="round"
+                                />
+                                <text
+                                  x="80"
+                                  y="100"
+                                  fill="currentColor"
+                                  fontSize="9.5"
+                                  fontStyle="italic"
+                                  fontWeight="bold"
+                                  textAnchor="middle"
+                                >
+                                  Prajnaa Market
+                                </text>
+                              </svg>
                             </div>
                           </div>
                         </div>
@@ -13241,29 +13358,7 @@ export default function PrajnaaMasterCrmApp() {
                   );
                 })()}
 
-                {/* 5. Official Stamp & Authorized Signatory */}
-                <div className="pt-4 border-t border-neutral-200 flex flex-col sm:flex-row items-center justify-between gap-4 print-keep">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 bg-neutral-100 rounded-lg border border-neutral-200">
-                      <QrCode className="h-8 w-8 text-[#0F3D2E]" />
-                    </div>
-                    <div className="text-[10px] text-neutral-500 leading-tight">
-                      <strong className="block text-neutral-800">Scan to Verify Invoice</strong>
-                      <span>Authentication via Prajnaa Digital Ledger</span>
-                    </div>
-                  </div>
-
-                  <div className="text-right space-y-1">
-                    <p className="text-[10px] text-neutral-500">For <strong>PRAJNAA MARKET</strong></p>
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-300 text-emerald-800 text-[10px] font-bold">
-                      <span className="h-2 w-2 rounded-full bg-emerald-600" />
-                      <span>Digitally Verified & Authorized Signatory</span>
-                    </div>
-                    <p className="text-[9px] text-neutral-400">Operations & Concierge Fulfillment Team</p>
-                  </div>
-                </div>
-
-                <div className="text-center text-[9px] text-neutral-400 pt-2 border-t border-neutral-100">
+                <div className="text-center text-[9px] text-neutral-400 pt-2 border-t border-neutral-100 print:text-[8px]">
                   This is a computer-generated tax invoice issued by Prajnaa Market (AVBT Enterprises) under the Information Technology Act, 2000. All disputes subject to Solan (Himachal Pradesh) jurisdiction.
                 </div>
               </div>

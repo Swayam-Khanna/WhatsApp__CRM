@@ -47,7 +47,11 @@ export type CustomerIntent =
   | "casual"
   | "clarification"
   | "follow_up"
-  | "closing";
+  | "closing"
+  | "expression"
+  | "bargaining"
+  | "trust"
+  | "followup";
 
 export interface LiveProductVariant {
   name: string;
@@ -226,19 +230,30 @@ export function resetConversationContext(phone: string): void {
  * Resolves the public base URL of the application.
  */
 export function getAppBaseUrl(reqHost?: string): string {
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    const raw = process.env.NEXT_PUBLIC_APP_URL.trim().replace(/\/+$/, "");
-    return raw.startsWith("http") ? raw : `https://${raw}`;
-  }
   if (reqHost) {
     const cleanHost = reqHost.trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
     const isLocal = cleanHost.includes("localhost") || cleanHost.includes("127.0.0.1");
-    const protocol = isLocal ? "http" : "https";
-    return `${protocol}://${cleanHost}`;
+    if (!isLocal) {
+      return `https://${cleanHost}`;
+    }
+  }
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    const raw = process.env.NEXT_PUBLIC_APP_URL.trim().replace(/\/+$/, "");
+    const isLocal = raw.includes("localhost") || raw.includes("127.0.0.1");
+    if (!isLocal || process.env.NODE_ENV !== "production") {
+      return raw.startsWith("http") ? raw : `https://${raw}`;
+    }
+  }
+  if (reqHost) {
+    const cleanHost = reqHost.trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+    return `http://${cleanHost}`;
   }
   if (process.env.BETTER_AUTH_URL) {
     const raw = process.env.BETTER_AUTH_URL.trim().replace(/\/+$/, "");
-    return raw.startsWith("http") ? raw : `https://${raw}`;
+    const isLocal = raw.includes("localhost") || raw.includes("127.0.0.1");
+    if (!isLocal || process.env.NODE_ENV !== "production") {
+      return raw.startsWith("http") ? raw : `https://${raw}`;
+    }
   }
   return "https://crm.prajnaa.in";
 }

@@ -44,3 +44,6 @@ service-account.json
 scratch/
 .neon
 public/uploads/
+data/
+
+

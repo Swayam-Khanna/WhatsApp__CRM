@@ -204,10 +204,10 @@ export default function WhatsAppCrmInboxPage() {
     } else if (type === "confirm_payment") {
       text = `Namaste ${selectedConv.customerName} ji! 🙏 Aapka ₹${((selectedConv.orderTotalPaise || 0) / 100).toLocaleString("en-IN")} ka payment receive ho gaya hai. Prajnaa Market mein order packaging mein aam taur par 2–3 din lagte hain kyunki hum direct mountain farmers se fresh batch sort karte hain. Packaging complete hote hi hum aapko update bhejenge!`;
     } else if (type === "packing") {
-      text = `Namaste ${selectedConv.customerName} ji! 🙏 Aapke order #${selectedConv.orderNumber} ki packaging Shimla hub par complete ho gayi hai. Hum aapke parcel ko India Post Speed Post pickup ke liye schedule kar rahe hain.`;
+      text = `Namaste ${selectedConv.customerName} ji! 🙏 Aapke order #${selectedConv.orderNumber} ki packaging Shimla hub par complete ho gayi hai. Hum aapke parcel ko Shipping pickup ke liye schedule kar rahe hain.`;
     } else if (type === "tracking") {
       const tracking = selectedConv.consignmentNumber || "ED839102914IN";
-      text = `Namaste ${selectedConv.customerName} ji! 📦 Aapka Prajnaa parcel dispatch ho chuka hai.\n\n• *Carrier:* India Post Speed Post\n• *Consignment ID:* ${tracking}\n\nAap is consignment number ko India Post ki official website par track kar sakte hain. Kripya apna phone available rakhein.`;
+      text = `Namaste ${selectedConv.customerName} ji! 📦 Aapka Prajnaa parcel dispatch ho chuka hai.\n\n• *Carrier:* Shipping\n• *Consignment ID:* ${tracking}\n\nAap is consignment number ko official shipping website par track kar sakte hain. Kripya apna phone available rakhein.`;
     } else if (type === "delivered") {
       text = `Namaste ${selectedConv.customerName} ji! 🙏 Aapke Prajnaa Market order ki delivery confirm ho gayi hai. Humein ummeed hai ki aapko hamare organic Himalayan products pasand aayenge. Prajnaa par bharosa karne ke liye dhanyavaad ji! 🌿`;
     }
@@ -309,7 +309,7 @@ export default function WhatsAppCrmInboxPage() {
         </div>
         <div className="flex items-center gap-3 text-muted-foreground text-[11px]">
           <span>Standard Packaging: 2–3 Days</span>
-          <span className="hidden md:inline">· India Post Speed Post Integrated</span>
+          <span className="hidden md:inline">· Shipping Integrated</span>
         </div>
       </div>
 
@@ -575,7 +575,7 @@ export default function WhatsAppCrmInboxPage() {
               onClick={() => sendQuickReply("tracking")}
               className="px-2.5 py-1 rounded-md bg-secondary hover:bg-secondary/80 border border-border text-foreground shrink-0 cursor-pointer flex items-center gap-1"
             >
-              <Truck className="h-3 w-3 text-sky-600" /> India Post Tracking
+              <Truck className="h-3 w-3 text-sky-600" /> Shipping Tracking
             </button>
             <button
               onClick={() => sendQuickReply("delivered")}
@@ -730,13 +730,13 @@ export default function WhatsAppCrmInboxPage() {
                   <span className="text-[10px] text-muted-foreground">Shimla Hub</span>
                 </div>
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  Prajnaa Market harvest produce undergoes rigorous purity inspection, weighing, and cushioning before dispatch via India Post Speed Post.
+                  Prajnaa Market harvest produce undergoes rigorous purity inspection, weighing, and cushioning before dispatch via Shipping.
                 </p>
 
                 {selectedConv.consignmentNumber && (
                   <div className="pt-2 border-t border-border space-y-1.5">
                     <span className="text-[11px] font-semibold text-foreground flex items-center gap-1">
-                      <Truck className="h-3 w-3 text-primary" /> India Post Consignment:
+                      <Truck className="h-3 w-3 text-primary" /> Shipping Consignment:
                     </span>
                     <div className="flex items-center justify-between bg-secondary/80 px-2.5 py-1.5 rounded-lg border border-border">
                       <code className="text-xs font-mono font-bold text-foreground">

@@ -1487,12 +1487,37 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
                       {new Date(quote.validUntil).toLocaleDateString()}
                     </td>
                     <td className="p-3">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-50 text-emerald-800">
-                        {quote.status}
-                      </span>
+                      <div className="space-y-0.5">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                          quote.status === "converted"
+                            ? "bg-purple-50 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200"
+                            : "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                        }`}>
+                          {quote.status}
+                        </span>
+                        {(lead.linkedOrderId || quote.convertedOrderId) && (
+                          <div className="font-mono text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+                            #{lead.linkedOrderId || quote.convertedOrderId}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3 pr-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {(lead.linkedOrderId || quote.convertedOrderId) && onViewOrder && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onViewOrder(lead.linkedOrderId || quote.convertedOrderId, lead);
+                            }}
+                            className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer transition shadow-2xs"
+                            title="View Converted Order Details"
+                          >
+                            <ShoppingBag className="h-3 w-3" />
+                            <span>Order</span>
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1685,6 +1710,7 @@ export const LeadsModule: React.FC<LeadsModuleProps> = ({
         <LeadDetailModal
           isOpen={Boolean(selectedLeadId)}
           leadId={selectedLeadId}
+          initialLead={leads.find((l) => l.id === selectedLeadId) || null}
           onClose={() => setSelectedLeadId(null)}
           onUpdate={() => loadData()}
           onOpenWhatsApp={onOpenWhatsApp}

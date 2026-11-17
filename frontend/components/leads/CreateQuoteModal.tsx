@@ -82,7 +82,7 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
   );
   const [deliveryTerms, setDeliveryTerms] = useState(
     existingQuote?.deliveryTerms ||
-      "Direct Door Delivery via India Post Speed Post (2-3 business days)"
+      "Direct Door Delivery via Shipping (2-3 business days)"
   );
   const [validDays, setValidDays] = useState(14);
   const [discountPaise, setDiscountPaise] = useState<number>(existingQuote?.discountPaise || 0);

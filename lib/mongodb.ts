@@ -1,9 +1,9 @@
 const uri = process.env.MONGODB_URI || "";
 
 const options = {
-  serverSelectionTimeoutMS: 4000,
-  connectTimeoutMS: 4000,
-  maxPoolSize: 10,
+  serverSelectionTimeoutMS: 2000,
+  connectTimeoutMS: 2000,
+  maxPoolSize: 5,
 };
 
 declare global {
@@ -24,8 +24,8 @@ export async function getClientPromise(): Promise<any> {
     return Promise.resolve(null);
   }
 
-  // Circuit breaker: if connection failed within last 30s, fail fast without re-hanging on DNS
-  if (Date.now() - lastFailedAt < 30000 && lastError) {
+  // Circuit breaker: if connection failed within last 60s, fail fast without re-hanging
+  if (Date.now() - lastFailedAt < 60000 && lastError) {
     return Promise.resolve(null);
   }
 
@@ -37,10 +37,11 @@ export async function getClientPromise(): Promise<any> {
         global._mongoClientPromise = undefined;
         lastFailedAt = Date.now();
         lastError = err;
-        console.warn("[MongoDB] Connection fallback:", err?.message || err);
+        console.warn("[MongoDB] Connection fallback (circuit breaker 60s):", err?.message || err);
         return null;
       });
     } catch {
+      lastFailedAt = Date.now();
       return Promise.resolve(null);
     }
   }

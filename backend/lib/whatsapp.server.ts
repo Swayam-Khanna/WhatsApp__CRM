@@ -509,7 +509,7 @@ export function buildOrderPackedMessage(params: {
     ``,
     `Great news! Your Prajnaa Market order *${ordTag}* has been *quality-checked and carefully packed*.`,
     ``,
-    `It is safely sealed and prepared for dispatch via India Post Speed Post. We will share your tracking consignment details as soon as it is handed over to the courier! 🌿`,
+    `It is safely sealed and prepared for dispatch via Shipping. We will share your tracking consignment details as soon as it is handed over to the courier! 🌿`,
     `*Team Prajnaa Market* 🌿`,
   ].join("\n");
 }
@@ -528,7 +528,7 @@ export function buildOrderOutForDeliveryMessage(params: {
     ``,
     `Exciting update! Your Prajnaa Market order *${ordTag}* is *out for delivery today*! 🎉`,
     ``,
-    `The delivery executive / India Post postman will be arriving with your parcel shortly. Please keep your phone reachable to receive your fresh farm harvest! 🌿`,
+    `The delivery executive will be arriving with your parcel shortly. Please keep your phone reachable to receive your fresh farm harvest! 🌿`,
     `*Team Prajnaa Market* 🌿`,
   ].join("\n");
 }
@@ -851,7 +851,7 @@ export function processConversationalBotReply(params: {
         "",
         "✨ *Prajnaa Farm Guarantee*:",
         "✔ 100% Chemical-free, unpolished single-origin harvest",
-        "✔ Insured India Post Speed Post delivery (2–3 din mein dispatch from Solan hub)",
+        "✔ Insured Shipping delivery (2–3 din mein dispatch from Solan hub)",
         "✔ Free delivery on orders above ₹999",
         "✔ Official UPI: prajnaa@upi",
         "",
