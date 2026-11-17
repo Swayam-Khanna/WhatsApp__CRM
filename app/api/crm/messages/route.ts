@@ -21,6 +21,7 @@ import {
   recordDeletedContact,
   resurrectContact,
   isContactDeleted,
+  getStoreUpdateTimestamp,
 } from "../../../../backend/lib/crm-store.server.ts";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,7 @@ export const dynamic = "force-dynamic";
 interface MessagesCacheEntry {
   data: any;
   timestamp: number;
+  storeUpdate: number;
 }
 const messagesCache = new Map<string, MessagesCacheEntry>();
 
@@ -46,9 +48,9 @@ export async function GET(req: NextRequest) {
   const phone = searchParams.get("phone");
   const cacheKey = phone ? phone.replace(/\D/g, "").slice(-10) : "all";
 
-  // 1. Serve from in-memory cache if fresh (2.5 second TTL)
+  // 1. Serve from in-memory cache if fresh (2.5 second TTL) and store hasn't been updated
   const cached = messagesCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < 2500) {
+  if (cached && Date.now() - cached.timestamp < 2500 && cached.storeUpdate >= getStoreUpdateTimestamp()) {
     return NextResponse.json(cached.data);
   }
 
@@ -172,7 +174,7 @@ export async function GET(req: NextRequest) {
     };
 
     // Cache the compiled payload for 2.5s
-    messagesCache.set(cacheKey, { data: responsePayload, timestamp: Date.now() });
+    messagesCache.set(cacheKey, { data: responsePayload, timestamp: Date.now(), storeUpdate: getStoreUpdateTimestamp() });
 
     return NextResponse.json(responsePayload);
   } catch (err: any) {

@@ -1978,13 +1978,18 @@ export default function PrajnaaMasterCrmApp() {
 
           dbMsgs.forEach((m: any) => {
             const isInbound = m.direction === "inbound" || m.sender === "customer";
-            const counterpartyRaw = isInbound ? m.from : m.to;
-            const cleanPhone = (counterpartyRaw || "").replace(/\D/g, "").slice(-10);
+            let counterpartyRaw = isInbound ? m.from : m.to;
+            let cleanPhone = (counterpartyRaw || "").replace(/\D/g, "").slice(-10);
 
-            // Skip messages between admin and admin, or test numbers / mock contacts
+            // If counterparty phone is empty or matches both, fallback to whichever phone is available
+            if (!cleanPhone) {
+              const other = (isInbound ? m.to : m.from || "").replace(/\D/g, "").slice(-10);
+              if (other) cleanPhone = other;
+            }
+
+            // Skip invalid numbers or mock test contacts
             if (
               !cleanPhone ||
-              cleanPhone === adminPhoneClean ||
               cleanPhone === "9876543210" ||
               (m.customerName && /(Rahul Mehra|Sneha Patel|Priya Sharma|Amitabh Verma)/i.test(m.customerName))
             ) {
@@ -2083,13 +2088,15 @@ export default function PrajnaaMasterCrmApp() {
               const namedMsg = msgs.find(
                 (m) => m.customerName && m.customerName !== "Customer" && m.customerName !== "Patron" && !m.customerName.startsWith("Patron (") && !m.customerName.startsWith("+91")
               );
-              const contactName = namedMsg?.customerName || latest.customerName || `Patron (${formattedPhone})`;
+              const contactName = phoneKey === adminPhoneClean
+                ? "Store Mobile (+91 80912 65690)"
+                : (namedMsg?.customerName || latest.customerName || `Patron (${formattedPhone})`);
 
               const latestTime = latest.timestamp || latest.createdAt
                 ? new Date(latest.timestamp || latest.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
                 : "Just now";
 
-              const newCustId = latest.customerId || `cust_wa_${phoneKey}`;
+              const newCustId = phoneKey === adminPhoneClean ? "cust_admin_mobile" : (latest.customerId || `cust_wa_${phoneKey}`);
               const newCust: Customer = {
                 id: newCustId,
                 name: contactName,

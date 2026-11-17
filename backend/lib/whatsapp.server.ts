@@ -21,6 +21,7 @@ export interface WhatsAppStatusUpdate {
 export interface InboundWhatsAppMessage {
   id: string;
   fromPhone: string;
+  toPhone?: string;
   customerName?: string;
   text: string;
   timestamp: string;
@@ -1255,16 +1256,19 @@ export function parseInboundWebhookPayload(payload: any): {
               ? (tsNum > 1e11 ? new Date(tsNum).toISOString() : new Date(tsNum * 1000).toISOString())
               : new Date().toISOString();
 
-            const cleanFrom = (msg.from || "").replace(/\D/g, "").slice(-10);
+            const cleanFrom = (msg.from || contacts[0]?.wa_id || "").replace(/\D/g, "").slice(-10);
             const contactName =
               contactNameMap[msg.from] ||
               contactNameMap[cleanFrom] ||
               contacts[0]?.profile?.name ||
               "";
 
+            const recipientPhone = msg.recipient_id || msg.to || "";
+
             messages.push({
               id: msg.id,
-              fromPhone: msg.from,
+              fromPhone: msg.from || contacts[0]?.wa_id || "",
+              toPhone: recipientPhone || undefined,
               customerName: contactName,
               text: textContent,
               timestamp,

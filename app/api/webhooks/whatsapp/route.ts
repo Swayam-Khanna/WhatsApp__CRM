@@ -11,6 +11,11 @@ import { getDatabase } from "../../../../lib/mongodb.ts";
 import { db as pgDb } from "../../../../backend/db.ts";
 import { crmMessages } from "../../../../backend/schema/crm.ts";
 import { eq, or, ilike } from "drizzle-orm";
+import {
+  saveStoredMessage,
+  resurrectContact,
+  getStoredMessages,
+} from "../../../../backend/lib/crm-store.server.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -49,10 +54,28 @@ export async function GET(req: NextRequest) {
   // Also return health status if queried directly via browser
   if (!mode) {
     const health = getWhatsAppIntegrationStatus();
+    const diskFeed = getStoredMessages();
     return NextResponse.json({
       status: "WhatsApp Webhook Listener Active",
       endpoint: "/api/webhooks/whatsapp",
+      supportedEndpoints: [
+        "/api/webhooks/whatsapp",
+        "/api/whatsapp/webhook",
+        "/api/webhook/whatsapp",
+        "/api/webhook",
+      ],
       health,
+      webhookConfig: {
+        verifyTokenConfigured: Boolean(process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN),
+        verifyTokenMatchesDefault: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN === "prajnaa_whatsapp_verify_token",
+        appSecretConfigured: Boolean(process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET),
+        phoneId: process.env.WHATSAPP_PHONE_NUMBER_ID || "1395630476965721",
+        adminPhone: process.env.ADMIN_WHATSAPP_NUMBER || "918091265690",
+      },
+      feedSummary: {
+        totalMessages: diskFeed.length,
+        recentMessages: diskFeed.slice(0, 5),
+      },
     });
   }
 
@@ -113,12 +136,11 @@ async function handleWebhookProcessing(messages: any[], statuses: any[], reqHost
     globalThis.__globalWhatsAppFeed = [];
   }
 
-  let db: any = null;
-  try {
-    db = await getDatabase();
-  } catch (err) {
-    console.warn("[WhatsApp Webhook] MongoDB connection warning, using memory buffer:", err);
-  }
+  // Fast background database connection (500ms timeout so cloud DB connection never delays Meta's 5s timeout)
+  const dbPromise = Promise.race([
+    getDatabase(),
+    new Promise((resolve) => setTimeout(() => resolve(null), 500)),
+  ]).catch(() => null);
 
   // 1. Process Inbound Customer Messages & Trigger Automated Reply
   for (const msg of messages) {
@@ -131,27 +153,25 @@ async function handleWebhookProcessing(messages: any[], statuses: any[], reqHost
       continue;
     }
 
-    // Idempotency: Check database if connected
-    if (db) {
-      try {
-        const existingInDb = await db.collection("crm_messages").findOne({ id: msg.id });
-        if (existingInDb) {
-          console.log(`[WhatsApp Webhook] Idempotency: Message ${msg.id} already in database. Skipping.`);
-          continue;
-        }
-      } catch (e) {
-        console.warn("[WhatsApp Webhook] Idempotency DB check skipped:", e);
-      }
-    }
-
     console.log(`[WhatsApp Webhook] Inbound from ${msg.fromPhone}: ${msg.text}`);
 
     const adminPhone = (process.env.ADMIN_WHATSAPP_NUMBER || "918091265690").replace(/\D/g, "").slice(-10);
     const fromClean = (msg.fromPhone || "").replace(/\D/g, "").slice(-10);
     const isAdminSender = fromClean === adminPhone;
 
+    // Detect outbound message sent by store admin directly from their phone's WhatsApp (e.g. WhatsApp Business App)
+    const toClean = (msg.toPhone || "").replace(/\D/g, "").slice(-10);
+    const isOutboundFromPhone = isAdminSender && Boolean(toClean && toClean !== adminPhone);
+
+    const targetFrom = isOutboundFromPhone
+      ? (process.env.ADMIN_WHATSAPP_NUMBER || "918091265690")
+      : msg.fromPhone;
+    const targetTo = isOutboundFromPhone
+      ? (msg.toPhone || "")
+      : (process.env.ADMIN_WHATSAPP_NUMBER || "918091265690");
+
     // Smart assistant engine: understands intent, queries live catalogue, answers with short Hinglish
-    const botResult = !isAdminSender
+    const botResult = (!isAdminSender && !isOutboundFromPhone)
       ? await processSmartCustomerReply({
           customerPhone: msg.fromPhone,
           customerText: msg.text,
@@ -163,10 +183,7 @@ async function handleWebhookProcessing(messages: any[], statuses: any[], reqHost
     const resolvedCustomerName =
       (botResult as any)?.updatedCustomerName ||
       msg.customerName ||
-      (isAdminSender ? "Store Admin" : "Customer");
-      botResult?.updatedCustomerName ||
-      msg.customerName ||
-      (isAdminSender ? "Store Admin" : "Customer");
+      (isAdminSender ? "Store Mobile (+91 80912 65690)" : "Customer");
 
     // Propagate captured customer name to in-memory feed
     if (botResult?.updatedCustomerName && fromClean) {
@@ -183,11 +200,11 @@ async function handleWebhookProcessing(messages: any[], statuses: any[], reqHost
 
     const inboundRecord = {
       id: msg.id,
-      direction: "inbound",
-      sender: "customer",
-      from: msg.fromPhone,
-      to: process.env.ADMIN_WHATSAPP_NUMBER || "918091265690",
-      customerName: resolvedCustomerName,
+      direction: isOutboundFromPhone ? "outbound" : "inbound",
+      sender: isOutboundFromPhone ? "business" : "customer",
+      from: targetFrom,
+      to: targetTo,
+      customerName: isOutboundFromPhone ? (msg.customerName || "Customer") : (isAdminSender ? "Store Mobile (+91 80912 65690)" : resolvedCustomerName),
       text: msg.text,
       type: msg.type || "text",
       mediaId: msg.mediaId || null,
@@ -198,96 +215,99 @@ async function handleWebhookProcessing(messages: any[], statuses: any[], reqHost
       createdAt: new Date(),
     };
 
-    // Unshift to memory feed immediately
-    globalThis.__globalWhatsAppFeed.unshift(inboundRecord);
+    // 1. Immediately persist to universal disk-backed store & in-memory feed
+    saveStoredMessage(inboundRecord);
+    if (fromClean) resurrectContact(fromClean);
+    if (toClean) resurrectContact(toClean);
 
-        // Persist inbound record to PostgreSQL if available
-    try {
-      await pgDb
-        .insert(crmMessages)
-        .values({
-          id: inboundRecord.id,
-          direction: "inbound",
-          sender: "customer",
-          from: inboundRecord.from,
-          to: inboundRecord.to,
-          customerName: resolvedCustomerName,
-          text: inboundRecord.text,
-          type: inboundRecord.type,
-          mediaId: inboundRecord.mediaId,
-          mimeType: inboundRecord.mimeType,
-          businessPhoneNumberId: inboundRecord.businessPhoneNumberId,
-          status: "delivered",
-          timestamp: new Date(inboundRecord.timestamp),
-          createdAt: inboundRecord.createdAt,
-        })
-        .onConflictDoNothing();
-
-      if (botResult?.updatedCustomerName && fromClean) {
-        await pgDb
-          .update(crmMessages)
-          .set({ customerName: botResult.updatedCustomerName })
-          .where(
-            or(ilike(crmMessages.from, `%${fromClean}%`), ilike(crmMessages.to, `%${fromClean}%`))
-          );
-      }
-    } catch (pgErr: any) {
-      // PostgreSQL might not be configured in MongoDB-first deployments
-    }
-
-    // Persist inbound record to MongoDB Atlas
-    if (db) {
+    // 2. Non-blocking asynchronous sync to PostgreSQL & MongoDB Atlas
+    dbPromise.then(async (db) => {
       try {
-        await db.collection("crm_messages").insertOne(inboundRecord);
+        await pgDb
+          .insert(crmMessages)
+          .values({
+            id: inboundRecord.id,
+            direction: inboundRecord.direction as any,
+            sender: inboundRecord.sender as any,
+            from: inboundRecord.from,
+            to: inboundRecord.to,
+            customerName: inboundRecord.customerName,
+            text: inboundRecord.text,
+            type: inboundRecord.type,
+            mediaId: inboundRecord.mediaId,
+            mimeType: inboundRecord.mimeType,
+            businessPhoneNumberId: inboundRecord.businessPhoneNumberId,
+            status: "delivered",
+            timestamp: new Date(inboundRecord.timestamp),
+            createdAt: inboundRecord.createdAt,
+          })
+          .onConflictDoNothing();
 
-        // Update past customer name records if updated
         if (botResult?.updatedCustomerName && fromClean) {
-          await db.collection("crm_messages").updateMany(
-            {
-              $or: [
-                { from: { $regex: fromClean } },
-                { to: { $regex: fromClean } },
-              ],
-            },
-            { $set: { customerName: botResult.updatedCustomerName } }
-          );
+          await pgDb
+            .update(crmMessages)
+            .set({ customerName: botResult.updatedCustomerName })
+            .where(
+              or(ilike(crmMessages.from, `%${fromClean}%`), ilike(crmMessages.to, `%${fromClean}%`))
+            );
         }
-
-        // Upsert conversation record in crm_conversations and remove any legacy deletion marks
-        if (fromClean) {
-          try {
-            await db.collection("crm_deleted_contacts").deleteOne({
-              $or: [{ phone: fromClean }, { phone: msg.fromPhone }]
-            });
-          } catch {}
-
-          await db.collection("crm_conversations").updateOne(
-            { phone: fromClean },
-            {
-              $set: {
-                id: `conv_${fromClean}`,
-                customerPhone: formattedPhone,
-                customerName: resolvedCustomerName,
-                lastMessageText: msg.text,
-                lastMessageTime: inboundRecord.timestamp,
-                updatedAt: new Date(),
-              },
-              $setOnInsert: {
-                createdAt: new Date(),
-                status: "active",
-              },
-              $inc: { unreadCount: 1 },
-            },
-            { upsert: true }
-          );
-        }
-      } catch (e) {
-        console.warn("[MongoDB] Failed to persist inbound msg to Atlas:", e);
+      } catch (pgErr: any) {
+        // PostgreSQL might not be configured in MongoDB-first deployments
       }
-    }
+
+      if (db) {
+        try {
+          await db.collection("crm_messages").insertOne(inboundRecord);
+
+          // Update past customer name records if updated
+          if (botResult?.updatedCustomerName && fromClean) {
+            await db.collection("crm_messages").updateMany(
+              {
+                $or: [
+                  { from: { $regex: fromClean } },
+                  { to: { $regex: fromClean } },
+                ],
+              },
+              { $set: { customerName: botResult.updatedCustomerName } }
+            );
+          }
+
+          // Upsert conversation record in crm_conversations and remove any legacy deletion marks
+          if (fromClean) {
+            try {
+              await db.collection("crm_deleted_contacts").deleteOne({
+                $or: [{ phone: fromClean }, { phone: msg.fromPhone }]
+              });
+            } catch {}
+
+            await db.collection("crm_conversations").updateOne(
+              { phone: fromClean },
+              {
+                $set: {
+                  id: `conv_${fromClean}`,
+                  customerPhone: formattedPhone,
+                  customerName: resolvedCustomerName,
+                  lastMessageText: msg.text,
+                  lastMessageTime: inboundRecord.timestamp,
+                  updatedAt: new Date(),
+                },
+                $setOnInsert: {
+                  createdAt: new Date(),
+                  status: "active",
+                },
+                $inc: { unreadCount: 1 },
+              },
+              { upsert: true }
+            );
+          }
+        } catch (e) {
+          console.warn("[MongoDB] Failed to persist inbound msg to Atlas:", e);
+        }
+      }
+    }).catch(() => {});
 
     // Automated customer bot reply if message is NOT from the store admin
-    if (!isAdminSender && botResult && botResult.shouldSend && botResult.replyText) {
+    if (!isAdminSender && !isOutboundFromPhone && botResult && botResult.shouldSend && botResult.replyText) {
       const autoReplyText = botResult.replyText;
 
       const autoReplyRecord = {
@@ -305,7 +325,7 @@ async function handleWebhookProcessing(messages: any[], statuses: any[], reqHost
         createdAt: new Date(),
       };
 
-      globalThis.__globalWhatsAppFeed.unshift(autoReplyRecord);
+      saveStoredMessage(autoReplyRecord);
 
       try {
         const sendResult = await sendWhatsAppTextMessage({
@@ -316,30 +336,35 @@ async function handleWebhookProcessing(messages: any[], statuses: any[], reqHost
         autoReplyRecord.id = sendResult.messageId || autoReplyRecord.id;
         autoReplyRecord.status = sendResult.success ? "sent" : "failed";
         autoReplyRecord.mode = sendResult.mode;
+        saveStoredMessage(autoReplyRecord);
 
-                try {
-          await pgDb
-            .insert(crmMessages)
-            .values({
-              id: autoReplyRecord.id,
-              direction: "outbound",
-              sender: "business",
-              from: autoReplyRecord.from,
-              to: autoReplyRecord.to,
-              customerName: resolvedCustomerName,
-              text: autoReplyText,
-              timestamp: new Date(autoReplyRecord.timestamp),
-              status: autoReplyRecord.status,
-              isAutomated: true,
-              mode: autoReplyRecord.mode,
-              createdAt: autoReplyRecord.createdAt,
-            })
-            .onConflictDoNothing();
-        } catch (pgSendErr) {}
+        dbPromise.then(async (db) => {
+          try {
+            await pgDb
+              .insert(crmMessages)
+              .values({
+                id: autoReplyRecord.id,
+                direction: "outbound",
+                sender: "business",
+                from: autoReplyRecord.from,
+                to: autoReplyRecord.to,
+                customerName: resolvedCustomerName,
+                text: autoReplyText,
+                timestamp: new Date(autoReplyRecord.timestamp),
+                status: autoReplyRecord.status,
+                isAutomated: true,
+                mode: autoReplyRecord.mode,
+                createdAt: autoReplyRecord.createdAt,
+              })
+              .onConflictDoNothing();
+          } catch (pgSendErr) {}
 
-        if (db) {
-          await db.collection("crm_messages").insertOne(autoReplyRecord);
-        }
+          if (db) {
+            try {
+              await db.collection("crm_messages").insertOne(autoReplyRecord);
+            } catch {}
+          }
+        }).catch(() => {});
       } catch (sendErr) {
         console.warn("[WhatsApp Service] Auto-reply send error:", sendErr);
       }
@@ -352,38 +377,41 @@ async function handleWebhookProcessing(messages: any[], statuses: any[], reqHost
   for (const st of statuses) {
     console.log(`[WhatsApp Webhook] Message ${st.messageId} status update: ${st.status}`);
 
-    // Update in-memory feed (without downgrading status)
+    // Update in-memory & disk feed (without downgrading status)
     const existing = (globalThis.__globalWhatsAppFeed || []).find((m: any) => m.id === st.messageId);
     if (existing) {
       const currentRank = statusRank[existing.status] || 0;
       const newRank = statusRank[st.status] || 0;
       if (newRank >= currentRank) {
         existing.status = st.status;
+        saveStoredMessage(existing);
       }
     }
 
-    // Update MongoDB Atlas
-    if (db) {
-      try {
-        const existingDoc = await db.collection("crm_messages").findOne({ id: st.messageId });
-        const currentRank = existingDoc ? (statusRank[existingDoc.status] || 0) : 0;
-        const newRank = statusRank[st.status] || 0;
+    // Update MongoDB Atlas in background
+    dbPromise.then(async (db) => {
+      if (db) {
+        try {
+          const existingDoc = await db.collection("crm_messages").findOne({ id: st.messageId });
+          const currentRank = existingDoc ? (statusRank[existingDoc.status] || 0) : 0;
+          const newRank = statusRank[st.status] || 0;
 
-        if (!existingDoc || newRank >= currentRank) {
-          await db.collection("crm_messages").updateOne(
-            { id: st.messageId },
-            {
-              $set: {
-                status: st.status,
-                updatedAt: new Date(),
-                ...(st.error ? { error: st.error } : {}),
-              },
-            }
-          );
+          if (!existingDoc || newRank >= currentRank) {
+            await db.collection("crm_messages").updateOne(
+              { id: st.messageId },
+              {
+                $set: {
+                  status: st.status,
+                  updatedAt: new Date(),
+                  ...(st.error ? { error: st.error } : {}),
+                },
+              }
+            );
+          }
+        } catch (dbErr) {
+          console.warn("[MongoDB] Status update error:", dbErr);
         }
-      } catch (dbErr) {
-        console.warn("[MongoDB] Status update error:", dbErr);
       }
-    }
+    }).catch(() => {});
   }
 }

@@ -215,8 +215,19 @@ export function getStoredMessages(): any[] {
   });
 }
 
+let lastStoreUpdateTimestamp = Date.now();
+
+export function getStoreUpdateTimestamp(): number {
+  return lastStoreUpdateTimestamp;
+}
+
+export function notifyStoreUpdated() {
+  lastStoreUpdateTimestamp = Date.now();
+}
+
 export function saveStoredMessage(msg: any) {
   if (!msg) return;
+  notifyStoreUpdated();
   if (!globalThis.__globalWhatsAppFeed) {
     globalThis.__globalWhatsAppFeed = [];
   }
