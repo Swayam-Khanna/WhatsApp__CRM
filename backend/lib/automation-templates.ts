@@ -20,7 +20,7 @@
  * and are KEPT SEPARATE from the CRM Inbox manual templates to prevent UI clutter.
  */
 
-import { INDIAN_CONVERSATION_TEMPLATES } from "./automation-templates-indian";
+import { INDIAN_CONVERSATION_TEMPLATES } from "./automation-templates-indian.ts";
 
 export type SupportedLanguage = "en" | "hinglish" | "hi";
 
