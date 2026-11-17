@@ -513,7 +513,7 @@ export function OrdersTable({
                                       </div>
                                     )}
                                     <div className="min-w-0 flex-1">
-                                      <p className="font-display font-medium text-xs text-foreground truncate">
+                                      <p className="font-display font-medium text-xs text-foreground break-words">
                                         {item.name || item.productName || "Product"}
                                       </p>
                                       <p className="text-[10px] text-muted-foreground">

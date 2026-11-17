@@ -19,7 +19,7 @@ export function PackingSlipModal({ isOpen, onClose, orders }: PackingSlipModalPr
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-card border border-border rounded-2xl w-full max-w-3xl my-8 p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto print:max-h-none print:m-0 print:border-none print:shadow-none print:w-full print:max-w-none">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-5xl lg:max-w-6xl my-8 p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto print:max-h-none print:m-0 print:border-none print:shadow-none print:w-full print:max-w-none">
         {/* Top Modal Controls (Hidden in Print) */}
         <div className="flex items-center justify-between border-b border-border pb-3 print:hidden">
           <div>

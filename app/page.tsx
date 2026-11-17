@@ -8907,7 +8907,7 @@ export default function PrajnaaMasterCrmApp() {
                               {item.image && typeof item.image === "string" && !item.image.startsWith("http") ? item.image : "🍯"}
                             </div>
                             <div className="min-w-0">
-                              <h4 className="font-bold text-xs sm:text-sm text-neutral-900 dark:text-white truncate">
+                              <h4 className="font-bold text-xs sm:text-sm text-neutral-900 dark:text-white break-words">
                                 {item.name}
                               </h4>
                               <p className="text-[11px] text-neutral-500 font-mono">
@@ -11795,23 +11795,23 @@ export default function PrajnaaMasterCrmApp() {
       {/* 5.5. CREATE NEW ORDER MODAL                                */}
       {/* ========================================================= */}
       {showAddOrderModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-2xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-neutral-200 dark:border-slate-800 space-y-4 text-neutral-900 dark:text-white">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 max-w-5xl lg:max-w-6xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-neutral-200 dark:border-slate-800 space-y-4 text-neutral-900 dark:text-white my-auto">
+            <div className="flex items-center justify-between border-b border-neutral-100 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="h-9 w-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
                   <ShoppingBag className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-neutral-900">Create New Customer Order</h3>
+                  <h3 className="font-bold text-base sm:text-lg text-neutral-900 dark:text-white">Create New Customer Order</h3>
                   <p className="text-[11px] text-neutral-500">
-                    Add order details manually or from WhatsApp inquiries.
+                    Add order details manually or from WhatsApp inquiries with full product catalog visibility.
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowAddOrderModal(false)}
-                className="p-1 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 cursor-pointer"
+                className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-slate-200 hover:bg-neutral-100 dark:hover:bg-slate-800 cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -11819,97 +11819,97 @@ export default function PrajnaaMasterCrmApp() {
 
             <form onSubmit={handleCreateNewOrder} className="space-y-4 text-xs">
               {/* Customer Info */}
-              <div className="space-y-2.5 bg-neutral-50 p-3.5 rounded-2xl border border-neutral-200/70">
-                <h4 className="font-bold text-[11px] uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
-                  <User className="h-3.5 w-3.5 text-emerald-700" /> Customer Information
+              <div className="space-y-2.5 bg-neutral-50 dark:bg-slate-800/50 p-3.5 sm:p-4 rounded-2xl border border-neutral-200/70 dark:border-slate-800">
+                <h4 className="font-bold text-[11px] uppercase tracking-wider text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" /> Customer Information
                 </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="space-y-1">
-                    <label className="font-semibold text-neutral-700">Customer Full Name *</label>
+                    <label className="font-semibold text-neutral-700 dark:text-slate-300">Customer Full Name *</label>
                     <input
                       type="text"
                       required
                       placeholder="e.g. Rajat Katnoria"
                       value={newOrderCustomerName}
                       onChange={(e) => setNewOrderCustomerName(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                      className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="font-semibold text-neutral-700">WhatsApp Mobile (10-Digit) *</label>
+                    <label className="font-semibold text-neutral-700 dark:text-slate-300">WhatsApp Mobile (10-Digit) *</label>
                     <input
                       type="tel"
                       required
                       placeholder="e.g. 98XXXXXXXX"
                       value={newOrderCustomerPhone}
                       onChange={(e) => setNewOrderCustomerPhone(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border border-neutral-200 text-xs font-mono bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                      className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 text-xs font-mono bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
                     />
                   </div>
-                </div>
 
-                <div className="space-y-1">
-                  <label className="font-semibold text-neutral-700">Email Address (Optional)</label>
-                  <input
-                    type="email"
-                    placeholder="customer@example.com"
-                    value={newOrderCustomerEmail}
-                    onChange={(e) => setNewOrderCustomerEmail(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
-                  />
+                  <div className="space-y-1">
+                    <label className="font-semibold text-neutral-700 dark:text-slate-300">Email Address (Optional)</label>
+                    <input
+                      type="email"
+                      placeholder="customer@example.com"
+                      value={newOrderCustomerEmail}
+                      onChange={(e) => setNewOrderCustomerEmail(e.target.value)}
+                      className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                    />
+                  </div>
                 </div>
               </div>
 
               {/* Delivery Address */}
-              <div className="space-y-2.5 bg-neutral-50 p-3.5 rounded-2xl border border-neutral-200/70">
-                <h4 className="font-bold text-[11px] uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
-                  <MapPin className="h-3.5 w-3.5 text-emerald-700" /> Shipping & Delivery Address
+              <div className="space-y-2.5 bg-neutral-50 dark:bg-slate-800/50 p-3.5 sm:p-4 rounded-2xl border border-neutral-200/70 dark:border-slate-800">
+                <h4 className="font-bold text-[11px] uppercase tracking-wider text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" /> Shipping & Delivery Address
                 </h4>
-                <div className="space-y-1">
-                  <label className="font-semibold text-neutral-700">Street / Area Address *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="House/Flat No, Street, Landmark"
-                    value={newOrderAddress}
-                    onChange={(e) => setNewOrderAddress(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
-                  />
-                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                  <div className="sm:col-span-6 space-y-1">
+                    <label className="font-semibold text-neutral-700 dark:text-slate-300">Street / Area Address *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="House/Flat No, Street, Landmark"
+                      value={newOrderAddress}
+                      onChange={(e) => setNewOrderAddress(e.target.value)}
+                      className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                    />
+                  </div>
 
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="space-y-1">
-                    <label className="font-semibold text-neutral-700">City</label>
+                  <div className="sm:col-span-3 space-y-1">
+                    <label className="font-semibold text-neutral-700 dark:text-slate-300">City</label>
                     <input
                       type="text"
                       value={newOrderCity}
                       onChange={(e) => setNewOrderCity(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border border-neutral-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                      className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <label className="font-semibold text-neutral-700">Pincode</label>
+                  <div className="sm:col-span-3 space-y-1">
+                    <label className="font-semibold text-neutral-700 dark:text-slate-300">Pincode</label>
                     <input
                       type="text"
                       value={newOrderPincode}
                       onChange={(e) => setNewOrderPincode(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border border-neutral-200 text-xs font-mono bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                      className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 text-xs font-mono bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Product Selection (Multi-Product Support) */}
-              <div className="space-y-3 bg-neutral-50 p-3.5 rounded-2xl border border-neutral-200/70">
+              <div className="space-y-3 bg-neutral-50 dark:bg-slate-800/50 p-3.5 sm:p-4 rounded-2xl border border-neutral-200/70 dark:border-slate-800">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-[11px] uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
-                    <Package className="h-3.5 w-3.5 text-emerald-700" /> Order Produce ({newOrderItemsList.length} items)
+                  <h4 className="font-bold text-[11px] uppercase tracking-wider text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5">
+                    <Package className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" /> Order Produce ({newOrderItemsList.length} items)
                   </h4>
                   <button
                     type="button"
                     onClick={handleAddOrderItemLine}
-                    className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 flex items-center gap-1 cursor-pointer"
                   >
                     <Plus className="h-3.5 w-3.5" /> Add Product
                   </button>
@@ -11927,12 +11927,12 @@ export default function PrajnaaMasterCrmApp() {
                     return (
                       <div
                         key={idx}
-                        className="p-3 bg-white rounded-xl border border-neutral-200/80 shadow-2xs space-y-2"
+                        className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-neutral-200/80 dark:border-slate-800 shadow-2xs space-y-2.5"
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-bold text-neutral-400 uppercase font-mono">Item #{idx + 1}</span>
-                            <span className="text-[11px] font-semibold text-emerald-800">
+                            <span className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300">
                               ₹{itemPrice.toLocaleString("en-IN")}{selectedProd?.weight ? ` / ${selectedProd.weight}` : ""}
                             </span>
                           </div>
@@ -11940,7 +11940,7 @@ export default function PrajnaaMasterCrmApp() {
                             <button
                               type="button"
                               onClick={() => handleRemoveOrderItemLine(idx)}
-                              className="text-rose-500 hover:text-rose-700 p-1 rounded-md hover:bg-rose-50 cursor-pointer transition"
+                              className="text-rose-500 hover:text-rose-700 p-1 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer transition"
                               title="Remove item"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -11948,8 +11948,8 @@ export default function PrajnaaMasterCrmApp() {
                           )}
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                          <div className="sm:col-span-5">
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                          <div className="sm:col-span-6 md:col-span-7">
                             <SearchableProductSelect
                               products={productsList.map((p) => ({
                                 id: p.id,
@@ -11965,28 +11965,28 @@ export default function PrajnaaMasterCrmApp() {
                             />
                           </div>
 
-                          <div className="sm:col-span-3 flex items-center justify-start sm:justify-center gap-1">
+                          <div className="sm:col-span-3 md:col-span-2 flex items-center justify-start sm:justify-center gap-1.5">
                             <span className="text-[10px] text-neutral-400 mr-1 sm:hidden">Qty:</span>
                             <button
                               type="button"
                               onClick={() => handleUpdateOrderItemLine(idx, item.productId, Math.max(1, item.qty - 1), item.discount)}
-                              className="h-7 w-7 rounded-lg border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 flex items-center justify-center font-bold text-neutral-700 cursor-pointer"
+                              className="h-8 w-8 rounded-lg border border-neutral-200 dark:border-slate-700 bg-neutral-50 dark:bg-slate-800 hover:bg-neutral-100 dark:hover:bg-slate-700 flex items-center justify-center font-bold text-neutral-700 dark:text-slate-200 cursor-pointer"
                             >
                               -
                             </button>
-                            <span className="w-7 text-center font-mono font-bold text-xs">{itemQty}</span>
+                            <span className="w-8 text-center font-mono font-bold text-xs">{itemQty}</span>
                             <button
                               type="button"
                               onClick={() => handleUpdateOrderItemLine(idx, item.productId, itemQty + 1, item.discount)}
-                              className="h-7 w-7 rounded-lg border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 flex items-center justify-center font-bold text-neutral-700 cursor-pointer"
+                              className="h-8 w-8 rounded-lg border border-neutral-200 dark:border-slate-700 bg-neutral-50 dark:bg-slate-800 hover:bg-neutral-100 dark:hover:bg-slate-700 flex items-center justify-center font-bold text-neutral-700 dark:text-slate-200 cursor-pointer"
                             >
                               +
                             </button>
                           </div>
 
-                          <div className="sm:col-span-2 flex items-center gap-1">
+                          <div className="sm:col-span-3 md:col-span-1.5 flex items-center gap-1">
                             <div className="relative w-full" title="Discount on this product (₹)">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-700">₹</span>
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">₹</span>
                               <input
                                 type="number"
                                 min="0"
@@ -11994,18 +11994,18 @@ export default function PrajnaaMasterCrmApp() {
                                 placeholder="Disc"
                                 value={item.discount === 0 || item.discount == null ? "" : item.discount}
                                 onChange={(e) => handleUpdateOrderItemDiscount(idx, Number(e.target.value) || 0)}
-                                className="w-full pl-5 pr-1.5 py-1 text-xs font-mono font-semibold rounded-lg border border-emerald-300 bg-emerald-50/40 text-emerald-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 placeholder:text-neutral-400 placeholder:font-normal"
+                                className="w-full pl-5 pr-1.5 py-1.5 text-xs font-mono font-semibold rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 placeholder:text-neutral-400 placeholder:font-normal"
                               />
                             </div>
                           </div>
 
-                          <div className="sm:col-span-2 text-right font-mono flex flex-col items-end justify-center">
+                          <div className="sm:col-span-12 md:col-span-1.5 text-right font-mono flex flex-col items-end justify-center">
                             {itemDiscount > 0 && (
                               <span className="line-through text-[10px] text-neutral-400">
                                 ₹{lineGross.toLocaleString("en-IN")}
                               </span>
                             )}
-                            <span className={`font-bold text-xs ${itemDiscount > 0 ? "text-emerald-700" : "text-neutral-900"}`}>
+                            <span className={`font-bold text-xs ${itemDiscount > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-neutral-900 dark:text-white"}`}>
                               ₹{lineNet.toLocaleString("en-IN")}
                             </span>
                           </div>

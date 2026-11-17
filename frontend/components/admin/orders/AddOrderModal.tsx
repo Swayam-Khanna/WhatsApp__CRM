@@ -229,7 +229,7 @@ export function AddOrderModal({ isOpen, onClose, onOrderCreated }: AddOrderModal
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-card border border-border rounded-2xl w-full max-w-3xl my-8 p-6 shadow-2xl space-y-6 animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-5xl lg:max-w-6xl my-8 p-6 sm:p-7 shadow-2xl space-y-6 animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-border pb-3">
           <div>
             <h2 className="font-display text-xl font-bold text-foreground flex items-center gap-2">
@@ -424,8 +424,8 @@ export function AddOrderModal({ isOpen, onClose, onOrderCreated }: AddOrderModal
                           className="h-9 w-9 rounded-lg object-cover border border-border shrink-0"
                         />
                       )}
-                      <div className="truncate">
-                        <div className="font-semibold text-foreground truncate">{item.name}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-foreground break-words">{item.name}</div>
                         <div className="text-[11px] text-muted-foreground">
                           {inr(item.unitPrice)} / {item.unit} (Max: {item.maxStock})
                         </div>

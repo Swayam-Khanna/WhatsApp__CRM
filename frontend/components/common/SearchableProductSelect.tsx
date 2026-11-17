@@ -103,13 +103,13 @@ export const SearchableProductSelect: React.FC<SearchableProductSelectProps> = (
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <Package className="h-4 w-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
           {selectedProduct ? (
-            <div className="truncate flex items-center gap-1.5 flex-1">
-              <span className="font-semibold text-neutral-900 dark:text-white truncate">
+            <div className="flex items-center gap-2 flex-1 min-w-0" title={`${selectedProduct.name}${selectedProduct.weight ? ` (${selectedProduct.weight})` : ""} - ₹${selectedProduct.price}`}>
+              <span className="font-semibold text-neutral-900 dark:text-white text-xs leading-snug break-words flex-1 text-left">
                 {selectedProduct.name}
               </span>
               {selectedProduct.weight && (
-                <span className="text-[10px] text-neutral-500 shrink-0">
-                  ({selectedProduct.weight})
+                <span className="text-[10px] text-neutral-600 dark:text-slate-300 shrink-0 font-medium bg-neutral-100 dark:bg-slate-700/60 px-1.5 py-0.5 rounded">
+                  {selectedProduct.weight}
                 </span>
               )}
               <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400 shrink-0 ml-auto">
@@ -129,7 +129,7 @@ export const SearchableProductSelect: React.FC<SearchableProductSelectProps> = (
 
       {/* Dropdown Menu with Live Search */}
       {isOpen && (
-        <div className="absolute z-[85] left-0 right-0 mt-1.5 bg-white dark:bg-slate-900 border border-neutral-200 dark:border-slate-800 rounded-2xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 overflow-hidden animate-in fade-in zoom-in-95 duration-100 flex flex-col max-h-[280px]">
+        <div className="absolute z-[85] left-0 right-0 min-w-full sm:min-w-[440px] mt-1.5 bg-white dark:bg-slate-900 border border-neutral-200 dark:border-slate-800 rounded-2xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 overflow-hidden animate-in fade-in zoom-in-95 duration-100 flex flex-col max-h-[300px]">
           {/* Search Box Header */}
           <div className="p-2 border-b border-neutral-100 dark:border-slate-800 bg-neutral-50/80 dark:bg-slate-800/80 shrink-0 relative">
             <Search className="h-3.5 w-3.5 text-neutral-400 absolute left-4 top-1/2 -translate-y-1/2" />
@@ -173,16 +173,16 @@ export const SearchableProductSelect: React.FC<SearchableProductSelectProps> = (
                     }`}
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="truncate">{p.name}</span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-semibold text-neutral-900 dark:text-white break-words">{p.name}</span>
                         {p.weight && (
-                          <span className="text-[10px] text-neutral-400 font-normal shrink-0">
-                            · {p.weight}
+                          <span className="text-[10px] text-neutral-500 font-medium shrink-0 bg-neutral-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                            {p.weight}
                           </span>
                         )}
                       </div>
                       {p.category && (
-                        <span className="text-[10px] text-neutral-400 block font-normal capitalize">
+                        <span className="text-[10px] text-neutral-400 block font-normal capitalize mt-0.5">
                           {p.category.replace("-", " ")}
                         </span>
                       )}
