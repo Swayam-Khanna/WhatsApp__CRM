@@ -195,7 +195,7 @@ function purgeDeletedMessages(cleanPhone?: string | null, customerId?: string | 
 /* ========================================================================== */
 
 export function getStoredMessages(): any[] {
-  if (!globalThis.__globalWhatsAppFeed || globalThis.__globalWhatsAppFeed.length === 0) {
+  if (globalThis.__globalWhatsAppFeed === undefined) {
     const diskMsgs = safeReadJSON<any[]>(MESSAGES_FILE, []);
     globalThis.__globalWhatsAppFeed = Array.isArray(diskMsgs) ? diskMsgs : [];
   }
@@ -274,7 +274,7 @@ export function saveStoredMessage(msg: any) {
 /* ========================================================================== */
 
 export function getStoredOrders(): any[] {
-  if (!globalThis.__globalCrmOrders || globalThis.__globalCrmOrders.length === 0) {
+  if (globalThis.__globalCrmOrders === undefined) {
     const diskOrders = safeReadJSON<any[]>(ORDERS_FILE, []);
     globalThis.__globalCrmOrders = Array.isArray(diskOrders) ? diskOrders : [];
   }

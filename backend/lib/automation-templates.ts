@@ -231,11 +231,11 @@ const BASE_AUTOMATED_TEMPLATES: AutomatedTemplate[] = [
     id: "auto_ack_ok_noted",
     category: "thank_you_acknowledgements",
     name: "Acknowledgement Noted / Theek Hai",
-    intent: "acknowledgements",
+    intent: "acknowledgement",
     subIntent: "ok_noted",
-    en: "Alright! Noted. Have a wonderful day ahead.",
-    hinglish: "Theek hai ji, note kar liya. Aapka din shubh rahe! 🌿",
-    hi: "ठीक है जी, नोट कर लिया गया है। आपका दिन मंगलमय हो! 🌿",
+    en: "Alright! Noted. Let us know if you need any help from Prajnaa! 🌿",
+    hinglish: "Theek hai ji, note kar liya. Prajnaa se kisi bhi sahayata ke liye batayein! 🌿",
+    hi: "ठीक है जी, नोट कर लिया गया है। प्रज्ञा से किसी भी सहायता के लिए हमें बताएं! 🌿",
     variables: [],
   },
   {
@@ -1116,7 +1116,7 @@ const BASE_AUTOMATED_TEMPLATES: AutomatedTemplate[] = [
     name: "Standard Delivery Timeline",
     intent: "shipping_delivery",
     subIntent: "delivery_timeline",
-    en: "Delivery across India takes 3–5 working days via Speed Post. Packaging takes 2–3 days for artisan harvest inspection.",
+    en: "Delivery across India takes 3–5 working days via Shipping. Packaging takes 2–3 days for artisan harvest inspection.",
     hinglish: "Delivery mein lagbhag 3–5 working days lagte hain ji. Solan hub par artisan packing mein 2–3 din lagte hain.",
     hi: "डिलीवरी में लगभग 3-5 कार्य दिवस लगते हैं जी। सोलन हब से सुरक्षित पैकिंग में 2-3 दिन लगते हैं।",
     variables: [],
@@ -1160,9 +1160,9 @@ const BASE_AUTOMATED_TEMPLATES: AutomatedTemplate[] = [
     name: "Remote Areas / North-East Delivery",
     intent: "shipping_delivery",
     subIntent: "remote_areas",
-    en: "Yes, Speed Post ensures delivery to all remote locations, island territories, and North-Eastern states within 5–7 days.",
-    hinglish: "Ji haan, Speed Post se sabhi door-daraaz ke ilaqon aur North-East mein bhi 5–7 din mein delivery ho jati hai.",
-    hi: "जी हाँ, स्पीड पोस्ट से सभी दूरस्थ क्षेत्रों में भी 5-7 दिनों में डिलीवरी सुनिश्चित होती है जी।",
+    en: "Yes, Shipping ensures delivery to all remote locations, island territories, and North-Eastern states within 5–7 days.",
+    hinglish: "Ji haan, Shipping se sabhi door-daraaz ke ilaqon aur North-East mein bhi 5–7 din mein delivery ho jati hai.",
+    hi: "जी हाँ, शिपिंग से सभी दूरस्थ क्षेत्रों में भी 5-7 दिनों में डिलीवरी सुनिश्चित होती है जी।",
     variables: [],
   },
   {
@@ -1182,9 +1182,9 @@ const BASE_AUTOMATED_TEMPLATES: AutomatedTemplate[] = [
     name: "Express Delivery Inquiry",
     intent: "shipping_delivery",
     subIntent: "express_delivery",
-    en: "Speed Post is currently our fastest air-parcel route from Himachal Pradesh. We prioritize early morning dispatches.",
-    hinglish: "Pahadon se Speed Post air-transit sabse tez route hai ji. Hum subah hi dispatch priority par nikaalte hain.",
-    hi: "हिमाचल से स्पीड पोस्ट एयर-पार्सल सबसे तीव्र मार्ग है जी। हम सुबह ही डिस्पैच प्राथमिकता पर करते हैं।",
+    en: "Express Shipping is currently our fastest air-parcel route from Himachal Pradesh. We prioritize early morning dispatches.",
+    hinglish: "Pahadon se Express Shipping air-transit sabse tez route hai ji. Hum subah hi dispatch priority par nikaalte hain.",
+    hi: "हिमाचल से एक्सप्रेस शिपिंग एयर-पार्सल सबसे तीव्र मार्ग है जी। हम सुबह ही डिस्पैच प्राथमिकता पर करते हैं।",
     variables: [],
   },
   {
@@ -1351,7 +1351,9 @@ const BASE_AUTOMATED_TEMPLATES: AutomatedTemplate[] = [
   },
 ];
 
-export const AUTOMATED_TEMPLATES: AutomatedTemplate[] = [
+export const AUTOMATED_TEMPLATES: AutomatedTemplate[] = BASE_AUTOMATED_TEMPLATES;
+
+export const ALL_AUTOMATED_TEMPLATES: AutomatedTemplate[] = [
   ...BASE_AUTOMATED_TEMPLATES,
   ...INDIAN_CONVERSATION_TEMPLATES,
 ];
@@ -1364,7 +1366,7 @@ export function getAutomatedTemplates(): AutomatedTemplate[] {
 }
 
 /**
- * Returns template count by category and total count.
+ * Returns template count by category and total count across core categories.
  */
 export function getAutomatedTemplateStats(): {
   total: number;
@@ -1384,7 +1386,7 @@ export function getAutomatedTemplateStats(): {
  * Retrieves a template by its unique ID.
  */
 export function getAutomatedTemplateById(id: string): AutomatedTemplate | undefined {
-  return AUTOMATED_TEMPLATES.find((t) => t.id === id);
+  return ALL_AUTOMATED_TEMPLATES.find((t) => t.id === id);
 }
 
 /**
@@ -1395,18 +1397,18 @@ export function findBestAutomatedTemplate(
   subIntent?: string
 ): AutomatedTemplate {
   if (subIntent) {
-    const exact = AUTOMATED_TEMPLATES.find(
+    const exact = ALL_AUTOMATED_TEMPLATES.find(
       (t) => t.intent === intent && t.subIntent === subIntent
     );
     if (exact) return exact;
   }
 
-  const byIntent = AUTOMATED_TEMPLATES.find((t) => t.intent === intent);
+  const byIntent = ALL_AUTOMATED_TEMPLATES.find((t) => t.intent === intent);
   if (byIntent) return byIntent;
 
   // Default fallback is the polite handoff
   return (
-    AUTOMATED_TEMPLATES.find((t) => t.id === "auto_handoff_unclear_polite") ||
+    ALL_AUTOMATED_TEMPLATES.find((t) => t.id === "auto_handoff_unclear_polite") ||
     AUTOMATED_TEMPLATES[0]
   );
 }

@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       };
     }
 
-    // 3. Fetch Speed Post rates
+    // 3. Fetch Shipping rates
     const [speedPostRow] = await db
       .select()
       .from(appSettings)

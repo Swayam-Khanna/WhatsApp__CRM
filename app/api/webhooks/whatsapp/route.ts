@@ -16,6 +16,7 @@ import {
   resurrectContact,
   getStoredMessages,
 } from "../../../../backend/lib/crm-store.server.ts";
+import { safeCompare } from "../../../../backend/lib/server-auth.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -92,10 +93,18 @@ export async function POST(req: NextRequest) {
     const rawBody = await req.text();
     const signature = req.headers.get("x-hub-signature-256");
 
-    const isInternalTest = req.headers.get("x-crm-source") === "internal-test";
+    const isProduction = process.env.NODE_ENV === "production" && !process.env.TEST_MODE;
+    const internalSource = req.headers.get("x-crm-source") === "internal-test";
+    const adminKey = req.headers.get("x-admin-key") || req.headers.get("x-admin-secret");
+    const configuredSecret = (process.env.ADMIN_API_SECRET || process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "").trim();
+
+    // In production, internal test bypass requires verified admin authentication
+    const isAuthorizedInternalTest =
+      internalSource &&
+      (!isProduction || (Boolean(configuredSecret) && typeof adminKey === "string" && safeCompare(adminKey, configuredSecret)));
 
     // 1. Verify Meta signature (or permit authenticated internal dashboard webhook tests)
-    if (!isInternalTest && !verifyWebhookSignature(rawBody, signature)) {
+    if (!isAuthorizedInternalTest && !verifyWebhookSignature(rawBody, signature)) {
       console.error("[WhatsApp Webhook Security Alert] Invalid Meta signature rejected. Signature header:", signature, "Payload length:", rawBody?.length);
       return new Response("Invalid signature", { status: 401 });
     }
@@ -115,7 +124,7 @@ export async function POST(req: NextRequest) {
     const reqHost = req.headers.get("host") || undefined;
     await handleWebhookProcessing(messages, statuses, reqHost);
 
-    if (isInternalTest || req.headers.get("accept")?.includes("application/json")) {
+    if (isAuthorizedInternalTest || req.headers.get("accept")?.includes("application/json")) {
       return NextResponse.json({
         success: true,
         status: "EVENT_RECEIVED",

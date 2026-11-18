@@ -181,7 +181,20 @@ export async function POST(req: Request) {
       );
     }
 
+    if (!Array.isArray(newOrder.items) || newOrder.items.length === 0) {
+      return Response.json(
+        { error: "Invalid order data: At least one order item is required", code: "EMPTY_ITEMS" },
+        { status: 400 }
+      );
+    }
+
     const totalPaise = Number(newOrder.totalPaise ?? (newOrder.amount ? newOrder.amount * 100 : 0));
+    if (isNaN(totalPaise) || totalPaise < 0) {
+      return Response.json(
+        { error: "Invalid order data: totalPaise must be a non-negative number", code: "INVALID_TOTAL" },
+        { status: 400 }
+      );
+    }
 
     // 3. Lookup existing order in persistent store or MongoDB
     const storedList = getStoredOrders();
@@ -390,6 +403,7 @@ export async function POST(req: Request) {
       success: true,
       order: persistedOrder,
       whatsapp: whatsappNotification,
+      whatsappNotification: whatsappNotification,
       storage: "persistent_universal",
     });
   } catch (err: any) {

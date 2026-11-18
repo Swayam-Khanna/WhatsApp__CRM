@@ -65,7 +65,7 @@ export interface FulfillmentOrder {
   packingStartedAt?: string;
   processingDay: number; // 1, 2, or 3
   consignmentNumber?: string;
-  carrier: "Shipping" | "Shipping (Standard)" | "Shipping (Express)" | "India Post Speed Post" | "India Post Registered" | "Delhivery";
+  carrier: "Shipping" | "Shipping (Standard)" | "Shipping (Express)" | "Shipping (Priority)" | "Delhivery";
   notes?: string;
 }
 
@@ -92,7 +92,7 @@ export interface IndiaPostConsignment {
   customerName: string;
   customerPhone: string;
   destinationPincode: string;
-  serviceType: "Speed Post" | "Registered Parcel";
+  serviceType: "Shipping" | "Registered Parcel";
   bookingDate: string;
   currentStatus: "Booked" | "In Transit" | "Arrived at Hub" | "Out for Delivery" | "Delivered";
   lastLocation: string;
@@ -207,7 +207,7 @@ const INITIAL_AUTOMATIONS: AutomationRule[] = [
     id: "auto_5",
     name: "Delivery Confirmation",
     trigger: "parcel_delivered",
-    condition: "Speed Post status is 'Delivered'",
+    condition: "Shipping status is 'Delivered'",
     action: "Send short delivery confirmation",
     messageTemplate: "Ji, aapka order successfully deliver ho gaya hai. Thank you!",
     enabled: true,

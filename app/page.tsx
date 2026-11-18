@@ -551,7 +551,7 @@ const ROLE_PERMISSIONS: Record<
     allowedTabs: ["shipments", "orders", "order_details", "products"],
     defaultTab: "shipments",
     label: "Dispatch & Fulfillment Area",
-    description: "2–3 day packaging pipeline, Speed Post tracking & consignment updates",
+    description: "2–3 day packaging pipeline, Shipping tracking & consignment updates",
     badgeColor: "bg-indigo-100 text-indigo-800 border-indigo-300",
   },
   "Sales Manager": {
@@ -3111,7 +3111,7 @@ export default function PrajnaaMasterCrmApp() {
 
   const handleSimulateCustomerInquiry = (queryText?: string) => {
     const defaultQueries = [
-      "Namaste, mera parcel kab tak dispatch hoga aur speed post tracking kab milegi?",
+      "Namaste, mera parcel kab tak dispatch hoga aur shipping tracking kab milegi?",
       "Maine UPI payment kar di hai, check kar lijiye.",
       "Kya aapke dry fruits aur honey 100% pure Himalayan organic hain?",
       "Namaste ji, delivery address check kar lijiye please.",
@@ -4403,7 +4403,7 @@ export default function PrajnaaMasterCrmApp() {
     return list;
   }, [shipments, unifiedOrders]);
 
-  // Send Speed Post Consignment Tracking to Customer via WhatsApp
+  // Send Shipping Consignment Tracking to Customer via WhatsApp
   // Universal Helper: Export dataset to RFC-4180 compliant CSV with UTF-8 BOM for Microsoft Excel / Google Sheets
   const downloadFormattedCsv = (filename: string, headers: string[], rows: (string | number | boolean | null | undefined)[][]) => {
     const escapeCell = (val: any): string => {
@@ -4697,7 +4697,7 @@ export default function PrajnaaMasterCrmApp() {
       "Payment Method",
       "Order Status",
       "Shipping Carrier",
-      "Speed Post Tracking ID",
+      "Shipping Tracking ID",
       "Live Tracking URL",
       "WhatsApp Confirmation Sent"
     ];
@@ -4791,7 +4791,7 @@ export default function PrajnaaMasterCrmApp() {
     downloadStyledExcelSheet({
       filename: "Prajnaa_CRM_Orders_Export",
       sheetTitle: "Prajnaa Market — Customer Orders & Fulfillment Ledger",
-      subtitle: "Official Speed Post Consignment Log, Customer Addresses & Payment Tracking",
+      subtitle: "Official Shipping Consignment Log, Customer Addresses & Payment Tracking",
       headers,
       rows,
       summaryCards,
@@ -5015,7 +5015,7 @@ export default function PrajnaaMasterCrmApp() {
     toast.success(`Exported ${customers.length} customer contacts to styled Excel spreadsheet!`);
   };
 
-  // 4. Shipments & Speed Post Export (Formatted Excel Sheet)
+  // 4. Shipments & Shipping Export (Formatted Excel Sheet)
   const handleExportShipmentsCsv = () => {
     if (unifiedShipments.length === 0) {
       toast.error("No shipment records available to export.");
@@ -5023,7 +5023,7 @@ export default function PrajnaaMasterCrmApp() {
     }
 
     const headers = [
-      "Speed Post Consignment ID",
+      "Shipping Consignment ID",
       "Order ID",
       "Customer Name",
       "Destination City",
@@ -5116,7 +5116,7 @@ export default function PrajnaaMasterCrmApp() {
     toast.success("Exported business analytics to styled Excel spreadsheet!");
   };
 
-  // Automated WhatsApp Dispatch Milestone Notification for Shipments & Speed Post section
+  // Automated WhatsApp Dispatch Milestone Notification for Shipments & Shipping section
   const handleSendShipmentMilestone = async (
     shipmentItem: any,
     milestone: "shipped" | "transit" | "out_for_delivery" | "delivering_tomorrow" | "delivered" | "packed" | "processing",
@@ -5704,7 +5704,7 @@ export default function PrajnaaMasterCrmApp() {
                 }`}
               >
                 <Truck className="h-4 w-4" />
-                <span>Shipments & Speed Post</span>
+                <span>Shipments & Shipping</span>
               </button>
             )}
 
@@ -6228,7 +6228,7 @@ export default function PrajnaaMasterCrmApp() {
                           : "text-neutral-500 hover:bg-neutral-100"
                       }`}
                     >
-                      Orders & Speed Post ({pendingPaymentNotifications.length + pendingDispatchNotifications.length})
+                      Orders & Shipping ({pendingPaymentNotifications.length + pendingDispatchNotifications.length})
                     </button>
                   </div>
 
@@ -6346,7 +6346,7 @@ export default function PrajnaaMasterCrmApp() {
                             </div>
                           )}
 
-                        {/* Section: Speed Post Dispatch Queue Notifications */}
+                        {/* Section: Shipping Dispatch Queue Notifications */}
                         {(notificationTab === "all" || notificationTab === "orders") &&
                           pendingDispatchNotifications.length > 0 && (
                             <div>
@@ -6373,7 +6373,7 @@ export default function PrajnaaMasterCrmApp() {
                                       </span>
                                     </div>
                                     <p className="text-[10px] text-neutral-500 mt-0.5">
-                                      Packed at Dehradun MDG • Ready to book Speed Post tracking
+                                      Packed at Dehradun MDG • Ready to book Shipping tracking
                                     </p>
                                   </div>
                                   <ArrowRight className="h-3.5 w-3.5 text-neutral-400 group-hover:text-blue-800 group-hover:translate-x-0.5 transition shrink-0" />
@@ -8806,7 +8806,7 @@ export default function PrajnaaMasterCrmApp() {
                               )}
                             </td>
                             <td className="p-3.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border whitespace-nowrap select-none pointer-events-none shadow-3xs ${statusBadgeClass}`}>
+                              <span className={`inline-flex flex-row items-center justify-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border whitespace-nowrap select-none pointer-events-none shadow-3xs leading-none ${statusBadgeClass}`}>
                                 <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0"></span>
                                 <span>{ord.orderStatus || "Pending"}</span>
                               </span>
@@ -9083,13 +9083,13 @@ export default function PrajnaaMasterCrmApp() {
                   </div>
                 </div>
 
-                {/* 3. Speed Post Logistics & Dispatch Stepper */}
+                {/* 3. Shipping Logistics & Dispatch Stepper */}
                 <div className="bg-white dark:bg-slate-900 rounded-3xl border border-neutral-200/80 dark:border-slate-800 p-5 sm:p-6 shadow-2xs space-y-4">
                   <div className="flex items-center justify-between border-b border-neutral-100 dark:border-slate-800 pb-3">
                     <div className="flex items-center gap-2">
                       <Truck className="h-4 w-4 text-emerald-600" />
                       <h3 className="font-extrabold text-sm text-neutral-900 dark:text-white">
-                        Speed Post Fulfillment & Tracking
+                        Shipping Fulfillment & Tracking
                       </h3>
                     </div>
                     <span className="text-[11px] font-mono font-bold text-neutral-600 dark:text-slate-300">
@@ -9134,7 +9134,7 @@ export default function PrajnaaMasterCrmApp() {
                   </div>
 
                   <div className="flex items-center justify-between text-xs pt-1">
-                    <span className="text-neutral-500">Logistics Carrier: Speed Post</span>
+                    <span className="text-neutral-500">Logistics Carrier: Shipping</span>
                     {selectedOrderForView.trackingNumber ? (
                       <button
                         onClick={() => {
@@ -9291,7 +9291,7 @@ export default function PrajnaaMasterCrmApp() {
                         ],
                       }));
 
-                      toast.success(`Speed Post dispatch notice sent directly via CRM to ${selectedOrderForView.customerName || "customer"}!`);
+                      toast.success(`Shipping dispatch notice sent directly via CRM to ${selectedOrderForView.customerName || "customer"}!`);
                     }}
                     className="w-full py-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-50 dark:hover:bg-slate-700 text-xs font-bold text-neutral-700 dark:text-slate-200 transition flex items-center justify-center gap-2 cursor-pointer"
                   >
@@ -10077,12 +10077,12 @@ export default function PrajnaaMasterCrmApp() {
           </div>
         )}
 
-        {/* SCREEN 8: SHIPMENTS & SPEED POST (Fulfillment Officer Work Area) */}
+        {/* SCREEN 8: SHIPMENTS & SHIPPING (Fulfillment Officer Work Area) */}
         {activeNav === "shipments" && userPermissions.allowedTabs.includes("shipments") && (
           <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-lg sm:text-xl font-bold text-neutral-900">Shipments & Speed Post Fulfillment</h2>
+                <h2 className="text-lg sm:text-xl font-bold text-neutral-900">Shipments & Shipping Fulfillment</h2>
                 <p className="text-xs text-neutral-500 mt-0.5">
                   Automated WhatsApp milestone updates (Order Shipped, Transit Locations, and Delivering Tomorrow alerts).
                 </p>
@@ -12597,7 +12597,7 @@ export default function PrajnaaMasterCrmApp() {
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-bold text-neutral-700 block mb-1">
-                  Speed Post Consignment Number (AWB / Tracking ID):
+                  Shipping Consignment Number (AWB / Tracking ID):
                 </label>
                 <input
                   type="text"
@@ -12750,7 +12750,7 @@ export default function PrajnaaMasterCrmApp() {
                     : `#${selectedOrderForView.orderNumber || "PRJ-ORD"}`;
 
                   if (cleanPhone) {
-                    const trackingMsg = `Namaste ${custName}! 📦\n\nYour Prajnaa Market order *${orderNumTag}* has been dispatched via Speed Post!\n\n🚚 *Tracking Consignment:* ${cleanedTracking || "Pending"}\n🔗 *Track Online:* https://www.indiapost.gov.in/_layouts/15/dop.portal.tracking/trackconsignment.aspx\n\nHum aapko delivery hone tak live updates dete rahenge. Prajnaa par bharosa karne ke liye dhanyawad! 🌿\n\n*Team Prajnaa Market*`;
+                    const trackingMsg = `Namaste ${custName}! 📦\n\nYour Prajnaa Market order *${orderNumTag}* has been dispatched via Shipping!\n\n🚚 *Tracking Consignment:* ${cleanedTracking || "Pending"}\n🔗 *Track Online:* https://www.indiapost.gov.in/_layouts/15/dop.portal.tracking/trackconsignment.aspx\n\nHum aapko delivery hone tak live updates dete rahenge. Prajnaa par bharosa karne ke liye dhanyawad! 🌿\n\n*Team Prajnaa Market*`;
                     fetch("/api/crm/messages", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },

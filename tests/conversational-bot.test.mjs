@@ -69,7 +69,7 @@ describe("PRAJNAA MARKET & CRM — CONVERSATIONAL BOT & CONTACT DISCOVERY", () =
     assert.ok(almondInquiry.replyText.includes("₹1,250"), "Must state 500g price");
     assert.ok(almondInquiry.replyText.includes("₹2,400"), "Must state 1kg best value price");
     assert.ok(almondInquiry.replyText.includes("Kashmir Sweet Organic Almonds"), "Must list Kashmir Sweet option");
-    assert.ok(almondInquiry.replyText.includes("Speed Post"), "Must explain Speed Post dispatch from Solan hub");
+    assert.ok(almondInquiry.replyText.includes("Shipping"), "Must explain Shipping dispatch from Solan hub");
     assert.ok(almondInquiry.replyText.includes("prajnaa@upi"), "Must include official UPI");
   });
 
@@ -93,7 +93,7 @@ describe("PRAJNAA MARKET & CRM — CONVERSATIONAL BOT & CONTACT DISCOVERY", () =
     });
 
     assert.ok(reply.includes("Rajat ji"));
-    assert.ok(reply.includes("Speed Post"));
+    assert.ok(reply.includes("Shipping"));
   });
 
   test("7. Patron repeatedly sends messages without name - Must answer product inquiries without infinite name loop", () => {

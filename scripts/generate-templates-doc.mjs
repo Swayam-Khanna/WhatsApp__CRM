@@ -40,7 +40,7 @@ const INITIAL_INBOX_TEMPLATES = [
     category: "Shipping",
     name: "Order Shipped",
     message: "Good news {{customer_name}} ji! 📦 Aapka Prajnaa Market order #{{order_id}} ship ho gaya hai. Hum aapko har transit location ki live update bhejte rahenge.",
-    description: "Dispatch notification when India Post Speed Post booking is completed.",
+    description: "Dispatch notification when Shipping booking is completed.",
     variables: ["customer_name", "order_id"],
   },
   {
@@ -110,12 +110,12 @@ const ORDER_STATUS_NOTIFICATION_TEMPLATES = [
     status: "Packed",
     icon: "📦",
     trigger: "Quality-check passed & sealed in eco-friendly packaging",
-    message: `Namaste {customerName}! 📦\n\nGreat news! Your Prajnaa Market order *{orderNumber}* has been *quality-checked and carefully packed*.\n\nIt is safely sealed and prepared for dispatch via India Post Speed Post. We will share your tracking consignment details as soon as it is handed over to the courier! 🌿\n\n*Team Prajnaa Market* 🌿`,
+    message: `Namaste {customerName}! 📦\n\nGreat news! Your Prajnaa Market order *{orderNumber}* has been *quality-checked and carefully packed*.\n\nIt is safely sealed and prepared for dispatch via Shipping. We will share your tracking consignment details as soon as it is handed over to the courier! 🌿\n\n*Team Prajnaa Market* 🌿`,
   },
   {
     status: "Shipped",
     icon: "🚀",
-    trigger: "Consignment handed over to India Post Speed Post",
+    trigger: "Consignment handed over to Shipping partner",
     message: `Namaste {customerName}! 🚀\n\nYour Prajnaa Market order *{orderNumber}* has been *dispatched and shipped*! 🌿\n📦 *Tracking Consignment:* {trackingId} ({carrier})\nDispatch Hub: Solan / Dehradun Postal Sorting Center\n\nHum aapko har transit hub ki live milestone update isi WhatsApp par send karte rahenge.\n*Team Prajnaa Market* 🌿`,
   },
   {
@@ -322,7 +322,7 @@ function generateMarkdown() {
   lines.push("| `{price}` | Price in Rupees | \"₹1,450\" | \"Contact for price\" |");
   lines.push("| `{quantity}` | Requested unit quantity | \"2 jars\", \"500g\" | \"1\" |");
   lines.push("| `{location}` | Current postal transit hub | \"Solan HPO\", \"Dehradun Hub\" | \"Regional Sorting Hub\" |");
-  lines.push("| `{trackingId}` | India Post Speed Post consignment no. | \"EH123456789IN\" | \"Pending Booking\" |");
+  lines.push("| `{trackingId}` | Shipping consignment / tracking no. | \"EH123456789IN\" | \"Pending Booking\" |");
   lines.push("| `{catalogueUrl}` / `{{catalogue_url}}` | Live verified product catalogue link | \"https://prajnaa-farm-8zam.vercel.app/\" | Official Portal Link |");
   lines.push("| `{agentName}` | Support agent assigned | \"Nishant\" | \"Support Desk\" |");
   lines.push("| `{amount}` | Total invoice amount | \"₹2,450\" | \"₹0\" |");

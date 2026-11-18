@@ -175,7 +175,7 @@ export async function GET(req: NextRequest) {
             id: `msg_ord_out_${ord.orderNumber || ord.id}`,
             sender: "agent",
             senderName: "Nishant",
-            text: `Namaste ${ord.customerName || "ji"}! 🙏 Aapka order #${ord.orderNumber || ord.id} record ho gaya hai. Hum pure Himalayan harvest direct farms se pack kar rahe hain. 2-3 din me Speed Post dispatch ho jayega.`,
+            text: `Namaste ${ord.customerName || "ji"}! 🙏 Aapka order #${ord.orderNumber || ord.id} record ho gaya hai. Hum pure Himalayan harvest direct farms se pack kar rahe hain. 2-3 din me Shipping dispatch ho jayega.`,
             timestamp: "Just now",
             status: "delivered",
           },

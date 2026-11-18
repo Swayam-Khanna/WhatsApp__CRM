@@ -52,7 +52,7 @@ export function getWhatsAppIntegrationStatus() {
     metaStatus: "pending" as const,
     metaStatusText: "Pending Verification (WABA / Phone Approval)",
     metaPending: true,
-    statusNote: "Meta Status: Pending Verification. All CRM tasks, database pipelines, speed post fulfillment, and direct messaging are fully connected and operational.",
+    statusNote: "Meta Status: Pending Verification. All CRM tasks, database pipelines, shipping fulfillment, and direct messaging are fully connected and operational.",
   };
 }
 
@@ -456,7 +456,7 @@ export function buildOrderDeliveringTomorrowMessage(params: {
 }
 
 /**
- * Dispatch notification helper (supports both milestone-based tracking and Speed Post consignment)
+ * Dispatch notification helper (supports both milestone-based tracking and Shipping consignment)
  */
 export function buildSpeedPostDispatchMessage(params: {
   customerName: string;
@@ -468,13 +468,15 @@ export function buildSpeedPostDispatchMessage(params: {
     return [
       `Namaste ${params.customerName} ji! 📦`,
       `Aapka Prajnaa Market order #${params.orderNumber} Dehradun MDG se dispatch ho gaya hai.`,
-      `Speed Post Consignment ID: ${params.trackingId}`,
+      `Shipping Consignment ID: ${params.trackingId}`,
       `Live Tracking: https://www.indiapost.gov.in`,
       `*Team Prajnaa Market* 🌿`,
     ].join("\n");
   }
   return buildOrderShippedMessage(params);
 }
+
+export const buildShippingDispatchMessage = buildSpeedPostDispatchMessage;
 
 /**
  * Builds automated Order Processing notification.
@@ -919,7 +921,7 @@ export function processConversationalBotReply(params: {
       replyText: [
         `Bahut badhiya ${nameLabel}! 🙏 Aapka delivery address note kar liya gaya hai.`,
         "",
-        "Himalayan farm fresh packaging Solan hub (Seva Niketan, Ward No.2, Near ITI, Solan, HP, 173212) se 2–3 din mein Speed Post dwara dispatch ho jayegi.",
+        "Himalayan farm fresh packaging Solan hub (Seva Niketan, Ward No.2, Near ITI, Solan, HP, 173212) se 2–3 din mein Shipping dwara dispatch ho jayegi.",
         "",
         "Payment aap hamare official UPI desk *prajnaa@upi* par kar sakte hain. Payment ke baad screenshot yahan share kar dijiye taaki hum order confirm kar sakein! 🌿",
       ].join("\n"),
@@ -1004,7 +1006,7 @@ export function processConversationalBotReply(params: {
   ) {
     return {
       updatedCustomerName: currentName,
-      replyText: `Namaste ${nameLabel}! 🙏 Prajnaa organic products ki fresh artisan packing me 2–3 din lagte hain, aur dispatch hone ke baad 3–5 working days me Speed Post se parcel aapke address par deliver ho jata hai.`,
+      replyText: `Namaste ${nameLabel}! 🙏 Prajnaa organic products ki fresh artisan packing me 2–3 din lagte hain, aur dispatch hone ke baad 3–5 working days me Shipping se parcel aapke address par deliver ho jata hai.`,
     };
   }
 
@@ -1014,12 +1016,13 @@ export function processConversationalBotReply(params: {
     query.includes("track") ||
     query.includes("tracking") ||
     query.includes("speed post") ||
+    query.includes("shipping") ||
     query.includes("consignment") ||
     query.includes("courier")
   ) {
     return {
       updatedCustomerName: currentName,
-      replyText: `Namaste ${nameLabel}! 🙏 Jaise hi aapka parcel dispatch hota hai, hum aapko WhatsApp par Speed Post order shipped ka automated update bhejte hain. Iske baad parcel jis bhi location ya city pahunchta hai, uski live location update aur delivery se ek din pehle "delivering tomorrow" ka alert automatically aapko isi chat par mil jayega.`,
+      replyText: `Namaste ${nameLabel}! 🙏 Jaise hi aapka parcel dispatch hota hai, hum aapko WhatsApp par Shipping order shipped ka automated update bhejte hain. Iske baad parcel jis bhi location ya city pahunchta hai, uski live location update aur delivery se ek din pehle "delivering tomorrow" ka alert automatically aapko isi chat par mil jayega.`,
     };
   }
 

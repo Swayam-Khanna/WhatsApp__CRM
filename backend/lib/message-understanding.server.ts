@@ -423,9 +423,14 @@ export function classifyCustomerIntent(
   }
 
   // =========================================================================
-  // PRIORITY 3: INDIAN CONVERSATIONAL EXPRESSIONS (12 templates)
-  // Handles Achha ji, Theek hai ji, Haan ji, Nahi ji, Bilkul, Koi baat nahi, Samajh gaya, Accha bataiye, Ji zaroor, Chaliye theek hai, Bahut badhiya, Ek minute
+  // PRIORITY 3: ACKNOWLEDGEMENTS & INDIAN CONVERSATIONAL EXPRESSIONS
   // =========================================================================
+  if (
+    /^(?:okay|ok|okk|sure|theek\s*hai|thik\s*hai|theek\s*hai\s*ji|thik\s*hai\s*ji|theek\s*ji|thik\s*h\s*ji|okay\s*theek\s*hai|ok\s*theek\s*hai)[\s.!?]*$/i.test(q) ||
+    /^(?:ठीक है|ठीक है जी|ओके|श्योर)[\s.!?]*$/i.test(q)
+  ) {
+    return makeResult("thank_you_acknowledgements", "acknowledgement", "ok_noted", "auto_ack_ok_noted", 0.99);
+  }
   if (/^(?:achha|acha)\s*ji[\s.!?]*$/i.test(q) || /^(?:अच्छा जी)[\s.!?]*$/i.test(q)) {
     return makeResult("indian_conversational_expressions", "expression", "achha_ji", "auto_expr_achha_ji", 0.99);
   }
@@ -792,6 +797,31 @@ export function classifyCustomerIntent(
       return makeResult("order_status_tracking", "order_status", "status_check", "auto_status_in_transit", 0.95);
     }
     return makeResult("general_assistance_clarification", "follow_up", "waiting_reply", "auto_assist_followup_response", 0.95);
+  }
+
+  // =========================================================================
+  // PRIORITY: ORDER STATUS & TRACKING
+  // =========================================================================
+  if (
+    entities.orderNumber ||
+    /\b(?:where\s*is\s*my\s*order|order\s*status|track\s*my\s*order|track\s*order|order\s*tracking|tracking\s*number|consignment|order\s*kahan|mera\s*order|parcel\s*kahan|kahan\s*tak\s*pahuncha|kahan\s*pahuncha|kahan\s*hai\s*mera\s*order)\b/i.test(q) ||
+    /(?:ऑर्डर स्टेटस|मेरा ऑर्डर कहाँ|ट्रैकिंग|पार्सल कहाँ|कहाँ पहुँचा)/i.test(q)
+  ) {
+    if (entities.orderNumber) {
+      return makeResult("order_status_tracking", "order_status", "in_transit", "auto_status_in_transit", 0.98);
+    }
+    return makeResult("order_status_tracking", "order_status", "ask_order_number", "auto_status_ask_number", 0.96);
+  }
+
+  // =========================================================================
+  // PRIORITY: DELIVERY TIMELINE & DISPATCH ENQUIRY
+  // =========================================================================
+  if (
+    /\b(?:when\s*will\s*it\s*arrive|how\s*many\s*days\s*for\s*delivery|delivery\s*timeline|delivery\s*time|when\s*will\s*it\s*deliver|when\s*will\s*it\s*reach|when\s*will\s*my\s*parcel\s*arrive|how\s*long\s*does\s*delivery\s*take|delivery\s*days|estimated\s*delivery)\b/i.test(q) ||
+    /\b(?:kab\s*tak\s*aayega|kab\s*aayega|kitne\s*din\s*mein|kitne\s*din\s*lagenge|kitna\s*time\s*lagega\s*delivery|delivery\s*kab\s*hogi|parcel\s*kab\s*milega)\b/i.test(q) ||
+    /(?:कब तक आएगा|कितने दिन लगेंगे|डिलीवरी कब होगी)/i.test(q)
+  ) {
+    return makeResult("shipping_delivery", "delivery_enquiry", "delivery_timeline", "auto_ship_timeline", 0.97);
   }
 
   // =========================================================================

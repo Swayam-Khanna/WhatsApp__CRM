@@ -358,7 +358,7 @@ export default function AdminShippingPage() {
         const match = adjustmentPreview.find(p => p.weight_upto_gm === s.weight_upto_gm);
         return { ...s, packaging_cost: match ? match.cost : s.packaging_cost };
       }));
-      toast.success("Staged adjustment to Speed Post Packaging. Click Save Tariffs to commit.");
+      toast.success("Staged adjustment to Shipping Packaging. Click Save Tariffs to commit.");
     }
 
     setAdjustmentPreview([]);

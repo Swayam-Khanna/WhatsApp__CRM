@@ -230,7 +230,7 @@ export default function WhatsAppCrmFulfillmentPage() {
                         {/* Consignment if shipped */}
                         {order.consignmentNumber && (
                           <div className="bg-secondary/80 p-1.5 rounded border border-border text-[10px] font-mono">
-                            <span className="text-muted-foreground block text-[9px] uppercase">Speed Post Consignment:</span>
+                            <span className="text-muted-foreground block text-[9px] uppercase">Shipping Consignment:</span>
                             <span className="font-bold text-foreground">{order.consignmentNumber}</span>
                           </div>
                         )}

@@ -76,7 +76,7 @@ export default function WhatsAppCrmTrackingPage() {
       customerName: newCustomerName.trim() || "Valued Customer",
       customerPhone: newCustomerPhone.trim() || "+91 98112 34567",
       destinationPincode: newPincode.trim() || "560103",
-      serviceType: "Speed Post",
+      serviceType: "Shipping",
       bookingDate: "17 Oct 2026",
       currentStatus: "Booked",
       lastLocation: "Shimla RMS (171001)",

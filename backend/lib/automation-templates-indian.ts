@@ -770,7 +770,7 @@ export const INDIAN_CONVERSATION_TEMPLATES: AutomatedTemplate[] = [
     name: "Mere Area Mein Delivery Hogi",
     intent: "delivery_enquiry",
     subIntent: "pincode_serviceability",
-    en: "We deliver to over 19,000+ pincodes across all Indian states via India Post Speed Post & premium couriers. Please share your 6-digit pincode to confirm.",
+    en: "We deliver to over 19,000+ pincodes across all Indian states via Shipping & premium couriers. Please share your 6-digit pincode to confirm.",
     hinglish: "Hum poore Bharat ke 19,000+ pincodes par delivery karte hain India Post aur BlueDart se. Apna 6-digit pincode batayein.",
     hi: "हम इंडिया पोस्ट और प्रमुख कोरियर्स द्वारा पूरे भारत के 19,000+ पिनकोड पर डिलीवरी करते हैं। कृपया अपना 6 अंकों का पिनकोड बताएं।",
     variables: [],

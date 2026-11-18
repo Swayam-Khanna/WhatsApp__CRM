@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "next lint",
-    "test": "node --env-file=.env --test tests/*.test.mjs",
+    "test": "node --env-file=.env --import tsx --test tests/*.test.mjs",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:push": "drizzle-kit push",
     "format": "prettier --write .",

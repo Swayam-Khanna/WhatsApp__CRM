@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server.js";
 import { db } from "../../../../backend/db.ts";
 import { sql } from "drizzle-orm";
 import * as schema from "../../../../backend/schema/index.ts";
+import { requireAdmin, requireUser, getCurrentUser } from "../../../../backend/lib/server-auth.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -90,6 +91,20 @@ export async function POST(req: NextRequest) {
     if (action === "rpc") {
       const now = new Date();
       if (fnName === "claim_first_admin") {
+        // Only permit claiming first admin if NO admins currently exist in the database
+        const existingAdmins = await db
+          .select({ id: schema.userRoles.id })
+          .from(schema.userRoles)
+          .where(sql`${schema.userRoles.role} = 'admin'`)
+          .limit(1);
+
+        if (existingAdmins.length > 0) {
+          return NextResponse.json(
+            { data: null, error: "Administrative roles already established. Unauthorized." },
+            { status: 403 }
+          );
+        }
+
         const { user_id } = args || {};
         if (user_id) {
           await db
@@ -106,6 +121,11 @@ export async function POST(req: NextRequest) {
       }
 
       if (fnName === "list_admins") {
+        const adminCheck = await requireAdmin(req);
+        if (!adminCheck.user) {
+          return adminCheck.response;
+        }
+
         const adminRoles = await db
           .select()
           .from(schema.userRoles)
@@ -122,6 +142,11 @@ export async function POST(req: NextRequest) {
       }
 
       if (fnName === "promote_user_to_admin") {
+        const adminCheck = await requireAdmin(req);
+        if (!adminCheck.user) {
+          return adminCheck.response;
+        }
+
         const { target_email } = args || {};
         if (!target_email) {
           return NextResponse.json({ data: null, error: "target_email required" }, { status: 400 });
@@ -133,7 +158,7 @@ export async function POST(req: NextRequest) {
           .limit(1);
 
         if (!targetUser) {
-          return NextResponse.json({ data: null, error: `User with email ${target_email} not found` });
+          return NextResponse.json({ data: null, error: `User with email ${target_email} not found` }, { status: 404 });
         }
 
         await db
@@ -153,6 +178,11 @@ export async function POST(req: NextRequest) {
       }
 
       if (fnName === "revoke_admin") {
+        const adminCheck = await requireAdmin(req);
+        if (!adminCheck.user) {
+          return adminCheck.response;
+        }
+
         const { target_user_id } = args || {};
         if (!target_user_id) {
           return NextResponse.json({ data: null, error: "target_user_id required" }, { status: 400 });
@@ -164,8 +194,26 @@ export async function POST(req: NextRequest) {
       }
 
       if (fnName === "cancel_order_atomic") {
+        const userCheck = await requireUser(req);
+        if (!userCheck.user) {
+          return userCheck.response;
+        }
+
         const { p_order_id, p_reason } = args || {};
         const cleanId = String(p_order_id || "").trim();
+
+        // Check ownership if user is not an admin
+        if (userCheck.user.role !== "admin") {
+          const [orderRec] = await db
+            .select({ userId: schema.orders.userId })
+            .from(schema.orders)
+            .where(sql`${schema.orders.id} = ${cleanId} OR ${schema.orders.orderNumber} = ${cleanId}`)
+            .limit(1);
+
+          if (!orderRec || orderRec.userId !== userCheck.user.id) {
+            return NextResponse.json({ data: null, error: "Forbidden: You can only cancel your own orders." }, { status: 403 });
+          }
+        }
         await db
           .update(schema.orders)
           .set({
@@ -188,6 +236,11 @@ export async function POST(req: NextRequest) {
       }
 
       if (fnName === "approve_farmer_atomic") {
+        const adminCheck = await requireAdmin(req);
+        if (!adminCheck.user) {
+          return adminCheck.response;
+        }
+
         const { p_farmer_id } = args || {};
         if (p_farmer_id) {
           await db
@@ -214,6 +267,26 @@ export async function POST(req: NextRequest) {
       }
 
       return NextResponse.json({ data: true, error: null });
+    }
+
+    // Role-Based Access Control on Database Tables
+    const ADMIN_ONLY_WRITE_TABLES = new Set([
+      "user_roles",
+      "app_settings",
+      "shipping_slabs",
+      "pincode_zones",
+      "last_mile_rates",
+      "farmer_payouts",
+      "farmer_certificates",
+      "certificate_audit_logs",
+      "coupons",
+    ]);
+
+    if (ADMIN_ONLY_WRITE_TABLES.has(table) && (action === "insert" || action === "upsert" || action === "update" || action === "delete")) {
+      const adminCheck = await requireAdmin(req);
+      if (!adminCheck.user) {
+        return adminCheck.response;
+      }
     }
 
     const targetTable = TABLE_MAP[table];
