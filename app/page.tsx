@@ -1328,6 +1328,7 @@ export default function PrajnaaMasterCrmApp() {
   const [customStatusMessage, setCustomStatusMessage] = useState<string>("");
   const [showTrackingModal, setShowTrackingModal] = useState<boolean>(false);
   const [editTrackingNumber, setEditTrackingNumber] = useState<string>("");
+  const [invoiceTaxMode, setInvoiceTaxMode] = useState<"auto" | "inter" | "intra">("inter");
 
   // State: Products & Stock Inventory Management
   const [productsList, setProductsList] = useState<ProductItem[]>(() => {
@@ -8675,17 +8676,17 @@ export default function PrajnaaMasterCrmApp() {
             {/* Orders Table */}
             <div className="bg-white rounded-2xl border border-neutral-200/80 shadow-2xs overflow-hidden">
               <div className="overflow-x-auto w-full">
-                <table className="w-full min-w-[700px] text-left text-xs">
-                  <thead className="bg-neutral-50 text-neutral-500 border-b border-neutral-100">
+                <table className="w-full min-w-[960px] text-left text-xs">
+                  <thead className="bg-neutral-50 text-neutral-500 border-b border-neutral-200/80 text-[11px] uppercase tracking-wider font-semibold">
                     <tr>
-                      <th className="p-3.5 font-semibold">Order ID</th>
-                      <th className="p-3.5 font-semibold">Customer</th>
-                      <th className="p-3.5 font-semibold">Items</th>
-                      <th className="p-3.5 font-semibold">Amount</th>
-                      <th className="p-3.5 font-semibold">Payment</th>
-                      <th className="p-3.5 font-semibold">Status</th>
-                      <th className="p-3.5 font-semibold">Date</th>
-                      <th className="p-3.5 font-semibold text-right">Actions</th>
+                      <th className="p-3.5 font-bold whitespace-nowrap">Order ID</th>
+                      <th className="p-3.5 font-bold whitespace-nowrap">Customer</th>
+                      <th className="p-3.5 font-bold whitespace-nowrap">Items</th>
+                      <th className="p-3.5 font-bold whitespace-nowrap">Amount</th>
+                      <th className="p-3.5 font-bold text-center whitespace-nowrap">Payment</th>
+                      <th className="p-3.5 font-bold text-center whitespace-nowrap">Status</th>
+                      <th className="p-3.5 font-bold text-center whitespace-nowrap">Date</th>
+                      <th className="p-3.5 font-bold text-right whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100">
@@ -8712,13 +8713,13 @@ export default function PrajnaaMasterCrmApp() {
                     ) : (
                       filteredUnifiedOrders.map((ord) => {
                         const statusColors: Record<string, string> = {
-                          pending: "bg-amber-100 text-amber-800 border-amber-200",
-                          processing: "bg-sky-100 text-sky-800 border-sky-200",
-                          packed: "bg-purple-100 text-purple-800 border-purple-200",
-                          shipped: "bg-indigo-100 text-indigo-800 border-indigo-200",
-                          completed: "bg-emerald-100 text-emerald-800 border-emerald-200",
-                          delivered: "bg-emerald-100 text-emerald-800 border-emerald-200",
-                          cancelled: "bg-rose-100 text-rose-800 border-rose-200",
+                          pending: "bg-amber-50 text-amber-900 border-amber-200",
+                          processing: "bg-sky-50 text-sky-900 border-sky-200",
+                          packed: "bg-purple-50 text-purple-900 border-purple-200",
+                          shipped: "bg-indigo-50 text-indigo-900 border-indigo-200",
+                          completed: "bg-emerald-50 text-emerald-900 border-emerald-200",
+                          delivered: "bg-emerald-50 text-emerald-900 border-emerald-200",
+                          cancelled: "bg-rose-50 text-rose-900 border-rose-200",
                         };
                         const currentStatusKey = String(ord.orderStatus || "Pending").toLowerCase();
                         const statusBadgeClass = statusColors[currentStatusKey] || "bg-neutral-100 text-neutral-800 border-neutral-200";
@@ -8732,14 +8733,10 @@ export default function PrajnaaMasterCrmApp() {
                         return (
                           <tr
                             key={ord.orderNumber}
-                            onClick={() => {
-                              setSelectedOrderForView(ord);
-                              setActiveNav("order_details");
-                            }}
-                            className="hover:bg-neutral-50 cursor-pointer transition"
+                            className="hover:bg-neutral-50/70 transition"
                           >
-                            <td className="p-3.5 font-mono font-bold text-neutral-900">
-                              <span className="text-emerald-700 hover:underline">{ord.orderNumber}</span>
+                            <td className="p-3.5 font-mono font-bold text-neutral-900 whitespace-nowrap">
+                              <span className="text-emerald-700">{ord.orderNumber}</span>
                             </td>
                             <td className="p-3.5">
                               <div className="font-semibold text-neutral-900">{ord.customerName || "Customer"}</div>
@@ -8757,12 +8754,12 @@ export default function PrajnaaMasterCrmApp() {
                                 `${ord.itemsCount || 1} items`
                               )}
                             </td>
-                            <td className="p-3.5 font-bold text-neutral-900">
+                            <td className="p-3.5 font-bold text-neutral-900 whitespace-nowrap">
                               ₹{Number(ord.amount || 0).toLocaleString("en-IN")}
                             </td>
-                            <td className="p-3.5">
+                            <td className="p-3.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                               {String(ord.paymentStatus || "").toLowerCase() === "paid" ? (
-                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
+                                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1 select-none pointer-events-none">
                                   <Check className="h-3 w-3" /> Paid
                                 </span>
                               ) : (
@@ -8770,7 +8767,7 @@ export default function PrajnaaMasterCrmApp() {
                                   type="button"
                                   onClick={() => handleMarkOrderAsPaid(ord)}
                                   title="1-Click: Verify & Mark Payment as Paid"
-                                  className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-emerald-100 hover:text-emerald-800 hover:border-emerald-300 transition inline-flex items-center gap-1 cursor-pointer group shadow-2xs"
+                                  className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-emerald-100 hover:text-emerald-800 hover:border-emerald-300 transition inline-flex items-center gap-1 cursor-pointer group shadow-2xs"
                                 >
                                   <span>Pending</span>
                                   <span className="text-[9px] font-extrabold text-emerald-700 underline ml-0.5">
@@ -8779,12 +8776,13 @@ export default function PrajnaaMasterCrmApp() {
                                 </button>
                               )}
                             </td>
-                            <td className="p-3.5">
-                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusBadgeClass}`}>
-                                ● {ord.orderStatus || "Pending"}
+                            <td className="p-3.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border whitespace-nowrap select-none pointer-events-none shadow-3xs ${statusBadgeClass}`}>
+                                <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0"></span>
+                                <span>{ord.orderStatus || "Pending"}</span>
                               </span>
                             </td>
-                            <td className="p-3.5 text-neutral-500 whitespace-nowrap">{ord.date}</td>
+                            <td className="p-3.5 text-neutral-500 whitespace-nowrap text-center">{ord.date}</td>
                             <td className="p-3.5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-2">
                                 {/* 1. Tracking ID Button */}
@@ -13170,6 +13168,32 @@ export default function PrajnaaMasterCrmApp() {
               </div>
 
               <div className="flex items-center gap-2">
+                {/* 1-Click Tax Regime Switcher */}
+                <div className="flex items-center gap-1 bg-neutral-100 dark:bg-slate-800 p-1 rounded-xl border border-neutral-300 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setInvoiceTaxMode("inter")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                      invoiceTaxMode === "inter"
+                        ? "bg-blue-600 text-white shadow-xs"
+                        : "text-neutral-600 dark:text-neutral-300 hover:text-neutral-900"
+                    }`}
+                  >
+                    <span>🌐 Inter-State (IGST 5%)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInvoiceTaxMode("intra")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                      invoiceTaxMode === "intra"
+                        ? "bg-emerald-700 text-white shadow-xs"
+                        : "text-neutral-600 dark:text-neutral-300 hover:text-neutral-900"
+                    }`}
+                  >
+                    <span>🏔️ Intra-State (Himachal CGST+SGST)</span>
+                  </button>
+                </div>
+
                 <button
                   type="button"
                   onClick={handleOpenInvoiceNewTab}
@@ -13177,7 +13201,7 @@ export default function PrajnaaMasterCrmApp() {
                   title="Open invoice in new standalone window for printing or saving"
                 >
                   <ExternalLink className="h-3.5 w-3.5 text-neutral-600 dark:text-neutral-300" />
-                  <span>Open Standalone / New Tab</span>
+                  <span>Open Standalone</span>
                 </button>
                 <button
                   type="button"
@@ -13275,19 +13299,41 @@ export default function PrajnaaMasterCrmApp() {
 
                       {/* Right Sub-Box: Place Of Supply */}
                       {(() => {
-                        const addrText = (selectedOrderForView.shippingAddress || (selectedOrderForView as any).address || "").toLowerCase();
-                        const hpKeywords = ["himachal", "hp", "h.p", "solan", "shimla", "kullu", "manali", "dharamshala", "mandi", "kangra", "bilaspur", "una", "hamirpur", "chamba", "kinnaur", "lahaul", "spiti", "parwanoo", "baddi", "nalagarh", "paonta"];
-                        const isOutOfState = addrText.trim().length > 0 && !hpKeywords.some(kw => {
-                          const regex = new RegExp(`\\b${kw}\\b`, "i");
-                          return regex.test(addrText) || addrText.includes(kw);
-                        });
+                        const addrText = (selectedOrderForView.shippingAddress || (selectedOrderForView as any).address || "").toLowerCase().trim();
+                        const hpStrictPatterns = [
+                          /\bhimachal\b/i,
+                          /\bhimachal\s+pradesh\b/i,
+                          /\bhp\b/i,
+                          /\bh\.p\b/i,
+                          /\bsolan\b/i,
+                          /\bshimla\b/i,
+                          /\bkullu\b/i,
+                          /\bmanali\b/i,
+                          /\bdharamshala\b/i,
+                          /\bmandi\b/i,
+                          /\bkangra\b/i,
+                          /\bbilaspur\b/i,
+                          /\buna\b/i,
+                          /\bhamirpur\b/i,
+                          /\bchamba\b/i,
+                          /\bkinnaur\b/i,
+                          /\blahaul\b/i,
+                          /\bspiti\b/i,
+                          /\bparwanoo\b/i,
+                          /\bbaddi\b/i,
+                          /\bnalagarh\b/i,
+                          /\bpaonta\b/i,
+                          /\b173212\b/i,
+                        ];
+                        const isHp = hpStrictPatterns.some((pattern) => pattern.test(addrText));
+                        const isOutOfState = invoiceTaxMode === "inter" ? true : invoiceTaxMode === "intra" ? false : !isHp;
 
                         return (
                           <div className="p-2.5 border-t sm:border-t-0 border-neutral-300">
                             <div className="grid grid-cols-12 gap-1">
                               <span className="col-span-5 text-neutral-600 font-medium">Place Of Supply</span>
                               <span className="col-span-7 font-bold text-neutral-900">
-                                {isOutOfState ? ": Other State (Inter-State / IGST)" : ": Himachal Pradesh (02)"}
+                                {isOutOfState ? ": Other State (Inter-State / IGST 5%)" : ": Himachal Pradesh (02)"}
                               </span>
                             </div>
                           </div>
@@ -13385,12 +13431,34 @@ export default function PrajnaaMasterCrmApp() {
                     : computedTotal;
 
                   // 5% GST calculations (Intra-state: 2.5% CGST + 2.5% SGST | Inter-state outside Himachal: 5.0% IGST)
-                  const shippingAddrText = (selectedOrderForView.shippingAddress || (selectedOrderForView as any).address || "").toLowerCase();
-                  const hpKeywords = ["himachal", "hp", "h.p", "solan", "shimla", "kullu", "manali", "dharamshala", "mandi", "kangra", "bilaspur", "una", "hamirpur", "chamba", "kinnaur", "lahaul", "spiti", "parwanoo", "baddi", "nalagarh", "paonta"];
-                  const isOutOfState = shippingAddrText.trim().length > 0 && !hpKeywords.some(kw => {
-                    const regex = new RegExp(`\\b${kw}\\b`, "i");
-                    return regex.test(shippingAddrText) || shippingAddrText.includes(kw);
-                  });
+                  const shippingAddrText = (selectedOrderForView.shippingAddress || (selectedOrderForView as any).address || "").toLowerCase().trim();
+                  const hpStrictPatterns = [
+                    /\bhimachal\b/i,
+                    /\bhimachal\s+pradesh\b/i,
+                    /\bhp\b/i,
+                    /\bh\.p\b/i,
+                    /\bsolan\b/i,
+                    /\bshimla\b/i,
+                    /\bkullu\b/i,
+                    /\bmanali\b/i,
+                    /\bdharamshala\b/i,
+                    /\bmandi\b/i,
+                    /\bkangra\b/i,
+                    /\bbilaspur\b/i,
+                    /\buna\b/i,
+                    /\bhamirpur\b/i,
+                    /\bchamba\b/i,
+                    /\bkinnaur\b/i,
+                    /\blahaul\b/i,
+                    /\bspiti\b/i,
+                    /\bparwanoo\b/i,
+                    /\bbaddi\b/i,
+                    /\bnalagarh\b/i,
+                    /\bpaonta\b/i,
+                    /\b173212\b/i,
+                  ];
+                  const isHp = hpStrictPatterns.some((pattern) => pattern.test(shippingAddrText));
+                  const isOutOfState = invoiceTaxMode === "inter" ? true : invoiceTaxMode === "intra" ? false : !isHp;
 
                   const taxableSubtotal = Math.round((finalInvoiceAmount / 1.05) * 100) / 100;
                   const totalTax = Math.round((finalInvoiceAmount - taxableSubtotal) * 100) / 100;

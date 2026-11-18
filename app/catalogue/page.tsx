@@ -443,35 +443,29 @@ export default function PremiumCataloguePage() {
       <div className="bg-[#0F3D2E] text-white py-1.5 px-4 text-center text-xs font-medium tracking-wide flex items-center justify-center gap-2 border-b border-emerald-950/40">
         <Sparkles className="w-3.5 h-3.5 text-[#E8A317] shrink-0" />
         <span className="truncate">
-          100% Certified Pure Himalayan Harvest • Direct from Orchards &amp; Mountain Beekeepers • Speed Post Across India
+          100% Certified Pure Himalayan Harvest • Direct from High-Altitude Mountain Orchards &amp; Beekeepers
         </span>
       </div>
 
-      {/* 2. STICKY HEADER (BLINKIT STYLE COMPACT HEADER) */}
+      {/* 2. STICKY HEADER (LUXURY BRAND HEADER WITH OFFICIAL LOGO) */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-neutral-200/90 shadow-2xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3 sm:gap-6">
-          {/* Logo & Subtitle */}
-          <Link href="/catalogue" className="flex items-center gap-2.5 shrink-0">
-            <div className="w-9 h-9 rounded-xl bg-[#0F3D2E] text-white flex items-center justify-center font-serif font-black text-base shadow-xs">
-              P
-            </div>
-            <div className="hidden xs:block">
+          {/* Official Prajnaa Brand Logo */}
+          <Link href="/catalogue" className="flex items-center gap-2.5 shrink-0 group">
+            <img
+              src="/prajnaa-logo.png"
+              alt="Prajnaa Himalayan Produce"
+              className="h-9 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105"
+            />
+            <div className="hidden sm:block">
               <span className="font-serif font-black text-base sm:text-lg tracking-tight text-[#0F3D2E] block leading-none">
                 PRAJNAA
               </span>
-              <span className="text-[10px] text-neutral-500 font-medium tracking-wider uppercase block mt-0.5">
-                Himalayan Store
+              <span className="text-[10px] text-[#A67C1E] font-bold tracking-widest uppercase block mt-0.5">
+                Pure Himalayan Produce
               </span>
             </div>
           </Link>
-
-          {/* Quick Location / Delivery Pill (Blinkit Style) */}
-          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-100 border border-neutral-200/80 text-xs text-neutral-700">
-            <MapPin className="w-3.5 h-3.5 text-[#0F3D2E] shrink-0" />
-            <span className="font-bold text-neutral-900">Delivery in 3-5 days</span>
-            <span className="text-neutral-400">|</span>
-            <span className="text-neutral-500 truncate max-w-[140px]">Solan Hub, HP</span>
-          </div>
 
           {/* Center: Search Bar */}
           <div className="flex-1 max-w-lg relative">
@@ -487,7 +481,7 @@ export default function PremiumCataloguePage() {
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 p-0.5 rounded-full"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 p-0.5 rounded-full cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -632,7 +626,7 @@ export default function PremiumCataloguePage() {
           </div>
         ) : (
           /* BLINKIT COMPACT GRID: Small icons, multi-column, clean cards */
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3">
             {filteredProducts.map((item) => {
               const currentVariantIndex = selectedVariants[item.id] || 0;
               const activeVariant = item.variants?.[currentVariantIndex] || {
@@ -658,21 +652,21 @@ export default function PremiumCataloguePage() {
                 <div
                   key={item.id}
                   id={item.slug}
-                  className={`bg-white rounded-2xl border transition-all duration-200 hover:shadow-md flex flex-col justify-between p-2.5 sm:p-3 relative group ${
+                  className={`bg-white rounded-2xl border transition-all duration-200 hover:shadow-md flex flex-col justify-between p-2 sm:p-2.5 relative group ${
                     isHighlighted
                       ? "ring-2 ring-emerald-600 border-emerald-600 shadow-lg scale-[1.01]"
-                      : "border-neutral-200/90 hover:border-emerald-500/60 shadow-2xs"
+                      : "border-neutral-200/80 hover:border-[#0F3D2E]/40 shadow-2xs"
                   }`}
                 >
                   {/* CARD TOP: Compact Square Product Thumbnail (Small Icon Size) */}
                   <div>
-                    <div className="relative aspect-square w-full bg-neutral-50 rounded-xl overflow-hidden flex items-center justify-center p-2 mb-2">
+                    <div className="relative aspect-square max-h-28 sm:max-h-32 w-full bg-[#FAF9F6] rounded-xl overflow-hidden flex items-center justify-center p-2 mb-1.5">
                       <Image
                         src={item.image || "/assets/cat-honey.jpg"}
                         alt={item.name}
                         fill
                         sizes="(max-width: 640px) 45vw, (max-width: 1024px) 25vw, 16vw"
-                        className="object-contain p-1.5 group-hover:scale-105 transition-transform duration-300"
+                        className="object-contain p-1 group-hover:scale-105 transition-transform duration-300"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           target.src = "/assets/cat-honey.jpg";
@@ -681,33 +675,27 @@ export default function PremiumCataloguePage() {
 
                       {/* Top-Left: Discount Badge */}
                       {discountPercent && discountPercent > 0 && (
-                        <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md text-[9px] font-extrabold bg-[#0F3D2E] text-white shadow-2xs">
+                        <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded-md text-[9px] font-black bg-[#0F3D2E] text-white shadow-2xs">
                           {discountPercent}% OFF
                         </span>
                       )}
 
                       {/* Top-Right: Stock Badge */}
                       {item.stockStatus === "out_of_stock" ? (
-                        <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-neutral-600 text-white">
+                        <span className="absolute top-1 right-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-neutral-600 text-white">
                           Sold Out
                         </span>
                       ) : item.stockStatus === "few_left" ? (
-                        <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-amber-500 text-white">
+                        <span className="absolute top-1 right-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-amber-500 text-white">
                           Few Left
                         </span>
                       ) : null}
                     </div>
 
                     {/* CARD CONTENT */}
-                    <div className="space-y-1">
-                      {/* Origin & Delivery Time Badge */}
-                      <div className="text-[10px] font-semibold text-emerald-800 truncate flex items-center gap-1">
-                        <Truck className="w-2.5 h-2.5 text-emerald-700 shrink-0" />
-                        <span className="truncate">Speed Post • {item.origin || "Solan, HP"}</span>
-                      </div>
-
+                    <div className="space-y-0.5">
                       {/* Product Title */}
-                      <h3 className="font-bold text-xs sm:text-sm text-neutral-900 leading-snug line-clamp-2 min-h-[2.4rem] group-hover:text-emerald-800 transition-colors">
+                      <h3 className="font-serif font-bold text-xs sm:text-[13px] text-neutral-900 leading-snug line-clamp-2 min-h-[2rem] group-hover:text-[#0F3D2E] transition-colors">
                         {item.name}
                       </h3>
 
@@ -717,7 +705,7 @@ export default function PremiumCataloguePage() {
                           <select
                             value={currentVariantIndex}
                             onChange={(e) => handleSelectVariant(item.id, Number(e.target.value))}
-                            className="w-full text-[10px] font-semibold py-1 px-1.5 rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-700 focus:outline-none focus:ring-1 focus:ring-emerald-600 cursor-pointer truncate"
+                            className="w-full text-[10px] font-semibold py-0.5 px-1.5 rounded-md border border-neutral-200 bg-neutral-50 text-neutral-700 focus:outline-none focus:ring-1 focus:ring-emerald-600 cursor-pointer truncate"
                           >
                             {item.variants.map((v, vIdx) => (
                               <option key={vIdx} value={vIdx}>
@@ -726,7 +714,7 @@ export default function PremiumCataloguePage() {
                             ))}
                           </select>
                         ) : (
-                          <span className="text-[11px] text-neutral-500 font-medium truncate block">
+                          <span className="text-[10px] text-neutral-400 font-medium truncate block">
                             {activeVariant.name || item.weight || "Standard Pack"}
                           </span>
                         )}
@@ -735,9 +723,9 @@ export default function PremiumCataloguePage() {
                   </div>
 
                   {/* CARD BOTTOM: Price & Signature Blinkit ADD / Stepper Button */}
-                  <div className="flex items-center justify-between pt-2 border-t border-neutral-100 mt-2 gap-1">
+                  <div className="flex items-center justify-between pt-1.5 border-t border-neutral-100 mt-1.5 gap-1">
                     <div>
-                      <div className="text-xs sm:text-sm font-extrabold text-neutral-900">
+                      <div className="text-xs sm:text-sm font-extrabold text-[#0F3D2E]">
                         ₹{activePrice.toLocaleString("en-IN")}
                       </div>
                       {comparePrice && comparePrice > activePrice && (
@@ -755,25 +743,25 @@ export default function PremiumCataloguePage() {
                           const waUrl = `https://wa.me/${cleanStorePhone}?text=${encodeURIComponent(`Namaste ji! Mujhe *${item.name}* ke baare mein enquiry karni hai.`)}`;
                           window.open(waUrl, "_blank");
                         }}
-                        className="px-2.5 py-1.5 rounded-xl border border-neutral-300 bg-neutral-100 text-neutral-500 text-[11px] font-bold cursor-pointer"
+                        className="px-2 py-1 rounded-lg border border-neutral-300 bg-neutral-100 text-neutral-500 text-[10px] font-bold cursor-pointer"
                       >
                         Enquire
                       </button>
                     ) : itemQtyInCart > 0 ? (
-                      <div className="flex items-center rounded-xl bg-emerald-700 text-white font-bold text-xs shadow-2xs overflow-hidden">
+                      <div className="flex items-center rounded-lg bg-emerald-700 text-white font-bold text-xs shadow-2xs overflow-hidden">
                         <button
                           type="button"
                           onClick={() => handleUpdateCartQty(cartItemId, -1)}
-                          className="px-2 py-1.5 hover:bg-emerald-800 transition cursor-pointer"
+                          className="px-1.5 py-1 hover:bg-emerald-800 transition cursor-pointer"
                           title="Decrease"
                         >
                           −
                         </button>
-                        <span className="px-2 py-1.5 font-mono text-xs">{itemQtyInCart}</span>
+                        <span className="px-1.5 py-1 font-mono text-xs">{itemQtyInCart}</span>
                         <button
                           type="button"
                           onClick={() => handleUpdateCartQty(cartItemId, 1)}
-                          className="px-2 py-1.5 hover:bg-emerald-800 transition cursor-pointer"
+                          className="px-1.5 py-1 hover:bg-emerald-800 transition cursor-pointer"
                           title="Increase"
                         >
                           +
@@ -783,7 +771,7 @@ export default function PremiumCataloguePage() {
                       <button
                         type="button"
                         onClick={() => handleAddToCart(item, currentVariantIndex)}
-                        className="px-3.5 py-1.5 rounded-xl border-2 border-emerald-600 bg-white hover:bg-emerald-50 text-emerald-700 font-extrabold text-xs transition shadow-2xs cursor-pointer flex items-center gap-1 active:scale-95"
+                        className="px-2.5 py-1 rounded-lg border-2 border-emerald-600 bg-white hover:bg-emerald-50 text-emerald-700 font-extrabold text-xs transition shadow-2xs cursor-pointer flex items-center gap-0.5 active:scale-95"
                       >
                         <span>ADD</span>
                         <span className="text-sm leading-none">+</span>
