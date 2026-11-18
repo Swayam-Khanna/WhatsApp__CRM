@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -114,6 +114,21 @@ export default function PremiumCataloguePage() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [storePhone, setStorePhone] = useState("+91 80912 65690");
   const [highlightedSlug, setHighlightedSlug] = useState<string | null>(null);
+
+  // Search Autocomplete State
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState<boolean>(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState<number>(-1);
+  const searchContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setShowSearchSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Blinkit Multi-Item Cart State
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -289,6 +304,43 @@ export default function PremiumCataloguePage() {
     return list;
   }, [products, searchQuery, selectedCategory, selectedAvailability, selectedPackaging, sortBy]);
 
+  // Search Autocomplete Suggestions & Auto-fill
+  const searchSuggestions = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q || q.length < 1) return [];
+
+    return products
+      .filter((p) => {
+        const nameL = p.name.toLowerCase();
+        const catL = (p.category || "").toLowerCase();
+        const descL = (p.description || "").toLowerCase();
+        return nameL.includes(q) || catL.includes(q) || descL.includes(q);
+      })
+      .slice(0, 6);
+  }, [products, searchQuery]);
+
+  const topSuggestion = searchSuggestions[0];
+
+  const highlightMatch = (text: string, query: string) => {
+    if (!query) return text;
+    const cleanQ = query.trim().replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+    if (!cleanQ) return text;
+    const parts = text.split(new RegExp(`(${cleanQ})`, "gi"));
+    return (
+      <span>
+        {parts.map((part, i) =>
+          part.toLowerCase() === query.trim().toLowerCase() ? (
+            <span key={i} className="text-[#0F3D2E] font-black underline decoration-[#E8A317] decoration-2">
+              {part}
+            </span>
+          ) : (
+            <span key={i}>{part}</span>
+          )
+        )}
+      </span>
+    );
+  };
+
   // Cart Helpers
   const getCartItemQty = (productId: string, variantIndex: number = 0): number => {
     const item = cart.find((c) => c.productId === productId && c.variantIndex === variantIndex);
@@ -397,7 +449,7 @@ export default function PremiumCataloguePage() {
       itemsListText,
       `--------------------------------------`,
       `💰 *Grand Total:* ₹${totalCartPrice.toLocaleString("en-IN")}`,
-      `📦 *Fulfillment:* Speed Post (Solan Hub, HP)`,
+      `📦 *Fulfillment:* Shipping (Solan Hub, HP)`,
       `--------------------------------------`,
       `Namaste ji! Kripya mera order confirm kar dijiye and payment & dispatch details bhej dijiye.`,
     ].filter(Boolean);
@@ -447,36 +499,130 @@ export default function PremiumCataloguePage() {
         </span>
       </div>
 
-      {/* 2. STICKY HEADER (LUXURY BRAND HEADER WITH OFFICIAL LOGO) */}
+      {/* 2. STICKY HEADER (UNIFIED BRAND BAR + SEARCH WITH AUTOCOMPLETE + CATEGORY SCROLLER) */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-neutral-200/90 shadow-2xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3 sm:gap-6">
+        {/* Row 1: Brand Logo, Search Bar with Autocomplete, Helpline & Cart */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-3 sm:gap-6">
           {/* Official Prajnaa Brand Logo */}
           <Link href="/catalogue" className="flex items-center gap-2 shrink-0 group" title="Prajnaa Himalayan Produce">
             <img
               src="/prajnaa-logo.png"
               alt="Prajnaa Himalayan Produce"
-              className="h-9 sm:h-11 w-auto object-contain transition-transform group-hover:scale-105"
+              className="h-8 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105"
             />
           </Link>
 
-          {/* Center: Search Bar */}
-          <div className="flex-1 max-w-lg relative">
+          {/* Center: Search Bar with Autocomplete & Auto-Fill */}
+          <div className="flex-1 max-w-lg relative" ref={searchContainerRef}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => {
+                if (searchQuery.trim().length > 0) setShowSearchSuggestions(true);
+              }}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setShowSearchSuggestions(e.target.value.trim().length > 0);
+                setSelectedSuggestionIndex(-1);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setShowSearchSuggestions(true);
+                  setSelectedSuggestionIndex((prev) => (prev < searchSuggestions.length - 1 ? prev + 1 : 0));
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setSelectedSuggestionIndex((prev) => (prev > 0 ? prev - 1 : searchSuggestions.length - 1));
+                } else if (e.key === "Enter") {
+                  if (selectedSuggestionIndex >= 0 && searchSuggestions[selectedSuggestionIndex]) {
+                    e.preventDefault();
+                    setSearchQuery(searchSuggestions[selectedSuggestionIndex].name);
+                    setShowSearchSuggestions(false);
+                  } else if (topSuggestion) {
+                    e.preventDefault();
+                    setSearchQuery(topSuggestion.name);
+                    setShowSearchSuggestions(false);
+                  }
+                } else if (e.key === "Tab") {
+                  if (topSuggestion) {
+                    e.preventDefault();
+                    setSearchQuery(topSuggestion.name);
+                    setShowSearchSuggestions(false);
+                  }
+                } else if (e.key === "Escape") {
+                  setShowSearchSuggestions(false);
+                }
+              }}
               placeholder="Search honey, shilajit, dry fruits, saffron..."
               className="w-full pl-9 pr-8 py-2 rounded-xl bg-neutral-100 hover:bg-neutral-50 focus:bg-white border border-neutral-200 text-xs sm:text-sm text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-[#0F3D2E]/20 focus:border-[#0F3D2E] transition-all"
             />
             {searchQuery && (
               <button
                 type="button"
-                onClick={() => setSearchQuery("")}
+                onClick={() => {
+                  setSearchQuery("");
+                  setShowSearchSuggestions(false);
+                }}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 p-0.5 rounded-full cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
+            )}
+
+            {/* Smart Search Autocomplete & Auto-Fill Dropdown */}
+            {showSearchSuggestions && searchSuggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-2xl shadow-xl border border-neutral-200/90 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
+                <div className="p-2 border-b border-neutral-100 bg-neutral-50/80 flex items-center justify-between text-[11px] text-neutral-500 font-semibold px-3">
+                  <span>Suggested Products (Press Tab or Enter to auto-fill)</span>
+                  <span className="text-[10px] text-neutral-400">{searchSuggestions.length} matches</span>
+                </div>
+                <div className="max-h-72 overflow-y-auto divide-y divide-neutral-100/80">
+                  {searchSuggestions.map((item, idx) => {
+                    const isSelected = selectedSuggestionIndex === idx;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onMouseEnter={() => setSelectedSuggestionIndex(idx)}
+                        onClick={() => {
+                          setSearchQuery(item.name);
+                          setShowSearchSuggestions(false);
+                        }}
+                        className={`w-full text-left p-2.5 flex items-center justify-between gap-3 transition cursor-pointer ${
+                          isSelected ? "bg-emerald-50/80 text-[#0F3D2E]" : "hover:bg-neutral-50 text-neutral-800"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-neutral-100 overflow-hidden relative shrink-0 border border-neutral-200/60">
+                            <Image
+                              src={item.image || "/assets/cat-honey.jpg"}
+                              alt={item.name}
+                              fill
+                              sizes="32px"
+                              className="object-cover"
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold truncate">
+                              {highlightMatch(item.name, searchQuery)}
+                            </div>
+                            <div className="text-[10px] text-neutral-500 flex items-center gap-1.5">
+                              <span className="font-medium text-emerald-800">{item.category}</span>
+                              <span>•</span>
+                              <span className="font-semibold text-neutral-700">₹{item.price}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="shrink-0 flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">
+                          <span>Select</span>
+                          <span className="text-xs font-mono">↵</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
 
@@ -510,63 +656,63 @@ export default function PremiumCataloguePage() {
             </button>
           </div>
         </div>
-      </header>
 
-      {/* 3. HORIZONTAL CATEGORY SCROLLER & FILTERS */}
-      <section className="bg-white border-b border-neutral-200/80 sticky top-[57px] z-20 shadow-3xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2">
-          <div className="flex items-center justify-between gap-3 overflow-hidden">
-            {/* Horizontal Categories */}
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 text-xs flex-1">
-              {CATEGORIES.map((cat) => {
-                const isSelected = selectedCategory === cat;
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => setSelectedCategory(cat)}
-                    className={`px-3 py-1.5 rounded-full whitespace-nowrap font-bold text-xs transition-all cursor-pointer shrink-0 ${
-                      isSelected
-                        ? "bg-[#0F3D2E] text-white shadow-2xs"
-                        : "bg-neutral-100 hover:bg-neutral-200/80 text-neutral-700 border border-neutral-200/60"
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Sort & Availability Controls */}
-            <div className="hidden sm:flex items-center gap-2 shrink-0">
-              <div className="relative inline-block">
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="appearance-none pl-3 pr-7 py-1.5 rounded-full border border-neutral-200 bg-white text-neutral-700 text-xs font-semibold shadow-2xs focus:outline-none focus:ring-1 focus:ring-[#0F3D2E] cursor-pointer"
-                >
-                  {SORT_OPTIONS.map((opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <ArrowUpDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-neutral-400 pointer-events-none" />
+        {/* Row 2: Horizontal Category Scroller & Filters (Consolidated seamlessly into header) */}
+        <div className="border-t border-neutral-100 bg-neutral-50/70">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-1.5 sm:py-2">
+            <div className="flex items-center justify-between gap-3 overflow-hidden">
+              {/* Horizontal Categories */}
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs flex-1">
+                {CATEGORIES.map((cat) => {
+                  const isSelected = selectedCategory === cat;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedCategory(cat)}
+                      className={`px-3 py-1.5 rounded-full whitespace-nowrap font-bold text-xs transition-all cursor-pointer shrink-0 ${
+                        isSelected
+                          ? "bg-[#0F3D2E] text-white shadow-2xs"
+                          : "bg-white hover:bg-neutral-100 text-neutral-700 border border-neutral-200/80"
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  );
+                })}
               </div>
 
-              {hasActiveFilters && (
-                <button
-                  type="button"
-                  onClick={resetAllFilters}
-                  className="px-2.5 py-1.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold hover:bg-rose-100 transition flex items-center gap-1"
-                >
-                  <X className="w-3 h-3" />
-                  <span>Reset</span>
-                </button>
-              )}
+              {/* Sort & Availability Controls */}
+              <div className="hidden sm:flex items-center gap-2 shrink-0">
+                <div className="relative inline-block">
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="appearance-none pl-3 pr-7 py-1.5 rounded-full border border-neutral-200 bg-white text-neutral-700 text-xs font-semibold shadow-2xs focus:outline-none focus:ring-1 focus:ring-[#0F3D2E] cursor-pointer"
+                  >
+                    {SORT_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ArrowUpDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-neutral-400 pointer-events-none" />
+                </div>
+
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={resetAllFilters}
+                    className="px-2.5 py-1.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold hover:bg-rose-100 transition flex items-center gap-1"
+                  >
+                    <X className="w-3 h-3" />
+                    <span>Reset</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </section>
+      </header>
 
       {/* 4. MAIN PRODUCT GRID (BLINKIT COMPACT GRID WITH SMALL ICONS) */}
       <main className="max-w-7xl mx-auto px-3 sm:px-6 pt-5">
@@ -790,7 +936,7 @@ export default function PremiumCataloguePage() {
                 <span>•</span>
                 <span className="text-[#E8A317]">₹{totalCartPrice.toLocaleString("en-IN")}</span>
               </div>
-              <p className="text-[10px] text-emerald-200">Speed Post Fulfillment Across India</p>
+              <p className="text-[10px] text-emerald-200">Shipping Across India</p>
             </div>
           </div>
 
@@ -929,8 +1075,8 @@ export default function PremiumCataloguePage() {
                       <span className="font-mono font-bold text-neutral-900">₹{totalCartPrice.toLocaleString("en-IN")}</span>
                     </div>
                     <div className="flex justify-between text-neutral-600">
-                      <span>Speed Post Delivery</span>
-                      <span className="font-semibold text-emerald-700">Speed Post Across India</span>
+                      <span>Shipping</span>
+                      <span className="font-semibold text-emerald-700">Shipping Across India</span>
                     </div>
                     <div className="flex justify-between text-sm font-extrabold text-neutral-900 pt-2 border-t border-neutral-200">
                       <span>Grand Total</span>
