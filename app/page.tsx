@@ -8823,10 +8823,14 @@ export default function PrajnaaMasterCrmApp() {
                                     setShowTrackingModal(true);
                                   }}
                                   title={ord.trackingNumber ? `Consignment: ${ord.trackingNumber}` : "Add / Edit Tracking ID"}
-                                  className="px-2.5 py-1.5 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                                  className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer ${
+                                    ord.trackingNumber
+                                      ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                                      : "border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800"
+                                  }`}
                                 >
                                   <Tag className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                                  <span className="font-mono text-[11px] truncate max-w-[100px]">
+                                  <span className="font-mono text-[11px] truncate max-w-[120px]">
                                     {ord.trackingNumber ? ord.trackingNumber : "Tracking ID"}
                                   </span>
                                 </button>
@@ -12625,11 +12629,11 @@ export default function PrajnaaMasterCrmApp() {
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100">
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-neutral-100">
               <button
                 type="button"
                 onClick={() => setShowTrackingModal(false)}
-                className="px-4 py-2 rounded-xl border border-neutral-200 text-xs font-semibold text-neutral-600 hover:bg-neutral-50 cursor-pointer"
+                className="px-3 py-2 rounded-xl border border-neutral-200 text-xs font-semibold text-neutral-600 hover:bg-neutral-50 cursor-pointer"
               >
                 Cancel
               </button>
@@ -12682,9 +12686,94 @@ export default function PrajnaaMasterCrmApp() {
                   setShowTrackingModal(false);
                   toast.success(`Tracking ID saved: ${cleanedTracking || "None"}`);
                 }}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer"
+                className="px-3 py-2 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-800 text-xs font-bold shadow-2xs cursor-pointer"
               >
-                Save Tracking ID
+                Save Only
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const cleanedTracking = editTrackingNumber.trim();
+                  setSelectedOrderForView((prev: any) => ({
+                    ...prev,
+                    trackingNumber: cleanedTracking,
+                  }));
+
+                  setCreatedOrders((prev) =>
+                    prev.map((o) =>
+                      o.orderNumber === selectedOrderForView.orderNumber
+                        ? { ...o, trackingNumber: cleanedTracking }
+                        : o
+                    )
+                  );
+
+                  setCrmOrders((prev) => {
+                    const updated = prev.map((o) =>
+                      `#${o.orderNumber || o.id}` === selectedOrderForView.orderNumber ||
+                      String(o.orderNumber || o.id) === selectedOrderForView.orderNumber ||
+                      String(o.orderNumber || o.id).replace(/^#+/, "") === selectedOrderForView.orderNumber.replace(/^#+/, "")
+                        ? { ...o, trackingNumber: cleanedTracking, awbNumber: cleanedTracking }
+                        : o
+                    );
+                    try {
+                      localStorage.setItem("prajnaa_crm_orders", JSON.stringify(updated));
+                    } catch {}
+                    try {
+                      const orderToSync = updated.find(
+                        (o) =>
+                          `#${o.orderNumber || o.id}` === selectedOrderForView.orderNumber ||
+                          String(o.orderNumber || o.id) === selectedOrderForView.orderNumber ||
+                          String(o.orderNumber || o.id).replace(/^#+/, "") === selectedOrderForView.orderNumber.replace(/^#+/, "")
+                      );
+                      if (orderToSync) {
+                        fetch("/api/crm/orders", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(orderToSync),
+                        }).catch(() => {});
+                      }
+                    } catch {}
+                    return updated;
+                  });
+
+                  // Dispatch WhatsApp notification to customer
+                  const matchingCust = customers.find(
+                    (c) =>
+                      c.latestOrder?.orderNumber === selectedOrderForView.orderNumber ||
+                      c.name === selectedOrderForView.customerName
+                  );
+                  const custPhone = selectedOrderForView.customerPhone || (selectedOrderForView as any).phone || matchingCust?.phone || "";
+                  const cleanPhone = custPhone.replace(/\D/g, "").slice(-10);
+                  const custName = selectedOrderForView.customerName?.trim() || "ji";
+                  const orderNumTag = selectedOrderForView.orderNumber?.startsWith("#")
+                    ? selectedOrderForView.orderNumber
+                    : `#${selectedOrderForView.orderNumber || "PRJ-ORD"}`;
+
+                  if (cleanPhone) {
+                    const trackingMsg = `Namaste ${custName}! 📦\n\nYour Prajnaa Market order *${orderNumTag}* has been dispatched via Speed Post!\n\n🚚 *Tracking Consignment:* ${cleanedTracking || "Pending"}\n🔗 *Track Online:* https://www.indiapost.gov.in/_layouts/15/dop.portal.tracking/trackconsignment.aspx\n\nHum aapko delivery hone tak live updates dete rahenge. Prajnaa par bharosa karne ke liye dhanyawad! 🌿\n\n*Team Prajnaa Market*`;
+                    fetch("/api/crm/messages", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        sender: "business",
+                        from: "918091265690",
+                        to: `91${cleanPhone}`,
+                        customerName: custName,
+                        text: trackingMsg,
+                        orderNumber: selectedOrderForView.orderNumber,
+                      }),
+                    }).catch(() => {});
+                    toast.success(`Tracking ID saved & sent to ${custName} on WhatsApp!`);
+                  } else {
+                    toast.success(`Tracking ID saved: ${cleanedTracking || "None"}`);
+                  }
+
+                  setShowTrackingModal(false);
+                }}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <span>Save &amp; Send WhatsApp</span>
+                <span>💬</span>
               </button>
             </div>
           </div>
@@ -13324,6 +13413,12 @@ export default function PrajnaaMasterCrmApp() {
                           <span className="col-span-5 text-neutral-600 font-medium">Due Date</span>
                           <span className="col-span-7 font-bold text-neutral-900">: {defaultDueDate}</span>
                         </div>
+                        {selectedOrderForView.trackingNumber && (
+                          <div className="grid grid-cols-12 gap-1 pt-1 border-t border-neutral-200">
+                            <span className="col-span-5 text-neutral-600 font-medium">Consignment #</span>
+                            <span className="col-span-7 font-mono font-bold text-emerald-800">: {selectedOrderForView.trackingNumber}</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Right Sub-Box: Place Of Supply */}
