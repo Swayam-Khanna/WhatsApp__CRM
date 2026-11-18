@@ -1116,6 +1116,23 @@ export default function PrajnaaMasterCrmApp() {
   const lastSyncedMessagesHashRef = useRef<string>("");
   const isSyncingOrdersRef = useRef<boolean>(false);
   const isSyncingMessagesRef = useRef<boolean>(false);
+  const manualSyncMessagesRef = useRef<(() => Promise<void>) | null>(null);
+  const [isSyncingCloud, setIsSyncingCloud] = useState<boolean>(false);
+
+  const handleManualSyncCloud = async () => {
+    setIsSyncingCloud(true);
+    try {
+      lastSyncedMessagesHashRef.current = ""; // Reset hash to force UI refresh
+      if (manualSyncMessagesRef.current) {
+        await manualSyncMessagesRef.current();
+      }
+      toast.success("Synchronized with WhatsApp Cloud API & Webhooks!");
+    } catch {
+      toast.error("Failed to sync WhatsApp messages.");
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
 
   // Media lightbox & upload state
   const [selectedLightboxMedia, setSelectedLightboxMedia] = useState<{ url: string; type?: string; title?: string } | null>(null);
@@ -2276,6 +2293,8 @@ export default function PrajnaaMasterCrmApp() {
           isSyncingMessagesRef.current = false;
         }
       };
+
+      manualSyncMessagesRef.current = safeSyncMessages;
 
       // Initial startup sync
       safeSyncOrders();
@@ -6726,6 +6745,16 @@ export default function PrajnaaMasterCrmApp() {
                         </span>
                       )}
                     </h3>
+                    <button
+                      type="button"
+                      onClick={handleManualSyncCloud}
+                      disabled={isSyncingCloud}
+                      title="Sync live messages from WhatsApp Cloud"
+                      className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-lg transition cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${isSyncingCloud ? "animate-spin text-emerald-600" : ""}`} />
+                      <span>{isSyncingCloud ? "Syncing..." : "Sync"}</span>
+                    </button>
                   </div>
 
                   <div className="flex items-center gap-1 text-[11px] font-semibold">

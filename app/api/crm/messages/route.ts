@@ -112,6 +112,43 @@ export async function GET(req: NextRequest) {
       // In PostgreSQL-first or file-first deployments, MongoDB timeout/skip is handled gracefully
     }
 
+    // 3.5. Universal Cloud Sync: When running in local dev / hybrid mode,
+    // seamlessly pull live inbound WhatsApp messages received by public webhook (crm.prajnaa.in)
+    let prodMessages: any[] = [];
+    const hostHeader = req.headers.get("host") || "";
+    const isLocalEnv = !hostHeader || hostHeader.includes("localhost") || hostHeader.includes("127.0.0.1");
+    if (isLocalEnv && req.headers.get("x-crm-source") !== "local-sync") {
+      try {
+        const prodUrl = cleanPhone
+          ? `https://crm.prajnaa.in/api/crm/messages?phone=${cleanPhone}`
+          : "https://crm.prajnaa.in/api/crm/messages";
+        const controller = new AbortController();
+        const fetchTimer = setTimeout(() => controller.abort(), 2500);
+        const prodRes = await fetch(prodUrl, {
+          signal: controller.signal,
+          headers: { "x-crm-source": "local-sync" },
+        });
+        clearTimeout(fetchTimer);
+        if (prodRes.ok) {
+          const prodData = await prodRes.json();
+          if (Array.isArray(prodData.messages)) {
+            prodMessages = prodData.messages;
+            prodMessages.forEach((pm: any) => {
+              if (pm && pm.id) {
+                saveStoredMessage(pm);
+                const fromP = (pm.from || "").replace(/\D/g, "").slice(-10);
+                const toP = (pm.to || "").replace(/\D/g, "").slice(-10);
+                if (fromP) resurrectContact(fromP);
+                if (toP) resurrectContact(toP);
+              }
+            });
+          }
+        }
+      } catch (syncErr) {
+        // Silently continue if network is unavailable
+      }
+    }
+
     // 4. Base persistent store (disk-backed, survives server restarts and multi-device access)
     const storedBase = getStoredMessages();
 
@@ -120,7 +157,7 @@ export async function GET(req: NextRequest) {
     const seenSignatures = new Set<string>();
     const uniqueMsgs: any[] = [];
 
-    const allMsgs = [...storedBase, ...(pgMessages || []), ...(dbMessages || [])];
+    const allMsgs = [...storedBase, ...(prodMessages || []), ...(pgMessages || []), ...(dbMessages || [])];
 
     for (const m of allMsgs) {
       if (!m) continue;
@@ -150,8 +187,6 @@ export async function GET(req: NextRequest) {
     }
 
     // Sanitize any malformed duplicate origin URLs
-    const hostHeader = req.headers.get("host") || "";
-    const isLocalEnv = !hostHeader || hostHeader.includes("localhost") || hostHeader.includes("127.0.0.1");
     const cleanOrigin = isLocalEnv ? `http://${hostHeader || "127.0.0.1:3000"}` : `https://${hostHeader || "crm.prajnaa.in"}`;
 
     const cleanedMsgs = uniqueMsgs.map((m: any) => {

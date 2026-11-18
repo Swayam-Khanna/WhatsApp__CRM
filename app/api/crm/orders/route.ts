@@ -71,13 +71,47 @@ export async function GET() {
     console.warn("[MongoDB] Orders query note:", err);
   }
 
+  // 3.5. Universal Cloud Sync: When running in local dev / hybrid mode,
+  // pull live orders from production (crm.prajnaa.in)
+  let prodOrders: any[] = [];
+  try {
+    const isLocal = process.env.NEXT_PUBLIC_APP_URL?.includes("localhost") || !process.env.VERCEL;
+    if (isLocal) {
+      const controller = new AbortController();
+      const fetchTimer = setTimeout(() => controller.abort(), 2500);
+      const prodRes = await fetch("https://crm.prajnaa.in/api/crm/orders", {
+        signal: controller.signal,
+        headers: { "x-crm-source": "local-sync" },
+      });
+      clearTimeout(fetchTimer);
+      if (prodRes.ok) {
+        const prodData = await prodRes.json();
+        if (Array.isArray(prodData.orders)) {
+          prodOrders = prodData.orders;
+          prodOrders.forEach((ro: any) => {
+            if (ro && (ro.orderNumber || ro.id)) {
+              saveStoredOrder(ro);
+            }
+          });
+        }
+      }
+    }
+  } catch (err) {
+    // Silently continue if offline
+  }
+
   // Deduplicate orders by orderNumber / id
   const orderMap = new Map<string, any>();
 
-  // Order of precedence: PostgreSQL > MongoDB > Persistent Disk Store
+  // Order of precedence: PostgreSQL > MongoDB > Production Cloud > Persistent Disk Store
   storedOrders.forEach((o) => {
     const num = (o.orderNumber || o.id || "").toString().trim();
     if (num) orderMap.set(num, o);
+  });
+
+  prodOrders.forEach((o) => {
+    const num = (o.orderNumber || o.id || "").toString().trim();
+    if (num) orderMap.set(num, { ...orderMap.get(num), ...o });
   });
 
   mongoOrders.forEach((o) => {
