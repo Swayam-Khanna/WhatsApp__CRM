@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server.js";
+import { revalidatePath } from "next/cache";
 import {
   getAuthoritativeCrmProducts,
   saveProductToRegistry,
@@ -47,6 +48,11 @@ export async function POST(req: NextRequest) {
 
     const saved = await saveProductToRegistry(body);
 
+    try {
+      revalidatePath("/catalogue");
+      revalidatePath("/api/catalogue");
+    } catch {}
+
     return NextResponse.json({
       success: true,
       product: saved,
@@ -84,6 +90,11 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Product not found" }, { status: 404 });
     }
 
+    try {
+      revalidatePath("/catalogue");
+      revalidatePath("/api/catalogue");
+    } catch {}
+
     return NextResponse.json({ success: true, product: updated });
   } catch (err: any) {
     console.error("[CRM Products PATCH Error]:", err);
@@ -103,6 +114,11 @@ export async function DELETE(req: NextRequest) {
     }
 
     await deleteProductFromRegistry(id);
+
+    try {
+      revalidatePath("/catalogue");
+      revalidatePath("/api/catalogue");
+    } catch {}
 
     return NextResponse.json({
       success: true,

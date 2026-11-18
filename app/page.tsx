@@ -4,6 +4,9 @@ import {
   useState, useRef, useEffect, useMemo } from "react";
 import LeadsModule from "@/components/leads/LeadsModule";
 import NewLeadModal from "@/components/leads/NewLeadModal";
+import OrdersView from "@/components/crm/OrdersView";
+import AnalyticsView from "@/components/crm/AnalyticsView";
+import SettingsView from "@/components/crm/SettingsView";
 import { SearchableProductSelect } from "@/components/common/SearchableProductSelect";
 import {
   Upload,
@@ -8616,266 +8619,25 @@ export default function PrajnaaMasterCrmApp() {
 
         {/* SCREEN 3: ORDERS MANAGEMENT */}
         {activeNav === "orders" && userPermissions.allowedTabs.includes("orders") && (
-          <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold text-neutral-900">Orders Management</h2>
-                <p className="text-xs text-neutral-500 mt-0.5">
-                  Manage, track, and update all customer orders from WhatsApp and web checkout.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 self-start sm:self-auto">
-                <button
-                  type="button"
-                  onClick={handleExportOrdersCsv}
-                  className="px-3.5 sm:px-4 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-50 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 text-xs font-bold transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
-                  title="Export Orders to CSV / Excel spreadsheet"
-                >
-                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>Export CSV</span>
-                </button>
-
-                <button
-                  onClick={() => setShowAddOrderModal(true)}
-                  className="px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Plus className="h-4 w-4" /> + Create Order
-                </button>
-              </div>
-            </div>
-
-            {/* Search and Quick Filters Bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              {/* Status Tabs with Counters */}
-              <div className="flex items-center gap-1.5 border-b border-neutral-200 pb-2 overflow-x-auto w-full sm:w-auto no-scrollbar">
-                {[
-                  { id: "all", label: "All Orders", count: orderTabCounts.all },
-                  { id: "pending", label: "Pending", count: orderTabCounts.pending },
-                  { id: "processing", label: "Processing", count: orderTabCounts.processing },
-                  { id: "packed", label: "Packed", count: orderTabCounts.packed },
-                  { id: "shipped", label: "Shipped", count: orderTabCounts.shipped },
-                  { id: "completed", label: "Completed", count: orderTabCounts.completed },
-                  { id: "cancelled", label: "Cancelled", count: orderTabCounts.cancelled },
-                ].map((pill) => (
-                  <button
-                    key={pill.id}
-                    onClick={() => setOrdersFilter(pill.id)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
-                      ordersFilter === pill.id
-                        ? "bg-emerald-600 text-white font-bold shadow-2xs"
-                        : "text-neutral-600 hover:bg-neutral-100"
-                    }`}
-                  >
-                    <span>{pill.label}</span>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                        ordersFilter === pill.id
-                          ? "bg-white/20 text-white"
-                          : "bg-neutral-200/80 text-neutral-600"
-                      }`}
-                    >
-                      {pill.count}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Search Box */}
-              <div className="relative min-w-[220px] max-w-xs w-full sm:w-auto">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" />
-                <input
-                  type="text"
-                  value={ordersSearch}
-                  onChange={(e) => setOrdersSearch(e.target.value)}
-                  placeholder="Search order #, customer, phone..."
-                  className="w-full pl-8 pr-7 py-1.5 bg-white border border-neutral-200 rounded-xl text-xs text-neutral-800 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                />
-                {ordersSearch && (
-                  <button
-                    onClick={() => setOrdersSearch("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Orders Table */}
-            <div className="bg-white rounded-2xl border border-neutral-200/80 shadow-2xs overflow-hidden">
-              <div className="overflow-x-auto w-full">
-                <table className="w-full min-w-[960px] text-left text-xs">
-                  <thead className="bg-neutral-50 text-neutral-500 border-b border-neutral-200/80 text-[11px] uppercase tracking-wider font-semibold">
-                    <tr>
-                      <th className="p-3.5 font-bold whitespace-nowrap">Order ID</th>
-                      <th className="p-3.5 font-bold whitespace-nowrap">Customer</th>
-                      <th className="p-3.5 font-bold whitespace-nowrap">Items</th>
-                      <th className="p-3.5 font-bold whitespace-nowrap">Amount</th>
-                      <th className="p-3.5 font-bold text-center whitespace-nowrap">Payment</th>
-                      <th className="p-3.5 font-bold text-center whitespace-nowrap">Status</th>
-                      <th className="p-3.5 font-bold text-center whitespace-nowrap">Date</th>
-                      <th className="p-3.5 font-bold text-right whitespace-nowrap">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-100">
-                    {filteredUnifiedOrders.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="p-10 text-center">
-                          <div className="flex flex-col items-center justify-center space-y-2 text-neutral-400">
-                            <ShoppingBag className="h-8 w-8 stroke-1 text-neutral-300" />
-                            <p className="text-sm font-semibold text-neutral-700">No orders found</p>
-                            <p className="text-xs text-neutral-500 max-w-sm">
-                              {ordersFilter !== "all"
-                                ? `There are no orders currently marked as "${ordersFilter}". Switch tab or create an order.`
-                                : "No orders found in the database. Use '+ Create Order' to add one."}
-                            </p>
-                            <button
-                              onClick={() => setShowAddOrderModal(true)}
-                              className="mt-2 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1 cursor-pointer"
-                            >
-                              <Plus className="h-3.5 w-3.5" /> + Create Order Now
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredUnifiedOrders.map((ord) => {
-                        const statusColors: Record<string, string> = {
-                          pending: "bg-amber-50 text-amber-900 border-amber-200",
-                          processing: "bg-sky-50 text-sky-900 border-sky-200",
-                          packed: "bg-purple-50 text-purple-900 border-purple-200",
-                          shipped: "bg-indigo-50 text-indigo-900 border-indigo-200",
-                          completed: "bg-emerald-50 text-emerald-900 border-emerald-200",
-                          delivered: "bg-emerald-50 text-emerald-900 border-emerald-200",
-                          cancelled: "bg-rose-50 text-rose-900 border-rose-200",
-                        };
-                        const currentStatusKey = String(ord.orderStatus || "Pending").toLowerCase();
-                        const statusBadgeClass = statusColors[currentStatusKey] || "bg-neutral-100 text-neutral-800 border-neutral-200";
-
-                        const cleanPhone = (ord.customerPhone || "").replace(/\D/g, "");
-                        const waMsg = encodeURIComponent(
-                          `Namaste ${ord.customerName || "ji"}! 🙏 Prajnaa Market update for Order ${ord.orderNumber}: Status is now ${ord.orderStatus}.`
-                        );
-                        const waLink = cleanPhone ? `https://wa.me/91${cleanPhone.slice(-10)}?text=${waMsg}` : null;
-
-                        return (
-                          <tr
-                            key={ord.orderNumber}
-                            className="hover:bg-neutral-50/70 transition"
-                          >
-                            <td className="p-3.5 font-mono font-bold text-neutral-900 whitespace-nowrap">
-                              <span className="text-emerald-700">{ord.orderNumber}</span>
-                            </td>
-                            <td className="p-3.5">
-                              <div className="font-semibold text-neutral-900">{ord.customerName || "Customer"}</div>
-                              {ord.customerPhone && (
-                                <div className="text-[11px] text-neutral-400 font-mono">{ord.customerPhone}</div>
-                              )}
-                            </td>
-                            <td className="p-3.5 text-neutral-600">
-                              {ord.items && ord.items.length > 0 ? (
-                                <span title={ord.items.map((i: any) => `${i.name} (${i.qty})`).join(", ")}>
-                                  {ord.items[0]?.name}
-                                  {ord.items.length > 1 ? ` +${ord.items.length - 1} more` : ""}
-                                </span>
-                              ) : (
-                                `${ord.itemsCount || 1} items`
-                              )}
-                            </td>
-                            <td className="p-3.5 font-bold text-neutral-900 whitespace-nowrap">
-                              ₹{Number(ord.amount || 0).toLocaleString("en-IN")}
-                            </td>
-                            <td className="p-3.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                              {String(ord.paymentStatus || "").toLowerCase() === "paid" ? (
-                                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1 select-none pointer-events-none">
-                                  <Check className="h-3 w-3" /> Paid
-                                </span>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => handleMarkOrderAsPaid(ord)}
-                                  title="1-Click: Verify & Mark Payment as Paid"
-                                  className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-emerald-100 hover:text-emerald-800 hover:border-emerald-300 transition inline-flex items-center gap-1 cursor-pointer group shadow-2xs"
-                                >
-                                  <span>Pending</span>
-                                  <span className="text-[9px] font-extrabold text-emerald-700 underline ml-0.5">
-                                    ✓ Mark Paid
-                                  </span>
-                                </button>
-                              )}
-                            </td>
-                            <td className="p-3.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                              <span className={`inline-flex flex-row items-center justify-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border whitespace-nowrap select-none pointer-events-none shadow-3xs leading-none ${statusBadgeClass}`}>
-                                <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0"></span>
-                                <span>{ord.orderStatus || "Pending"}</span>
-                              </span>
-                            </td>
-                            <td className="p-3.5 text-neutral-500 whitespace-nowrap text-center">{ord.date}</td>
-                            <td className="p-3.5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center justify-end gap-2">
-                                {/* 1. Tracking ID Button */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedOrderForView(ord);
-                                    setEditTrackingNumber(ord.trackingNumber || "");
-                                    setShowTrackingModal(true);
-                                  }}
-                                  title={ord.trackingNumber ? `Consignment: ${ord.trackingNumber}` : "Add / Edit Tracking ID"}
-                                  className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer ${
-                                    ord.trackingNumber
-                                      ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-                                      : "border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800"
-                                  }`}
-                                >
-                                  <Tag className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                                  <span className="font-mono text-[11px] truncate max-w-[120px]">
-                                    {ord.trackingNumber ? ord.trackingNumber : "Tracking ID"}
-                                  </span>
-                                </button>
-
-                                {/* 2. Shipping Button -> Opens Status Change Page */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedOrderForView(ord);
-                                    setStatusUpdateChoice((ord.orderStatus as any) || "Processing");
-                                    setCustomStatusMessage("");
-                                    setIsEditingStatusTemplate(false);
-                                    setShowStatusModal(true);
-                                  }}
-                                  title="Change Order Status & Shipping Updates"
-                                  className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                                >
-                                  <Truck className="h-3.5 w-3.5 text-emerald-700 shrink-0" />
-                                  <span>Shipping</span>
-                                </button>
-
-                                {/* 3. View Button (Only View button in place of pencil, chat, arrow) */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedOrderForView(ord);
-                                    setActiveNav("order_details");
-                                  }}
-                                  title="View Order Details & Invoice"
-                                  className="px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                                >
-                                  <Eye className="h-3.5 w-3.5 shrink-0" />
-                                  <span>View</span>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <OrdersView
+            orderTabCounts={orderTabCounts}
+            ordersFilter={ordersFilter}
+            setOrdersFilter={setOrdersFilter}
+            ordersSearch={ordersSearch}
+            setOrdersSearch={setOrdersSearch}
+            filteredUnifiedOrders={filteredUnifiedOrders}
+            handleExportOrdersCsv={handleExportOrdersCsv}
+            setShowAddOrderModal={setShowAddOrderModal}
+            handleMarkOrderAsPaid={handleMarkOrderAsPaid}
+            setSelectedOrderForView={setSelectedOrderForView}
+            setEditTrackingNumber={setEditTrackingNumber}
+            setShowTrackingModal={setShowTrackingModal}
+            setStatusUpdateChoice={setStatusUpdateChoice}
+            setCustomStatusMessage={setCustomStatusMessage}
+            setIsEditingStatusTemplate={setIsEditingStatusTemplate}
+            setShowStatusModal={setShowStatusModal}
+            setActiveNav={setActiveNav}
+          />
         )}
 
         {/* SCREEN 4: ORDER DETAILS */}
@@ -10535,337 +10297,12 @@ export default function PrajnaaMasterCrmApp() {
 
         {/* SCREEN 10: ANALYTICS SUITE (Admin only) */}
         {activeNav === "analytics" && userPermissions.allowedTabs.includes("analytics") && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-neutral-900">CRM & WhatsApp Analytics</h2>
-                <p className="text-xs text-neutral-500 mt-0.5">
-                  Deep revenue insights, WhatsApp conversion funnel, product velocity, and SLA metrics.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleExportAnalyticsCsv}
-                  className="px-3.5 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-neutral-50 dark:hover:bg-slate-700 text-neutral-700 dark:text-slate-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  title="Export Business Analytics to CSV / Excel spreadsheet"
-                >
-                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>Export CSV</span>
-                </button>
-              </div>
-            </div>
-
-            {/* 4 Key Performance Metrics */}
-            <div className="grid grid-cols-4 gap-4">
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-neutral-200/80 dark:border-slate-800 shadow-2xs space-y-2">
-                <div className="flex items-center justify-between text-neutral-500 text-xs font-medium">
-                  <span>Gross WhatsApp Revenue</span>
-                  <DollarSign className="h-4 w-4 text-emerald-600" />
-                </div>
-                <h3 className="text-2xl font-extrabold text-neutral-900 dark:text-white">
-                  ₹{unifiedOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0).toLocaleString("en-IN")}
-                </h3>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-0.5">
-                    <TrendingUp className="h-3.5 w-3.5" /> Real-time
-                  </span>
-                  <span className="text-neutral-400">from verified sales</span>
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-neutral-200/80 dark:border-slate-800 shadow-2xs space-y-2">
-                <div className="flex items-center justify-between text-neutral-500 text-xs font-medium">
-                  <span>WhatsApp Chat Conversion</span>
-                  <Award className="h-4 w-4 text-amber-600" />
-                </div>
-                <h3 className="text-2xl font-extrabold text-neutral-900 dark:text-white">
-                  {customers.length > 0 ? `${((unifiedOrders.length / customers.length) * 100).toFixed(1)}%` : "0.0%"}
-                </h3>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-emerald-700 dark:text-emerald-400 font-bold">{unifiedOrders.length} orders</span>
-                  <span className="text-neutral-400">across {customers.length} patrons</span>
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-neutral-200/80 dark:border-slate-800 shadow-2xs space-y-2">
-                <div className="flex items-center justify-between text-neutral-500 text-xs font-medium">
-                  <span>Avg Response Time</span>
-                  <Clock className="h-4 w-4 text-sky-600" />
-                </div>
-                <h3 className="text-2xl font-extrabold text-neutral-900 dark:text-white">&lt; 2 mins</h3>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-emerald-700 dark:text-emerald-400 font-bold">Instant</span>
-                  <span className="text-neutral-400">Smart concierge active</span>
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-neutral-200/80 dark:border-slate-800 shadow-2xs space-y-2">
-                <div className="flex items-center justify-between text-neutral-500 text-xs font-medium">
-                  <span>Avg Order Value (AOV)</span>
-                  <ShoppingBag className="h-4 w-4 text-indigo-600" />
-                </div>
-                <h3 className="text-2xl font-extrabold text-neutral-900 dark:text-white">
-                  ₹{unifiedOrders.length > 0 ? Math.round(unifiedOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0) / unifiedOrders.length).toLocaleString("en-IN") : "0"}
-                </h3>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-emerald-700 dark:text-emerald-400 font-bold">{unifiedOrders.length} orders</span>
-                  <span className="text-neutral-400">Direct settlement</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Monthly Revenue Progression & Funnel */}
-            <div className="grid grid-cols-5 gap-6">
-              <div className={`col-span-3 p-6 rounded-2xl border shadow-2xs space-y-4 ${themeStyles.cardBg}`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-bold text-sm text-neutral-900 dark:text-white">Recent Order Revenue</h3>
-                    <p className="text-xs text-neutral-500">Prajnaa Market direct sales in ₹ INR</p>
-                  </div>
-                  <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-500/15 px-2.5 py-1 rounded-full border border-emerald-500/30">
-                    Live Verified
-                  </span>
-                </div>
-
-                <div className="h-52 flex items-end justify-between gap-2.5 pt-6 px-2 border-b border-neutral-200 dark:border-slate-700 relative">
-                  {(() => {
-                    const now = new Date();
-                    const months: Array<{ month: string; revNum: number; rev: string }> = [];
-                    for (let i = 5; i >= 0; i--) {
-                      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                      const mLabel = d.toLocaleDateString("en-IN", { month: "short" });
-                      months.push({ month: mLabel, revNum: 0, rev: "₹0" });
-                    }
-                    unifiedOrders.forEach((o) => {
-                      const amt = Number(o.amount) || 0;
-                      let d = new Date();
-                      if (o.date && o.date !== "Today") {
-                        const parsed = new Date(o.date);
-                        if (!isNaN(parsed.getTime())) d = parsed;
-                      }
-                      const mLabel = d.toLocaleDateString("en-IN", { month: "short" });
-                      const found = months.find((m) => m.month === mLabel);
-                      if (found) {
-                        found.revNum += amt;
-                        found.rev = `₹${found.revNum.toLocaleString("en-IN")}`;
-                      }
-                    });
-
-                    const maxRev = Math.max(1000, ...months.map((m) => m.revNum));
-
-                    return months.map((m, i) => {
-                      const barHeightPx = Math.max(12, Math.round((m.revNum / maxRev) * 125));
-                      return (
-                        <div key={i} className="flex-1 h-full flex flex-col items-center justify-end group cursor-pointer relative">
-                          <span className="text-[9px] font-bold text-neutral-500 dark:text-slate-400 group-hover:text-emerald-700 dark:group-hover:text-emerald-300 transition mb-1 shrink-0">
-                            {m.rev}
-                          </span>
-                          <div className="w-full h-32 flex items-end justify-center relative px-0.5">
-                            <div className="w-full max-w-[28px] h-full bg-neutral-100 dark:bg-slate-700/60 rounded-t-md absolute bottom-0 transition-colors group-hover:bg-neutral-200/70" />
-                            <div
-                              className="w-full max-w-[28px] rounded-t-md transition-all duration-300 relative z-10 shadow-xs bg-gradient-to-t from-emerald-700 to-emerald-500 hover:from-emerald-600 hover:to-emerald-400"
-                              style={{ height: `${barHeightPx}px` }}
-                            />
-                          </div>
-                          <span className="text-[10px] font-medium text-neutral-500 dark:text-slate-400 mt-2 shrink-0">
-                            {m.month}
-                          </span>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              </div>
-
-              <div className="col-span-2 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-neutral-200/80 dark:border-slate-800 shadow-2xs space-y-4">
-                <div>
-                  <h3 className="font-bold text-sm text-neutral-900 dark:text-white">WhatsApp Sales Funnel</h3>
-                  <p className="text-xs text-neutral-500">From conversation to verified order fulfillment</p>
-                </div>
-
-                <div className="space-y-3 pt-1">
-                  <div>
-                    <div className="flex justify-between text-xs font-semibold mb-1">
-                      <span className="text-neutral-700 dark:text-slate-300">1. Customers in CRM</span>
-                      <span className="font-mono text-neutral-900 dark:text-white">{customers.length}</span>
-                    </div>
-                    <div className="h-2 w-full bg-neutral-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-neutral-400 rounded-full w-full" />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between text-xs font-semibold mb-1">
-                      <span className="text-neutral-700 dark:text-slate-300">2. Active Inquiries / Orders</span>
-                      <span className="font-mono text-neutral-900 dark:text-white">{unifiedOrders.length}</span>
-                    </div>
-                    <div className="h-2 w-full bg-neutral-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-sky-500 rounded-full"
-                        style={{ width: `${customers.length > 0 ? Math.min(100, Math.round((unifiedOrders.length / customers.length) * 100)) : 0}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between text-xs font-semibold mb-1">
-                      <span className="text-neutral-700 dark:text-slate-300">3. Paid Orders</span>
-                      <span className="font-mono text-amber-500">
-                        {unifiedOrders.filter((o) => String(o.paymentStatus).toLowerCase() === "paid").length}
-                      </span>
-                    </div>
-                    <div className="h-2 w-full bg-neutral-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-amber-500 rounded-full"
-                        style={{
-                          width: `${unifiedOrders.length > 0 ? Math.round((unifiedOrders.filter((o) => String(o.paymentStatus).toLowerCase() === "paid").length / unifiedOrders.length) * 100) : 0}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between text-xs font-semibold mb-1">
-                      <span className="text-neutral-700 dark:text-slate-300">4. Dispatched / Delivered</span>
-                      <span className="font-mono text-emerald-600 font-bold">
-                        {unifiedOrders.filter((o) => ["completed", "delivered", "shipped"].includes(String(o.orderStatus).toLowerCase())).length}
-                      </span>
-                    </div>
-                    <div className="h-2 w-full bg-neutral-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-emerald-600 rounded-full"
-                        style={{
-                          width: `${unifiedOrders.length > 0 ? Math.round((unifiedOrders.filter((o) => ["completed", "delivered", "shipped"].includes(String(o.orderStatus).toLowerCase())).length / unifiedOrders.length) * 100) : 0}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Row 3: Top Selling Produce & Fulfillment Status */}
-            <div className="grid grid-cols-5 gap-6">
-              {/* Left Column (3 cols): Top Selling Himalayan Produce */}
-              <div className={`col-span-3 p-6 rounded-2xl border shadow-2xs space-y-4 ${themeStyles.cardBg}`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-bold text-sm text-neutral-900 dark:text-white">Top Selling Himalayan Harvests</h3>
-                    <p className="text-xs text-neutral-500">Revenue share from real orders</p>
-                  </div>
-                  <span className="text-xs font-mono font-bold text-emerald-800 dark:text-emerald-300">
-                    Total: ₹{unifiedOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0).toLocaleString("en-IN")}
-                  </span>
-                </div>
-
-                <div className="space-y-3 pt-1">
-                  {(() => {
-                    const productMap = new Map<string, { name: string; units: number; rev: number }>();
-                    unifiedOrders.forEach((o) => {
-                      if (Array.isArray(o.items)) {
-                        o.items.forEach((it: any) => {
-                          const n = it.name || it.productName || "Produce Item";
-                          const cur = productMap.get(n) || { name: n, units: 0, rev: 0 };
-                          cur.units += Number(it.qty || it.quantity || 1);
-                          cur.rev += Number(it.total || (it.price * (it.qty || 1)) || 0);
-                          productMap.set(n, cur);
-                        });
-                      }
-                    });
-
-                    const list = Array.from(productMap.values()).sort((a, b) => b.rev - a.rev);
-                    const totalProductRev = list.reduce((acc, p) => acc + p.rev, 0);
-
-                    if (list.length === 0) {
-                      return (
-                        <div className="py-8 text-center text-xs text-neutral-500">
-                          <Package className="h-8 w-8 text-neutral-300 mx-auto mb-2" />
-                          <p className="font-semibold text-neutral-700 dark:text-slate-300">No product sales recorded yet</p>
-                          <p className="text-neutral-400 mt-1">When customer orders are processed, top selling items will rank here in real time.</p>
-                        </div>
-                      );
-                    }
-
-                    return list.slice(0, 5).map((p, idx) => {
-                      const share = totalProductRev > 0 ? Math.round((p.rev / totalProductRev) * 100) : 0;
-                      return (
-                        <div key={idx} className="space-y-1 text-xs">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-neutral-900 dark:text-white">{p.name}</span>
-                              <span className="text-[10px] text-neutral-400">({p.units} units)</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <strong className="font-bold text-neutral-900 dark:text-white font-mono">₹{p.rev.toLocaleString("en-IN")}</strong>
-                              <span className="text-[11px] text-neutral-500 font-mono w-10 text-right">{share}%</span>
-                            </div>
-                          </div>
-                          <div className="h-2 w-full bg-neutral-100 dark:bg-slate-700/60 rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-600 rounded-full transition-all duration-500" style={{ width: `${share}%` }} />
-                          </div>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              </div>
-
-              {/* Right Column (2 cols): Fulfillment Status */}
-              <div className={`col-span-2 p-6 rounded-2xl border shadow-2xs space-y-4 ${themeStyles.cardBg}`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-bold text-sm text-neutral-900 dark:text-white">Fulfillment Status</h3>
-                    <p className="text-xs text-neutral-500">Dispatch & fulfillment operational breakdown</p>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                    Active
-                  </span>
-                </div>
-
-                <div className="space-y-3 pt-1 text-xs">
-                  <div className="p-3 rounded-xl bg-neutral-50 dark:bg-slate-800/60 border border-neutral-100 dark:border-slate-800 flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-neutral-900 dark:text-white">Active Orders</p>
-                      <span className="text-[10px] text-neutral-500">Orders in system</span>
-                    </div>
-                    <span className="font-bold text-sm text-emerald-700 dark:text-emerald-400 font-mono">
-                      {unifiedOrders.length}
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-neutral-50 dark:bg-slate-800/60 border border-neutral-100 dark:border-slate-800 flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-neutral-900 dark:text-white">Dispatched Shipments</p>
-                      <span className="text-[10px] text-neutral-500">Parcels in transit</span>
-                    </div>
-                    <span className="font-bold text-sm text-indigo-700 dark:text-indigo-400 font-mono">
-                      {unifiedOrders.filter((o) => ["shipped", "in transit"].includes(String(o.orderStatus).toLowerCase())).length}
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-neutral-50 dark:bg-slate-800/60 border border-neutral-100 dark:border-slate-800 flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-neutral-900 dark:text-white">Delivered Orders</p>
-                      <span className="text-[10px] text-neutral-500">Successfully delivered to patrons</span>
-                    </div>
-                    <span className="font-bold text-sm text-amber-700 dark:text-amber-400 font-mono">
-                      {unifiedOrders.filter((o) => ["completed", "delivered"].includes(String(o.orderStatus).toLowerCase())).length}
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-neutral-50 dark:bg-slate-800/60 border border-neutral-100 dark:border-slate-800 flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-neutral-900 dark:text-white">Return & Replacement Rate</p>
-                      <span className="text-[10px] text-neutral-500">Shock-proof eco packaging</span>
-                    </div>
-                    <span className="font-bold text-sm text-emerald-700 dark:text-emerald-400 font-mono">0%</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <AnalyticsView
+            unifiedOrders={unifiedOrders}
+            customers={customers}
+            handleExportAnalyticsCsv={handleExportAnalyticsCsv}
+            themeStyles={themeStyles}
+          />
         )}
 
         {/* SCREEN 11: TEAM & AGENTS (Admin only) */}
@@ -11132,184 +10569,10 @@ export default function PrajnaaMasterCrmApp() {
 
         {/* SCREEN 12: SETTINGS (Admin only) */}
         {activeNav === "settings" && userPermissions.allowedTabs.includes("settings") && (
-          <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold text-neutral-900 dark:text-white">CRM & WhatsApp Settings</h2>
-              <p className="text-xs text-neutral-500 mt-0.5">
-                Manage official WhatsApp Business API configuration, Meta webhooks, payment credentials, and shipping dispatch hubs.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 max-w-4xl">
-              {/* Card 1: Official WhatsApp Business Platform */}
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-neutral-200 dark:border-slate-800 shadow-2xs space-y-4 text-neutral-900 dark:text-white">
-                <div className="flex items-center justify-between border-b border-neutral-100 dark:border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">📱</span>
-                    <div>
-                      <h3 className="font-bold text-sm">WhatsApp Business Platform</h3>
-                      <p className="text-[11px] text-neutral-500">Official Cloud API & Webhook Listener</p>
-                    </div>
-                  </div>
-                  <span className="px-2.5 py-1 bg-amber-50 text-amber-800 text-[10px] font-bold rounded-full border border-amber-300 flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                    Meta Status: Pending Verification
-                  </span>
-                </div>
-
-                <div className="space-y-3 text-xs">
-                  <div>
-                    <label className="text-[11px] font-bold text-neutral-700 dark:text-slate-300">Official Business Number</label>
-                    <input
-                      type="text"
-                      disabled
-                      value="+91 80912 65690"
-                      className="w-full mt-1 p-2 rounded-xl border border-neutral-200 dark:border-slate-800 text-xs font-mono bg-neutral-50 dark:bg-slate-800 text-neutral-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-bold text-neutral-700 dark:text-slate-300">Webhook Callback URL</label>
-                    <div className="flex gap-2 mt-1">
-                      <input
-                        type="text"
-                        disabled
-                        value="https://crm.prajnaa.in/api/webhooks/whatsapp"
-                        className="flex-1 p-2 rounded-xl border border-neutral-200 dark:border-slate-800 text-xs font-mono bg-neutral-50 dark:bg-slate-800 text-neutral-700 dark:text-slate-300 truncate"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText("https://crm.prajnaa.in/api/webhooks/whatsapp");
-                          toast.success("Webhook URL copied to clipboard!");
-                        }}
-                        className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 dark:bg-slate-800 text-neutral-700 dark:text-slate-200 font-semibold rounded-xl text-xs transition cursor-pointer flex items-center gap-1 shrink-0"
-                      >
-                        <Copy className="h-3 w-3" /> Copy
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-bold text-neutral-700 dark:text-slate-300">Webhook Verify Token</label>
-                    <input
-                      type="text"
-                      disabled
-                      value="prajnaa_whatsapp_verify_token"
-                      className="w-full mt-1 p-2 rounded-xl border border-neutral-200 dark:border-slate-800 text-xs font-mono bg-neutral-50 dark:bg-slate-800 text-neutral-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div className="pt-2 border-t border-neutral-100 dark:border-slate-800">
-                    <button
-                      type="button"
-                      disabled={isTestingWebhook}
-                      onClick={async () => {
-                        setIsTestingWebhook(true);
-                        try {
-                          const res = await fetch("/api/webhooks/whatsapp", {
-                            method: "POST",
-                            headers: {
-                              "Content-Type": "application/json",
-                              "x-crm-source": "internal-ping",
-                              "Accept": "application/json",
-                            },
-                            body: JSON.stringify({
-                              ping: true,
-                              timestamp: Math.floor(Date.now() / 1000).toString(),
-                            }),
-                          });
-                          if (res.ok) {
-                            toast.success("Webhook endpoint verified! HTTP 200 OK — Ready for inbound WhatsApp events.");
-                          } else {
-                            toast.success("Webhook endpoint connected! Ready for WhatsApp events.");
-                          }
-                        } catch (err) {
-                          toast.error("Webhook endpoint ping failed. Check server network.");
-                        } finally {
-                          setIsTestingWebhook(false);
-                        }
-                      }}
-                      className="w-full py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs disabled:opacity-50"
-                    >
-                      {isTestingWebhook ? (
-                        <>
-                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                          <span>Processing Webhook...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>⚡</span>
-                          <span>Test Inbound Customer Webhook</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 2: Shipping & Payment Gateways */}
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-neutral-200 dark:border-slate-800 shadow-2xs space-y-4 text-neutral-900 dark:text-white">
-                <div className="flex items-center justify-between border-b border-neutral-100 dark:border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">🇮🇳</span>
-                    <div>
-                      <h3 className="font-bold text-sm">Fulfillment &amp; UPI Gateway</h3>
-                      <p className="text-[11px] text-neutral-500">Shipping Hubs &amp; QR Payment</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3 text-xs">
-                  <div>
-                    <label className="text-[11px] font-bold text-neutral-700 dark:text-slate-300">Prajnaa Market Official UPI ID</label>
-                    <input
-                      type="text"
-                      disabled
-                      value="prajnaa@upi"
-                      className="w-full mt-1 p-2 rounded-xl border border-neutral-200 dark:border-slate-800 text-xs font-mono bg-neutral-50 dark:bg-slate-800 text-neutral-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-bold text-neutral-700 dark:text-slate-300">Primary Dispatch Sorting Hub</label>
-                    <input
-                      type="text"
-                      disabled
-                      value="Dehradun MDG, Uttarakhand (PIN: 248001)"
-                      className="w-full mt-1 p-2 rounded-xl border border-neutral-200 dark:border-slate-800 text-xs font-mono bg-neutral-50 dark:bg-slate-800 text-neutral-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-bold text-neutral-700 dark:text-slate-300">Official Shipping Tracking Portal</label>
-                    <input
-                      type="text"
-                      disabled
-                      value="https://www.indiapost.gov.in"
-                      className="w-full mt-1 p-2 rounded-xl border border-neutral-200 dark:border-slate-800 text-xs font-mono bg-neutral-50 dark:bg-slate-800 text-neutral-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div className="pt-2 border-t border-neutral-100 dark:border-slate-800 flex items-center justify-between">
-                    <span className="text-xs font-medium text-neutral-500">Active Theme</span>
-                    <span className="text-xs font-bold capitalize text-neutral-900 dark:text-white">{currentTheme} Mode</span>
-                  </div>
-
-                  <div className="pt-2 border-t border-neutral-100 dark:border-slate-800 flex items-center justify-between">
-                    <span className="text-xs font-medium text-neutral-500">Store Admin</span>
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      className="px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 font-bold text-xs hover:bg-rose-100 cursor-pointer"
-                    >
-                      Sign Out of Session
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <SettingsView
+            currentTheme={currentTheme}
+            handleLogout={handleLogout}
+          />
         )}
 
         {/* ========================================================= */}
@@ -13260,38 +12523,48 @@ export default function PrajnaaMasterCrmApp() {
       {showInvoiceModal && selectedOrderForView && (
         <div
           id="prajnaa-tax-invoice-modal-overlay"
-          className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto"
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-1 sm:p-4 overflow-y-auto"
         >
           <div
             id="prajnaa-tax-invoice-modal-card"
-            className="bg-neutral-100 dark:bg-slate-900 rounded-3xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl border border-neutral-300 dark:border-slate-800 overflow-hidden my-auto"
+            className="bg-neutral-100 dark:bg-slate-900 rounded-2xl sm:rounded-3xl w-full max-w-5xl max-h-[96vh] sm:max-h-[94vh] flex flex-col shadow-2xl border border-neutral-300 dark:border-slate-800 overflow-hidden my-auto"
           >
             {/* Top Modal Controls Bar (Hidden during Print) */}
-            <div className="px-5 py-3.5 bg-white dark:bg-slate-800 border-b border-neutral-200 dark:border-slate-700 flex items-center justify-between gap-3 shrink-0 print:hidden">
-              <div className="flex items-center gap-2.5">
-                <div className="h-9 w-9 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold">
-                  <Printer className="h-4 w-4" />
+            <div className="px-3 sm:px-5 py-2.5 sm:py-3.5 bg-white dark:bg-slate-800 border-b border-neutral-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shrink-0 print:hidden">
+              <div className="flex items-center justify-between w-full sm:w-auto gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold shrink-0">
+                    <Printer className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-xs sm:text-sm text-neutral-900 dark:text-white flex items-center gap-1.5 flex-wrap">
+                      <span>Tax Invoice</span>
+                      <span className="font-mono text-[10px] sm:text-xs px-1.5 py-0.5 rounded-md bg-neutral-100 dark:bg-slate-700 text-neutral-600 dark:text-slate-300 truncate max-w-[140px]">
+                        {selectedOrderForView.orderNumber}
+                      </span>
+                    </h3>
+                    <p className="text-[10px] sm:text-[11px] text-neutral-500 dark:text-slate-400 truncate">
+                      Complies with Rule 46 CGST &amp; Shipping
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-bold text-sm text-neutral-900 dark:text-white flex items-center gap-2">
-                    <span>Tax Invoice & Dispatch Slip</span>
-                    <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-slate-700 text-neutral-600 dark:text-slate-300">
-                      {selectedOrderForView.orderNumber}
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-neutral-500 dark:text-slate-400">
-                    Complies with Rule 46 of CGST Rules, 2017 &amp; Shipping fulfillment
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowInvoiceModal(false)}
+                  className="sm:hidden p-1.5 rounded-lg hover:bg-neutral-100 text-neutral-500"
+                  title="Close Invoice Preview"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto justify-end">
                 {/* 1-Click Tax Regime Switcher */}
-                <div className="flex items-center gap-1 bg-neutral-100 dark:bg-slate-800 p-1 rounded-xl border border-neutral-300 dark:border-slate-700">
+                <div className="flex items-center gap-0.5 sm:gap-1 bg-neutral-100 dark:bg-slate-800 p-0.5 sm:p-1 rounded-xl border border-neutral-300 dark:border-slate-700">
                   <button
                     type="button"
                     onClick={() => setInvoiceTaxMode("inter")}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
                       invoiceTaxMode === "inter"
                         ? "bg-blue-600 text-white shadow-xs"
                         : "text-neutral-600 dark:text-neutral-300 hover:text-neutral-900"
@@ -13302,38 +12575,38 @@ export default function PrajnaaMasterCrmApp() {
                   <button
                     type="button"
                     onClick={() => setInvoiceTaxMode("intra")}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
                       invoiceTaxMode === "intra"
                         ? "bg-emerald-700 text-white shadow-xs"
                         : "text-neutral-600 dark:text-neutral-300 hover:text-neutral-900"
                     }`}
                   >
-                    <span>🏔️ Intra-State (Himachal CGST+SGST)</span>
+                    <span>🏔️ Intra-State (HP CGST+SGST)</span>
                   </button>
                 </div>
 
                 <button
                   type="button"
                   onClick={handleOpenInvoiceNewTab}
-                  className="px-3.5 py-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-neutral-800 dark:text-neutral-200 font-semibold text-xs border border-neutral-300 dark:border-slate-600 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  title="Open invoice in new standalone window for printing or saving"
+                  className="hidden md:flex px-2.5 sm:px-3.5 py-1 sm:py-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-slate-700 text-neutral-800 text-[10px] sm:text-xs font-semibold border border-neutral-300 transition items-center gap-1 cursor-pointer shadow-2xs"
+                  title="Open invoice in new standalone window"
                 >
-                  <ExternalLink className="h-3.5 w-3.5 text-neutral-600 dark:text-neutral-300" />
-                  <span>Open Standalone</span>
+                  <ExternalLink className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-neutral-600" />
+                  <span>Standalone</span>
                 </button>
                 <button
                   type="button"
                   onClick={handlePrintInvoice}
-                  className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
+                  className="px-2.5 sm:px-4 py-1 sm:py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[10px] sm:text-xs shadow-md transition flex items-center gap-1 cursor-pointer"
                   title="Direct print dialog (or Save as PDF)"
                 >
-                  <Printer className="h-3.5 w-3.5" />
-                  <span>Print Invoice / Save as PDF</span>
+                  <Printer className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                  <span>Print / PDF</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowInvoiceModal(false)}
-                  className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-slate-700 text-neutral-400 hover:text-neutral-700 dark:hover:text-slate-200 transition cursor-pointer"
+                  className="hidden sm:flex p-1.5 sm:p-2 rounded-xl hover:bg-neutral-100 text-neutral-400 hover:text-neutral-700 transition cursor-pointer"
                   title="Close Invoice Preview"
                 >
                   <X className="h-4 w-4" />
@@ -13344,12 +12617,12 @@ export default function PrajnaaMasterCrmApp() {
             {/* Scrollable Document Preview Area */}
             <div
               id="prajnaa-tax-invoice-preview-wrapper"
-              className="flex-1 overflow-y-auto p-4 sm:p-8 bg-neutral-200/60 dark:bg-slate-950 flex justify-center items-start print:p-0 print:m-0 print:bg-white print:overflow-visible"
+              className="flex-1 overflow-y-auto p-2 sm:p-8 bg-neutral-200/60 dark:bg-slate-950 flex justify-center items-start print:p-0 print:m-0 print:bg-white print:overflow-visible"
             >
-              {/* THE OFFICIAL TAX INVOICE A4 SHEET (MATCHING REFERENCE FORMAT) */}
+              {/* THE OFFICIAL TAX INVOICE A4 SHEET */}
               <div
                 id="prajnaa-tax-invoice"
-                className="bg-white text-neutral-900 p-6 sm:p-8 w-full max-w-[850px] h-fit min-h-fit shadow-xl rounded-xl print:rounded-none print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full space-y-3 text-xs font-sans border border-neutral-300 my-4 print:my-0"
+                className="bg-white text-neutral-900 p-3 sm:p-8 w-full max-w-[850px] h-fit min-h-fit shadow-xl rounded-xl print:rounded-none print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full space-y-3 text-xs font-sans border border-neutral-300 my-2 sm:my-4 print:my-0"
               >
                 {/* 1. Header: Left Company Brand & Right TAX INVOICE Heading */}
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-2 border-b border-neutral-300">

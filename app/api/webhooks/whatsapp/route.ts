@@ -17,6 +17,7 @@ import {
   getStoredMessages,
 } from "../../../../backend/lib/crm-store.server.ts";
 import { safeCompare } from "../../../../backend/lib/server-auth.ts";
+import { enforceRateLimit, RATE_LIMIT_TIERS } from "../../../../backend/lib/distributed-rate-limiter.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -90,10 +91,14 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
+    const rateLimitResponse = await enforceRateLimit(req, RATE_LIMIT_TIERS.webhook);
+    if (rateLimitResponse) return rateLimitResponse;
+
     const rawBody = await req.text();
     const signature = req.headers.get("x-hub-signature-256");
 
-    const isProduction = process.env.NODE_ENV === "production" && !process.env.TEST_MODE;
+    const isTestRunner = process.env.NODE_ENV === "test" || process.env.TEST_MODE === "true" || process.env.npm_lifecycle_event === "test";
+    const isProduction = process.env.NODE_ENV === "production" && !isTestRunner;
     const internalSource = req.headers.get("x-crm-source") === "internal-test";
     const adminKey = req.headers.get("x-admin-key") || req.headers.get("x-admin-secret");
     const configuredSecret = (process.env.ADMIN_API_SECRET || process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "").trim();

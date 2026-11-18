@@ -45,5 +45,8 @@ scratch/
 .neon
 public/uploads/
 data/
+test-results/
+playwright-report.json
+playwright-report/
 
 

@@ -53,15 +53,24 @@ export async function GET(req: NextRequest) {
 
     const categories = Array.from(new Set(catalogue.map((p) => p.category).filter(Boolean)));
 
-    return NextResponse.json({
-      success: true,
-      count: filtered.length,
-      totalCount: catalogue.length,
-      categories: ["All", ...categories],
-      products: filtered,
-      generatedAt: new Date().toISOString(),
-      storePhone: process.env.ADMIN_WHATSAPP_NUMBER || "+91 80912 65690",
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        count: filtered.length,
+        totalCount: catalogue.length,
+        categories: ["All", ...categories],
+        products: filtered,
+        generatedAt: new Date().toISOString(),
+        storePhone: process.env.ADMIN_WHATSAPP_NUMBER || "+91 80912 65690",
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+          "CDN-Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+          "Vercel-CDN-Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+        },
+      }
+    );
   } catch (error: any) {
     console.error("[API Catalogue Error]:", error);
     return NextResponse.json(

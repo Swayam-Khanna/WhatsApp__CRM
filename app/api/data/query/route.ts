@@ -3,6 +3,7 @@ import { db } from "../../../../backend/db.ts";
 import { sql } from "drizzle-orm";
 import * as schema from "../../../../backend/schema/index.ts";
 import { requireAdmin, requireUser, getCurrentUser } from "../../../../backend/lib/server-auth.ts";
+import { getRateLimitResult, attachRateLimitHeaders, RATE_LIMIT_TIERS } from "../../../../backend/lib/distributed-rate-limiter.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +72,7 @@ function normalizeRow(row: any): any {
   return out;
 }
 
-export async function POST(req: NextRequest) {
+async function handleQueryInternal(req: NextRequest): Promise<Response> {
   try {
     const body = await req.json();
     const {
@@ -492,4 +493,12 @@ export async function POST(req: NextRequest) {
     console.error("[Data Query API] Error executing Neon query:", err);
     return NextResponse.json({ data: null, error: err.message }, { status: 500 });
   }
+}
+
+export async function POST(req: NextRequest): Promise<Response> {
+  const { blockedResponse, result: rateLimitResult } = await getRateLimitResult(req, RATE_LIMIT_TIERS.public_query);
+  if (blockedResponse) return blockedResponse;
+
+  const res = await handleQueryInternal(req);
+  return attachRateLimitHeaders(res, rateLimitResult);
 }

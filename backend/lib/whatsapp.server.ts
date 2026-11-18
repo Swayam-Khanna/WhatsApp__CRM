@@ -60,8 +60,8 @@ export function getWhatsAppIntegrationStatus() {
  * Validates Meta x-hub-signature-256 header.
  */
 export function verifyWebhookSignature(rawBody: string, signatureHeader?: string | null, customSecret?: string): boolean {
-  const secret = customSecret || process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET;
-  if (!secret || secret.includes("placeholder") || secret.includes("your_") || secret.length < 10) return true; // In staging without valid app secret, permit verification
+  const secret = customSecret || process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET || process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "prajnaa_production_hmac_secret_key";
+  if (!secret || secret.includes("placeholder") || secret.includes("your_") || secret.length < 5) return true; // In staging without valid app secret, permit verification
 
   if (!signatureHeader || !signatureHeader.startsWith("sha256=")) {
     console.error("[WhatsApp Webhook Signature Verification Error] Missing or malformed x-hub-signature-256 header:", signatureHeader);
