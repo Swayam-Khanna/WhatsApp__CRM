@@ -856,6 +856,25 @@ const ORDER_STATUS_OPTIONS = [
   { key: "Cancelled", label: "Cancelled", icon: "❌", desc: "Order cancelled" },
 ] as const;
 
+// Helper: Get numerical rank of order status to prevent reverse lifecycle transitions
+const getOrderStatusRank = (status?: string): number => {
+  const norm = (status || "").toLowerCase().replace(/[\s_-]+/g, "");
+  switch (norm) {
+    case "pending": return 0;
+    case "processing": return 1;
+    case "packed": return 2;
+    case "shipped": return 3;
+    case "intransit":
+    case "transit": return 4;
+    case "outfordelivery": return 5;
+    case "deliveringtomorrow": return 6;
+    case "delivered":
+    case "completed": return 7;
+    case "cancelled": return 99;
+    default: return 0;
+  }
+};
+
 // Initial Products Data (All 14 Authoritative Himalayan Store Items with Real Photographs)
 const INITIAL_PRODUCTS: ProductItem[] = [
   { id: "himalayan-dried-apricots", name: "Himalayan Dried Apricots (Red)", price: 999, stock: "Pre-Order", image: "/assets/cat-dryfruits.jpg", category: "Dry Fruits", unitsLeft: 0, origin: "Sham Valley Orchard, Ladakh", sku: "PM-APR-500", weight: "500 gm" },
@@ -1305,6 +1324,10 @@ export default function PrajnaaMasterCrmApp() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [statusUpdateChoice, setStatusUpdateChoice] = useState<Order["orderStatus"]>("Processing");
   const [transitLocationInput, setTransitLocationInput] = useState<string>("Delhi Sorting Hub");
+  const [isEditingStatusTemplate, setIsEditingStatusTemplate] = useState<boolean>(false);
+  const [customStatusMessage, setCustomStatusMessage] = useState<string>("");
+  const [showTrackingModal, setShowTrackingModal] = useState<boolean>(false);
+  const [editTrackingNumber, setEditTrackingNumber] = useState<string>("");
 
   // State: Products & Stock Inventory Management
   const [productsList, setProductsList] = useState<ProductItem[]>(() => {
@@ -8763,54 +8786,53 @@ export default function PrajnaaMasterCrmApp() {
                             </td>
                             <td className="p-3.5 text-neutral-500 whitespace-nowrap">{ord.date}</td>
                             <td className="p-3.5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center justify-end gap-1.5">
-                                {String(ord.paymentStatus || "").toLowerCase() !== "paid" && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleMarkOrderAsPaid(ord)}
-                                    title="1-Click: Mark Payment as Paid & Send WhatsApp Receipt"
-                                    className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition cursor-pointer"
-                                  >
-                                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                                  </button>
-                                )}
+                              <div className="flex items-center justify-end gap-2">
+                                {/* 1. Tracking ID Button */}
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    const cleanPhone = (ord.customerPhone || "").replace(/\D/g, "");
-                                    const cust = customers.find(
-                                      (c) => (c.phone || "").replace(/\D/g, "") === cleanPhone || c.name === ord.customerName
-                                    );
-                                    if (cust) {
-                                      setSelectedCustomerId(cust.id);
-                                    }
-                                    setActiveNav("inbox");
+                                    setSelectedOrderForView(ord);
+                                    setEditTrackingNumber(ord.trackingNumber || "");
+                                    setShowTrackingModal(true);
                                   }}
-                                  title="Open Customer Chat in CRM"
-                                  className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition cursor-pointer"
+                                  title={ord.trackingNumber ? `Consignment: ${ord.trackingNumber}` : "Add / Edit Tracking ID"}
+                                  className="px-2.5 py-1.5 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-800 text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                                 >
-                                  <MessageSquare className="h-3.5 w-3.5" />
+                                  <Tag className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                  <span className="font-mono text-[11px] truncate max-w-[100px]">
+                                    {ord.trackingNumber ? ord.trackingNumber : "Tracking ID"}
+                                  </span>
                                 </button>
+
+                                {/* 2. Shipping Button -> Opens Status Change Page */}
                                 <button
+                                  type="button"
                                   onClick={() => {
                                     setSelectedOrderForView(ord);
                                     setStatusUpdateChoice((ord.orderStatus as any) || "Processing");
+                                    setCustomStatusMessage("");
+                                    setIsEditingStatusTemplate(false);
                                     setShowStatusModal(true);
                                   }}
-                                  title="Change Status"
-                                  className="p-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-700 transition cursor-pointer"
+                                  title="Change Order Status & Shipping Updates"
+                                  className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                                 >
-                                  <Edit3 className="h-3.5 w-3.5" />
+                                  <Truck className="h-3.5 w-3.5 text-emerald-700 shrink-0" />
+                                  <span>Shipping</span>
                                 </button>
+
+                                {/* 3. View Button (Only View button in place of pencil, chat, arrow) */}
                                 <button
+                                  type="button"
                                   onClick={() => {
                                     setSelectedOrderForView(ord);
                                     setActiveNav("order_details");
                                   }}
-                                  title="View Order Details"
-                                  className="p-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-700 transition cursor-pointer"
+                                  title="View Order Details & Invoice"
+                                  className="px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                                 >
-                                  <ArrowRight className="h-3.5 w-3.5" />
+                                  <Eye className="h-3.5 w-3.5 shrink-0" />
+                                  <span>View</span>
                                 </button>
                               </div>
                             </td>
@@ -12224,27 +12246,61 @@ export default function PrajnaaMasterCrmApp() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {ORDER_STATUS_OPTIONS.map((opt) => (
-                <button
-                  key={opt.key}
-                  onClick={() => setStatusUpdateChoice(opt.key as any)}
-                  className={`p-2.5 rounded-xl border text-xs font-bold transition cursor-pointer text-left flex flex-col justify-between gap-1 ${
-                    statusUpdateChoice === opt.key
-                      ? "border-emerald-600 bg-emerald-50 text-emerald-900 ring-1 ring-emerald-600 shadow-2xs"
-                      : "border-neutral-200 text-neutral-700 hover:bg-neutral-50"
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span>{opt.icon}</span>
-                    <span className="font-bold text-xs">{opt.label}</span>
-                  </div>
-                  <span className="text-[10px] text-neutral-500 font-normal truncate block">
-                    {opt.desc}
-                  </span>
-                </button>
-              ))}
-            </div>
+            {/* Status Options Grid (With Forward-Only Lifecycle Check to Prevent Reverse Status Reversion) */}
+            {(() => {
+              const currentRank = getOrderStatusRank(selectedOrderForView?.orderStatus);
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {ORDER_STATUS_OPTIONS.map((opt) => {
+                    const optRank = getOrderStatusRank(opt.key);
+                    // Prevent reverse cycle: cannot go back to past stages, unless Cancelled
+                    const isPast = opt.key !== "Cancelled" && optRank < currentRank;
+                    const isCurrent = (selectedOrderForView?.orderStatus || "").toLowerCase() === opt.key.toLowerCase();
+
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        disabled={isPast}
+                        onClick={() => {
+                          if (isPast) return;
+                          setStatusUpdateChoice(opt.key as any);
+                          setCustomStatusMessage("");
+                        }}
+                        title={isPast ? "Status lifecycle cannot be moved backwards" : opt.desc}
+                        className={`p-2.5 rounded-xl border text-xs font-bold transition text-left flex flex-col justify-between gap-1 ${
+                          isPast
+                            ? "opacity-35 bg-neutral-100 text-neutral-400 border-neutral-200 cursor-not-allowed line-through"
+                            : statusUpdateChoice === opt.key
+                            ? "border-emerald-600 bg-emerald-50 text-emerald-900 ring-1 ring-emerald-600 shadow-2xs cursor-pointer"
+                            : "border-neutral-200 text-neutral-700 hover:bg-neutral-50 cursor-pointer"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span>{opt.icon}</span>
+                            <span className="font-bold text-xs">{opt.label}</span>
+                          </div>
+                          {isPast && (
+                            <span className="text-[9px] font-normal uppercase bg-neutral-200 text-neutral-600 px-1 py-0.2 rounded font-mono">
+                              Passed
+                            </span>
+                          )}
+                          {isCurrent && !isPast && (
+                            <span className="text-[9px] font-semibold bg-emerald-100 text-emerald-800 px-1 py-0.2 rounded">
+                              Current
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-neutral-500 font-normal truncate block">
+                          {isPast ? "Cannot revert backwards" : opt.desc}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             {statusUpdateChoice === "In Transit" && (
               <div className="p-3 bg-neutral-50 rounded-2xl border border-neutral-200 space-y-2">
@@ -12273,24 +12329,64 @@ export default function PrajnaaMasterCrmApp() {
               </div>
             )}
 
-            {/* Live WhatsApp Notification Message Preview */}
-            <div className="p-3 bg-emerald-50/70 rounded-2xl border border-emerald-200 space-y-1.5">
+            {/* Live WhatsApp Notification Message Preview & Edit Template Option */}
+            <div className="p-3 bg-emerald-50/70 rounded-2xl border border-emerald-200 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">
                   <span>💬</span> Live WhatsApp Update Preview
                 </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
-                  To: {selectedOrderForView.customerPhone || "Customer"}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                    To: {selectedOrderForView.customerPhone || "Customer"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isEditingStatusTemplate && !customStatusMessage) {
+                        setCustomStatusMessage(
+                          getOrderStatusNotificationText(statusUpdateChoice, selectedOrderForView, transitLocationInput)
+                        );
+                      }
+                      setIsEditingStatusTemplate(!isEditingStatusTemplate);
+                    }}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-lg border border-emerald-300 bg-white hover:bg-emerald-100 text-emerald-800 transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>✏️</span> {isEditingStatusTemplate ? "Standard Template" : "Edit Template"}
+                  </button>
+                </div>
               </div>
-              <div className="text-[11px] text-neutral-800 whitespace-pre-wrap font-sans bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs leading-relaxed max-h-36 overflow-y-auto">
-                {getOrderStatusNotificationText(statusUpdateChoice, selectedOrderForView, transitLocationInput)}
-              </div>
+
+              {isEditingStatusTemplate ? (
+                <div className="space-y-1">
+                  <textarea
+                    rows={5}
+                    value={
+                      customStatusMessage !== ""
+                        ? customStatusMessage
+                        : getOrderStatusNotificationText(statusUpdateChoice, selectedOrderForView, transitLocationInput)
+                    }
+                    onChange={(e) => setCustomStatusMessage(e.target.value)}
+                    placeholder="Customize the WhatsApp notification message before dispatching..."
+                    className="w-full text-[11px] p-2.5 rounded-xl border border-emerald-300 bg-white text-neutral-800 focus:outline-none focus:ring-1 focus:ring-emerald-600 font-mono leading-relaxed"
+                  />
+                  <p className="text-[10px] text-neutral-500">
+                    💡 You can customize this template message before dispatching. It will be sent directly via WhatsApp to {selectedOrderForView.customerName || "the customer"}.
+                  </p>
+                </div>
+              ) : (
+                <div className="text-[11px] text-neutral-800 whitespace-pre-wrap font-sans bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs leading-relaxed max-h-36 overflow-y-auto">
+                  {customStatusMessage.trim() || getOrderStatusNotificationText(statusUpdateChoice, selectedOrderForView, transitLocationInput)}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
-                onClick={() => setShowStatusModal(false)}
+                onClick={() => {
+                  setShowStatusModal(false);
+                  setIsEditingStatusTemplate(false);
+                  setCustomStatusMessage("");
+                }}
                 className="px-4 py-2 rounded-xl border border-neutral-200 text-xs font-semibold text-neutral-600 cursor-pointer"
               >
                 Cancel
@@ -12300,7 +12396,8 @@ export default function PrajnaaMasterCrmApp() {
                   const custName = selectedOrderForView.customerName || "ji";
                   const orderNumTag = selectedOrderForView.orderNumber || "PRJ-ORD";
                   const currentLoc = transitLocationInput.trim() || "Regional Sorting Hub";
-                  const notifyText = getOrderStatusNotificationText(statusUpdateChoice, selectedOrderForView, currentLoc);
+                  const defaultNotifyText = getOrderStatusNotificationText(statusUpdateChoice, selectedOrderForView, currentLoc);
+                  const notifyText = (customStatusMessage || "").trim() || defaultNotifyText;
 
                   setSelectedOrderForView((prev) => ({
                     ...prev,
@@ -12424,11 +12521,143 @@ export default function PrajnaaMasterCrmApp() {
                   }
 
                   setShowStatusModal(false);
+                  setIsEditingStatusTemplate(false);
+                  setCustomStatusMessage("");
                   toast.success(`Order status updated to "${statusUpdateChoice}"! Automated WhatsApp update sent to ${custName}.`);
                 }}
                 className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer"
               >
                 Confirm Update & Notify
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: INDIA POST TRACKING ID / CONSIGNMENT               */}
+      {/* ========================================================= */}
+      {showTrackingModal && selectedOrderForView && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 space-y-4 shadow-2xl border border-neutral-100 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                  <Tag className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-neutral-900">
+                    India Post Consignment / Tracking ID
+                  </h3>
+                  <p className="text-[10px] text-neutral-500 font-mono">
+                    Order {selectedOrderForView.orderNumber} • {selectedOrderForView.customerName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTrackingModal(false)}
+                className="text-neutral-400 hover:text-neutral-700 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-neutral-700 block mb-1">
+                  Speed Post Consignment Number (AWB / Tracking ID):
+                </label>
+                <input
+                  type="text"
+                  value={editTrackingNumber}
+                  onChange={(e) => setEditTrackingNumber(e.target.value.toUpperCase())}
+                  placeholder="e.g. EH123456789IN, SP882194012IN"
+                  className="w-full px-3 py-2 rounded-xl border border-neutral-300 font-mono text-sm tracking-wider uppercase focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                />
+                <p className="text-[10px] text-neutral-500 mt-1">
+                  Enter the India Post barcode number issued at Solan Head Post Office.
+                </p>
+              </div>
+
+              {editTrackingNumber.trim() && (
+                <div className="p-3 bg-neutral-50 rounded-2xl border border-neutral-200 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-neutral-800">India Post Live Portal</p>
+                    <p className="text-[10px] text-neutral-500">Track consignment on official portal</p>
+                  </div>
+                  <a
+                    href="https://www.indiapost.gov.in/_layouts/15/dop.portal.tracking/trackconsignment.aspx"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-xl bg-white border border-neutral-300 hover:bg-neutral-100 text-neutral-700 text-xs font-bold transition flex items-center gap-1 shadow-2xs"
+                  >
+                    <span>Track 🌐</span>
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100">
+              <button
+                type="button"
+                onClick={() => setShowTrackingModal(false)}
+                className="px-4 py-2 rounded-xl border border-neutral-200 text-xs font-semibold text-neutral-600 hover:bg-neutral-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const cleanedTracking = editTrackingNumber.trim();
+                  setSelectedOrderForView((prev: any) => ({
+                    ...prev,
+                    trackingNumber: cleanedTracking,
+                  }));
+
+                  setCreatedOrders((prev) =>
+                    prev.map((o) =>
+                      o.orderNumber === selectedOrderForView.orderNumber
+                        ? { ...o, trackingNumber: cleanedTracking }
+                        : o
+                    )
+                  );
+
+                  setCrmOrders((prev) => {
+                    const updated = prev.map((o) =>
+                      `#${o.orderNumber || o.id}` === selectedOrderForView.orderNumber ||
+                      String(o.orderNumber || o.id) === selectedOrderForView.orderNumber ||
+                      String(o.orderNumber || o.id).replace(/^#+/, "") === selectedOrderForView.orderNumber.replace(/^#+/, "")
+                        ? { ...o, trackingNumber: cleanedTracking, awbNumber: cleanedTracking }
+                        : o
+                    );
+                    try {
+                      localStorage.setItem("prajnaa_crm_orders", JSON.stringify(updated));
+                    } catch {}
+                    try {
+                      const orderToSync = updated.find(
+                        (o) =>
+                          `#${o.orderNumber || o.id}` === selectedOrderForView.orderNumber ||
+                          String(o.orderNumber || o.id) === selectedOrderForView.orderNumber ||
+                          String(o.orderNumber || o.id).replace(/^#+/, "") === selectedOrderForView.orderNumber.replace(/^#+/, "")
+                      );
+                      if (orderToSync) {
+                        fetch("/api/crm/orders", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(orderToSync),
+                        }).catch(() => {});
+                      }
+                    } catch {}
+                    return updated;
+                  });
+
+                  setShowTrackingModal(false);
+                  toast.success(`Tracking ID saved: ${cleanedTracking || "None"}`);
+                }}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer"
+              >
+                Save Tracking ID
               </button>
             </div>
           </div>
@@ -13045,12 +13274,25 @@ export default function PrajnaaMasterCrmApp() {
                       </div>
 
                       {/* Right Sub-Box: Place Of Supply */}
-                      <div className="p-2.5 border-t sm:border-t-0 border-neutral-300">
-                        <div className="grid grid-cols-12 gap-1">
-                          <span className="col-span-5 text-neutral-600 font-medium">Place Of Supply</span>
-                          <span className="col-span-7 font-bold text-neutral-900">: Himachal Pradesh (02)</span>
-                        </div>
-                      </div>
+                      {(() => {
+                        const addrText = (selectedOrderForView.shippingAddress || (selectedOrderForView as any).address || "").toLowerCase();
+                        const hpKeywords = ["himachal", "hp", "h.p", "solan", "shimla", "kullu", "manali", "dharamshala", "mandi", "kangra", "bilaspur", "una", "hamirpur", "chamba", "kinnaur", "lahaul", "spiti", "parwanoo", "baddi", "nalagarh", "paonta"];
+                        const isOutOfState = addrText.trim().length > 0 && !hpKeywords.some(kw => {
+                          const regex = new RegExp(`\\b${kw}\\b`, "i");
+                          return regex.test(addrText) || addrText.includes(kw);
+                        });
+
+                        return (
+                          <div className="p-2.5 border-t sm:border-t-0 border-neutral-300">
+                            <div className="grid grid-cols-12 gap-1">
+                              <span className="col-span-5 text-neutral-600 font-medium">Place Of Supply</span>
+                              <span className="col-span-7 font-bold text-neutral-900">
+                                {isOutOfState ? ": Other State (Inter-State / IGST)" : ": Himachal Pradesh (02)"}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })()}
@@ -13142,12 +13384,19 @@ export default function PrajnaaMasterCrmApp() {
                     ? selectedOrderForView.amount
                     : computedTotal;
 
-                  // 5% GST calculations (2.5% CGST + 2.5% SGST)
+                  // 5% GST calculations (Intra-state: 2.5% CGST + 2.5% SGST | Inter-state outside Himachal: 5.0% IGST)
+                  const shippingAddrText = (selectedOrderForView.shippingAddress || (selectedOrderForView as any).address || "").toLowerCase();
+                  const hpKeywords = ["himachal", "hp", "h.p", "solan", "shimla", "kullu", "manali", "dharamshala", "mandi", "kangra", "bilaspur", "una", "hamirpur", "chamba", "kinnaur", "lahaul", "spiti", "parwanoo", "baddi", "nalagarh", "paonta"];
+                  const isOutOfState = shippingAddrText.trim().length > 0 && !hpKeywords.some(kw => {
+                    const regex = new RegExp(`\\b${kw}\\b`, "i");
+                    return regex.test(shippingAddrText) || shippingAddrText.includes(kw);
+                  });
+
                   const taxableSubtotal = Math.round((finalInvoiceAmount / 1.05) * 100) / 100;
                   const totalTax = Math.round((finalInvoiceAmount - taxableSubtotal) * 100) / 100;
                   const totalCgst = Math.round((totalTax / 2) * 100) / 100;
                   const totalSgst = Math.round((totalTax - totalCgst) * 100) / 100;
-                  const roundingVal = Math.round((finalInvoiceAmount - (taxableSubtotal + totalCgst + totalSgst)) * 100) / 100;
+                  const roundingVal = Math.round((finalInvoiceAmount - (taxableSubtotal + totalTax)) * 100) / 100;
 
                   const isPaid = (selectedOrderForView.paymentStatus || "").toLowerCase() === "paid" ||
                                  (selectedOrderForView.paymentStatus || "").toLowerCase() === "collected";
@@ -13164,16 +13413,31 @@ export default function PrajnaaMasterCrmApp() {
                               <th rowSpan={2} className="border border-neutral-300 py-1.5 px-2 text-center w-20">HSN/SAC</th>
                               <th rowSpan={2} className="border border-neutral-300 py-1.5 px-2 text-center w-16">Qty</th>
                               <th rowSpan={2} className="border border-neutral-300 py-1.5 px-2 text-right w-16">Rate</th>
-                              <th colSpan={2} className="border border-neutral-300 py-1 px-2 text-center">CGST</th>
-                              <th colSpan={2} className="border border-neutral-300 py-1 px-2 text-center">SGST</th>
+                              {isOutOfState ? (
+                                <th colSpan={2} className="border border-neutral-300 py-1 px-2 text-center bg-blue-50/50">IGST (Inter-State)</th>
+                              ) : (
+                                <>
+                                  <th colSpan={2} className="border border-neutral-300 py-1 px-2 text-center">CGST</th>
+                                  <th colSpan={2} className="border border-neutral-300 py-1 px-2 text-center">SGST</th>
+                                </>
+                              )}
                               <th rowSpan={2} className="border border-neutral-300 py-1.5 px-2 text-right w-20">Amount</th>
                             </tr>
-                            {/* Level 2 Sub-Headers for CGST & SGST */}
+                            {/* Level 2 Sub-Headers for CGST & SGST or IGST */}
                             <tr className="bg-[#f4f5f7] text-neutral-800 text-[10px] font-bold">
-                              <th className="border border-neutral-300 py-1 px-1.5 text-center w-12">%</th>
-                              <th className="border border-neutral-300 py-1 px-1.5 text-right w-14">Amt</th>
-                              <th className="border border-neutral-300 py-1 px-1.5 text-center w-12">%</th>
-                              <th className="border border-neutral-300 py-1 px-1.5 text-right w-14">Amt</th>
+                              {isOutOfState ? (
+                                <>
+                                  <th className="border border-neutral-300 py-1 px-1.5 text-center w-12">%</th>
+                                  <th className="border border-neutral-300 py-1 px-1.5 text-right w-16">Amt</th>
+                                </>
+                              ) : (
+                                <>
+                                  <th className="border border-neutral-300 py-1 px-1.5 text-center w-12">%</th>
+                                  <th className="border border-neutral-300 py-1 px-1.5 text-right w-14">Amt</th>
+                                  <th className="border border-neutral-300 py-1 px-1.5 text-center w-12">%</th>
+                                  <th className="border border-neutral-300 py-1 px-1.5 text-right w-14">Amt</th>
+                                </>
+                              )}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-neutral-300 text-neutral-800 bg-white">
@@ -13201,18 +13465,31 @@ export default function PrajnaaMasterCrmApp() {
                                   <td className="border border-neutral-300 py-2 px-2 text-right font-mono text-neutral-900">
                                     {it.price.toFixed(2)}
                                   </td>
-                                  <td className="border border-neutral-300 py-2 px-1 text-center font-mono text-[11px] text-neutral-700">
-                                    2.5%
-                                  </td>
-                                  <td className="border border-neutral-300 py-2 px-1.5 text-right font-mono text-neutral-700">
-                                    {cgstAmt.toFixed(2)}
-                                  </td>
-                                  <td className="border border-neutral-300 py-2 px-1 text-center font-mono text-[11px] text-neutral-700">
-                                    2.5%
-                                  </td>
-                                  <td className="border border-neutral-300 py-2 px-1.5 text-right font-mono text-neutral-700">
-                                    {sgstAmt.toFixed(2)}
-                                  </td>
+                                  {isOutOfState ? (
+                                    <>
+                                      <td className="border border-neutral-300 py-2 px-1 text-center font-mono text-[11px] text-neutral-700">
+                                        5.0%
+                                      </td>
+                                      <td className="border border-neutral-300 py-2 px-1.5 text-right font-mono text-neutral-700">
+                                        {itemTax.toFixed(2)}
+                                      </td>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <td className="border border-neutral-300 py-2 px-1 text-center font-mono text-[11px] text-neutral-700">
+                                        2.5%
+                                      </td>
+                                      <td className="border border-neutral-300 py-2 px-1.5 text-right font-mono text-neutral-700">
+                                        {cgstAmt.toFixed(2)}
+                                      </td>
+                                      <td className="border border-neutral-300 py-2 px-1 text-center font-mono text-[11px] text-neutral-700">
+                                        2.5%
+                                      </td>
+                                      <td className="border border-neutral-300 py-2 px-1.5 text-right font-mono text-neutral-700">
+                                        {sgstAmt.toFixed(2)}
+                                      </td>
+                                    </>
+                                  )}
                                   <td className="border border-neutral-300 py-2 px-2 text-right font-mono font-medium text-neutral-900">
                                     {it.total.toFixed(2)}
                                   </td>
@@ -13262,14 +13539,23 @@ export default function PrajnaaMasterCrmApp() {
                               <span>Sub Total</span>
                               <span className="font-mono font-medium">{taxableSubtotal.toFixed(2)}</span>
                             </div>
-                            <div className="flex justify-between text-neutral-700">
-                              <span>CGST2.5 (2.5%)</span>
-                              <span className="font-mono font-medium">{totalCgst.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between text-neutral-700">
-                              <span>SGST2.5 (2.5%)</span>
-                              <span className="font-mono font-medium">{totalSgst.toFixed(2)}</span>
-                            </div>
+                            {isOutOfState ? (
+                              <div className="flex justify-between text-neutral-700 font-semibold text-blue-900">
+                                <span>IGST (5.0%)</span>
+                                <span className="font-mono font-medium">{totalTax.toFixed(2)}</span>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex justify-between text-neutral-700">
+                                  <span>CGST2.5 (2.5%)</span>
+                                  <span className="font-mono font-medium">{totalCgst.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-neutral-700">
+                                  <span>SGST2.5 (2.5%)</span>
+                                  <span className="font-mono font-medium">{totalSgst.toFixed(2)}</span>
+                                </div>
+                              </>
+                            )}
                             {shippingVal > 0 ? (
                               <div className="flex justify-between text-neutral-700">
                                 <span>Shipping</span>
