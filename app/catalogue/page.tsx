@@ -99,6 +99,22 @@ const SORT_OPTIONS = [
   { id: "name_desc", label: "🔤 Name: Z to A" },
 ];
 
+const AUTOCOMPLETE_KEYWORDS = [
+  "almonds", "almond", "badam",
+  "walnuts", "walnut", "akhrot",
+  "apricots", "apricot", "khumani",
+  "honey", "raw flora honey", "shehad",
+  "shilajit", "shilajit resin", "pure shilajit",
+  "ghee", "badri cow ghee", "bilona ghee",
+  "saffron", "mongra saffron", "kesar",
+  "turmeric", "lakadong turmeric", "haldi",
+  "garam masala", "masala",
+  "mineral salt", "pink salt", "salt", "sendha namak",
+  "seeds", "chia seeds", "superfood mix",
+  "mango pickle", "pickle", "achar",
+  "dry fruits", "spices", "wellness",
+];
+
 export default function PremiumCataloguePage() {
   const [products, setProducts] = useState<CatalogueProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,6 +135,7 @@ export default function PremiumCataloguePage() {
   const [showSearchSuggestions, setShowSearchSuggestions] = useState<boolean>(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState<number>(-1);
   const searchContainerRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -321,6 +338,38 @@ export default function PremiumCataloguePage() {
 
   const topSuggestion = searchSuggestions[0];
 
+  // Comprehensive candidate terms from products and common keywords
+  const allCandidateTerms = useMemo(() => {
+    const set = new Set<string>();
+    AUTOCOMPLETE_KEYWORDS.forEach((k) => set.add(k.toLowerCase()));
+    products.forEach((p) => {
+      set.add(p.name.toLowerCase());
+      p.name
+        .toLowerCase()
+        .split(/[\s,()•-]+/)
+        .forEach((w) => {
+          if (w.length >= 3) set.add(w);
+        });
+    });
+    return Array.from(set);
+  }, [products]);
+
+  // Inline Ghost Autocomplete Suffix (e.g. typing "almo" -> "nds" to form "almonds")
+  const ghostSuffix = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    if (!q || q.length < 2) return "";
+
+    const directMatches = allCandidateTerms
+      .filter((term) => term.startsWith(q) && term.length > q.length)
+      .sort((a, b) => a.length - b.length);
+
+    if (directMatches.length > 0) {
+      return directMatches[0].slice(q.length);
+    }
+
+    return "";
+  }, [allCandidateTerms, searchQuery]);
+
   const highlightMatch = (text: string, query: string) => {
     if (!query) return text;
     const cleanQ = query.trim().replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
@@ -512,63 +561,103 @@ export default function PremiumCataloguePage() {
             />
           </Link>
 
-          {/* Center: Search Bar with Autocomplete & Auto-Fill */}
+          {/* Center: Search Bar with Autocomplete & Ghost Text */}
           <div className="flex-1 max-w-lg relative" ref={searchContainerRef}>
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onFocus={() => {
-                if (searchQuery.trim().length > 0) setShowSearchSuggestions(true);
-              }}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setShowSearchSuggestions(e.target.value.trim().length > 0);
-                setSelectedSuggestionIndex(-1);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  setShowSearchSuggestions(true);
-                  setSelectedSuggestionIndex((prev) => (prev < searchSuggestions.length - 1 ? prev + 1 : 0));
-                } else if (e.key === "ArrowUp") {
-                  e.preventDefault();
-                  setSelectedSuggestionIndex((prev) => (prev > 0 ? prev - 1 : searchSuggestions.length - 1));
-                } else if (e.key === "Enter") {
-                  if (selectedSuggestionIndex >= 0 && searchSuggestions[selectedSuggestionIndex]) {
-                    e.preventDefault();
-                    setSearchQuery(searchSuggestions[selectedSuggestionIndex].name);
-                    setShowSearchSuggestions(false);
-                  } else if (topSuggestion) {
-                    e.preventDefault();
-                    setSearchQuery(topSuggestion.name);
-                    setShowSearchSuggestions(false);
-                  }
-                } else if (e.key === "Tab") {
-                  if (topSuggestion) {
-                    e.preventDefault();
-                    setSearchQuery(topSuggestion.name);
-                    setShowSearchSuggestions(false);
-                  }
-                } else if (e.key === "Escape") {
-                  setShowSearchSuggestions(false);
-                }
-              }}
-              placeholder="Search honey, shilajit, dry fruits, saffron..."
-              className="w-full pl-9 pr-8 py-2 rounded-xl bg-neutral-100 hover:bg-neutral-50 focus:bg-white border border-neutral-200 text-xs sm:text-sm text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-[#0F3D2E]/20 focus:border-[#0F3D2E] transition-all"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery("");
-                  setShowSearchSuggestions(false);
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none z-10" />
+
+            {/* Container for input and ghost text */}
+            <div className="relative w-full rounded-xl bg-neutral-100 hover:bg-neutral-50/90 focus-within:bg-white border border-neutral-200 focus-within:ring-2 focus-within:ring-[#0F3D2E]/20 focus-within:border-[#0F3D2E] transition-all">
+              {/* Inline Ghost Autocomplete Text (e.g. typing "almo" renders "nds" right after) */}
+              {ghostSuffix && (
+                <div
+                  className="absolute inset-0 pointer-events-none flex items-center pl-9 pr-24 text-xs sm:text-sm font-sans z-0 overflow-hidden"
+                  aria-hidden="true"
+                >
+                  <span className="invisible whitespace-pre">{searchQuery}</span>
+                  <span className="text-neutral-400 select-none whitespace-pre font-normal opacity-90">{ghostSuffix}</span>
+                </div>
+              )}
+
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onFocus={() => {
+                  if (searchQuery.trim().length > 0) setShowSearchSuggestions(true);
                 }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 p-0.5 rounded-full cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setShowSearchSuggestions(e.target.value.trim().length > 0);
+                  setSelectedSuggestionIndex(-1);
+                }}
+                onKeyDown={(e) => {
+                  // Tab or ArrowRight at end of input completes the ghost suffix into the search box
+                  if (e.key === "Tab" || (e.key === "ArrowRight" && searchInputRef.current?.selectionStart === searchQuery.length)) {
+                    if (ghostSuffix) {
+                      e.preventDefault();
+                      setSearchQuery(searchQuery + ghostSuffix);
+                      return;
+                    }
+                  }
+
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setShowSearchSuggestions(true);
+                    setSelectedSuggestionIndex((prev) => (prev < searchSuggestions.length - 1 ? prev + 1 : 0));
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setSelectedSuggestionIndex((prev) => (prev > 0 ? prev - 1 : searchSuggestions.length - 1));
+                  } else if (e.key === "Enter") {
+                    if (selectedSuggestionIndex >= 0 && searchSuggestions[selectedSuggestionIndex]) {
+                      e.preventDefault();
+                      setSearchQuery(searchSuggestions[selectedSuggestionIndex].name);
+                      setShowSearchSuggestions(false);
+                    } else if (ghostSuffix) {
+                      e.preventDefault();
+                      setSearchQuery(searchQuery + ghostSuffix);
+                      setShowSearchSuggestions(false);
+                    } else if (topSuggestion) {
+                      e.preventDefault();
+                      setSearchQuery(topSuggestion.name);
+                      setShowSearchSuggestions(false);
+                    }
+                  } else if (e.key === "Escape") {
+                    setShowSearchSuggestions(false);
+                  }
+                }}
+                placeholder="Search honey, shilajit, dry fruits, saffron..."
+                className="w-full pl-9 pr-24 py-2 rounded-xl bg-transparent text-xs sm:text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none relative z-10"
+              />
+
+              {/* Right actions inside search bar: Tab Complete Pill + Clear Button */}
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 z-20">
+                {ghostSuffix && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery(searchQuery + ghostSuffix);
+                    }}
+                    title={`Complete "${searchQuery}${ghostSuffix}" (or press Tab)`}
+                    className="px-2 py-0.5 rounded-md bg-emerald-100 hover:bg-emerald-200 text-emerald-900 text-[10px] font-bold transition flex items-center gap-0.5 cursor-pointer shadow-2xs"
+                  >
+                    <span>Tab ⇥</span>
+                  </button>
+                )}
+
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setShowSearchSuggestions(false);
+                    }}
+                    className="text-neutral-400 hover:text-neutral-700 p-0.5 rounded-full cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
 
             {/* Smart Search Autocomplete & Auto-Fill Dropdown */}
             {showSearchSuggestions && searchSuggestions.length > 0 && (
@@ -657,9 +746,9 @@ export default function PremiumCataloguePage() {
           </div>
         </div>
 
-        {/* Row 2: Horizontal Category Scroller & Filters (Consolidated seamlessly into header) */}
-        <div className="border-t border-neutral-100 bg-neutral-50/70">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-1.5 sm:py-2">
+        {/* Row 2: Horizontal Category Scroller & Filters */}
+        <div className="bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-2.5 pt-0.5">
             <div className="flex items-center justify-between gap-3 overflow-hidden">
               {/* Horizontal Categories */}
               <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs flex-1">
