@@ -451,20 +451,12 @@ export default function PremiumCataloguePage() {
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-neutral-200/90 shadow-2xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3 sm:gap-6">
           {/* Official Prajnaa Brand Logo */}
-          <Link href="/catalogue" className="flex items-center gap-2.5 shrink-0 group">
+          <Link href="/catalogue" className="flex items-center gap-2 shrink-0 group" title="Prajnaa Himalayan Produce">
             <img
               src="/prajnaa-logo.png"
               alt="Prajnaa Himalayan Produce"
-              className="h-9 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105"
+              className="h-9 sm:h-11 w-auto object-contain transition-transform group-hover:scale-105"
             />
-            <div className="hidden sm:block">
-              <span className="font-serif font-black text-base sm:text-lg tracking-tight text-[#0F3D2E] block leading-none">
-                PRAJNAA
-              </span>
-              <span className="text-[10px] text-[#A67C1E] font-bold tracking-widest uppercase block mt-0.5">
-                Pure Himalayan Produce
-              </span>
-            </div>
           </Link>
 
           {/* Center: Search Bar */}
