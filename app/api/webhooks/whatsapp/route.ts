@@ -7,6 +7,7 @@ import {
   processConversationalBotReply,
 } from "../../../../backend/lib/whatsapp.server.ts";
 import { processSmartCustomerReply } from "../../../../backend/lib/smart-assistant.server.ts";
+import { evaluateWhatsAppOrderWorkflow } from "../../../../backend/lib/whatsapp-order-service.server.ts";
 import { getDatabase } from "../../../../lib/mongodb.ts";
 import { db as pgDb, isPostgresAvailable } from "../../../../backend/db.ts";
 import { crmMessages } from "../../../../backend/schema/crm.ts";
@@ -229,15 +230,39 @@ async function handleWebhookProcessing(messages: any[], statuses: any[], reqHost
       ? (msg.toPhone || "")
       : (process.env.ADMIN_WHATSAPP_NUMBER || "918091265690");
 
-    // Smart assistant engine: understands intent, queries live catalogue, answers with short Hinglish
-    const botResult = (!isAdminSender && !isOutboundFromPhone)
-      ? await processSmartCustomerReply({
+    // 1. Evaluate dedicated WhatsApp Order Creation Workflow
+    let orderWorkflowResult: any = null;
+    if (!isAdminSender && !isOutboundFromPhone) {
+      try {
+        orderWorkflowResult = await evaluateWhatsAppOrderWorkflow({
           customerPhone: msg.fromPhone,
           customerText: msg.text,
           customerName: msg.customerName,
+          messageId: msg.id,
           reqHost,
-        })
+        });
+      } catch (orderEvalErr) {
+        console.warn("[WhatsApp Webhook] Order workflow evaluation note:", orderEvalErr);
+      }
+    }
+
+    // 2. Fallback to smart assistant engine if message is not an active order workflow
+    const botResult = (!isAdminSender && !isOutboundFromPhone)
+      ? (orderWorkflowResult?.isOrderWorkflow && orderWorkflowResult.replyText
+          ? {
+              replyText: orderWorkflowResult.replyText,
+              shouldSend: true,
+              intent: "order_placement" as any,
+              updatedCustomerName: msg.customerName,
+            }
+          : await processSmartCustomerReply({
+              customerPhone: msg.fromPhone,
+              customerText: msg.text,
+              customerName: msg.customerName,
+              reqHost,
+            }))
       : null;
+
 
     const resolvedCustomerName =
       (botResult as any)?.updatedCustomerName ||

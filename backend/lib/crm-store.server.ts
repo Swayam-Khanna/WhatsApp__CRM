@@ -8,6 +8,7 @@ const ORDERS_FILE = path.join(DATA_DIR, "orders.json");
 const DELETED_FILE = path.join(DATA_DIR, "deleted.json");
 const TEAM_FILE = path.join(DATA_DIR, "team.json");
 const CUSTOMERS_META_FILE = path.join(DATA_DIR, "customers_meta.json");
+const NOTIFICATIONS_FILE = path.join(DATA_DIR, "notifications.json");
 
 function ensureDirectoryExists() {
   try {
@@ -62,7 +63,10 @@ declare global {
   var __globalCrmTeam: any[] | undefined;
   // eslint-disable-next-line no-var
   var __globalCrmCustomerMeta: Record<string, any> | undefined;
+  // eslint-disable-next-line no-var
+  var __globalCrmNotifications: any[] | undefined;
 }
+
 
 // Initialize In-Memory & Disk Store on module load
 export function initStore() {
@@ -370,3 +374,77 @@ export function saveStoredCustomerMeta(idOrPhone: string, meta: Record<string, a
   globalThis.__globalCrmCustomerMeta = current;
   safeWriteJSON(CUSTOMERS_META_FILE, current);
 }
+
+/* ========================================================================== */
+/*                            NOTIFICATIONS STORE                             */
+/* ========================================================================== */
+
+export function getStoredNotifications(): any[] {
+  if (!globalThis.__globalCrmNotifications) {
+    const diskNotifs = safeReadJSON<any[]>(NOTIFICATIONS_FILE, []);
+    globalThis.__globalCrmNotifications = Array.isArray(diskNotifs) ? diskNotifs : [];
+  }
+  return [...globalThis.__globalCrmNotifications];
+}
+
+export function saveStoredNotification(notif: any): any {
+  if (!notif || (!notif.id && !notif.orderNumber)) return null;
+  notifyStoreUpdated();
+  if (!globalThis.__globalCrmNotifications) {
+    getStoredNotifications();
+  }
+  const notifs = globalThis.__globalCrmNotifications || [];
+  const notifId = notif.id || `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const idx = notifs.findIndex((n) => n.id === notifId || (notif.orderNumber && n.orderNumber === notif.orderNumber));
+
+  const normalized = {
+    ...(idx >= 0 ? notifs[idx] : {}),
+    ...notif,
+    id: notifId,
+    createdAt: notif.createdAt || new Date().toISOString(),
+    read: Boolean(notif.read),
+  };
+
+  if (idx >= 0) {
+    notifs[idx] = normalized;
+  } else {
+    notifs.unshift(normalized);
+  }
+
+  // Cap at 200 notifications
+  if (notifs.length > 200) {
+    notifs.length = 200;
+  }
+
+  globalThis.__globalCrmNotifications = notifs;
+  safeWriteJSON(NOTIFICATIONS_FILE, notifs);
+  return normalized;
+}
+
+export function markStoredNotificationRead(notifId: string) {
+  if (!notifId) return;
+  notifyStoreUpdated();
+  const notifs = getStoredNotifications();
+  let changed = false;
+  notifs.forEach((n) => {
+    if (n.id === notifId || n.orderId === notifId || n.orderNumber === notifId || n.orderNumber === `#${notifId}`) {
+      n.read = true;
+      changed = true;
+    }
+  });
+  if (changed) {
+    globalThis.__globalCrmNotifications = notifs;
+    safeWriteJSON(NOTIFICATIONS_FILE, notifs);
+  }
+}
+
+export function markAllStoredNotificationsRead() {
+  notifyStoreUpdated();
+  const notifs = getStoredNotifications();
+  notifs.forEach((n) => {
+    n.read = true;
+  });
+  globalThis.__globalCrmNotifications = notifs;
+  safeWriteJSON(NOTIFICATIONS_FILE, notifs);
+}
+

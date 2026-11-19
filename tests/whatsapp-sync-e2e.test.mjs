@@ -347,7 +347,7 @@ describe("PRAJNAA WHATSAPP CRM — END-TO-END MESSAGE SYNCHRONIZATION", () => {
     const { POST } = await import("../app/api/webhooks/whatsapp/route.ts");
 
     const wamid = `wamid.duplicate_lock_test_${Date.now()}`;
-    const testPhone = "919816044444";
+    const testPhone = "919816" + String(Date.now()).slice(-6);
     const payload = {
       object: "whatsapp_business_account",
       entry: [
@@ -393,8 +393,9 @@ describe("PRAJNAA WHATSAPP CRM — END-TO-END MESSAGE SYNCHRONIZATION", () => {
 
     // Inspect the outbound replies sent to this phone
     const feed = globalThis.__globalWhatsAppFeed || [];
-    const outboundReplies = feed.filter((m) => (m.to || "").includes("9816044444") && m.direction === "outbound");
+    const outboundReplies = feed.filter((m) => (m.to || "").includes(testPhone) && m.direction === "outbound");
     assert.equal(outboundReplies.length, 1, "Must send EXACTLY ONE automated reply, even when webhook is delivered multiple times");
   });
 });
+
 

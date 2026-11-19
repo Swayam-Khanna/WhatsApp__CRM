@@ -1009,6 +1009,9 @@ export default function PrajnaaMasterCrmApp() {
   const [showNotificationMenu, setShowNotificationMenu] = useState<boolean>(false);
   const notificationRef = useRef<HTMLDivElement>(null);
   const [notificationTab, setNotificationTab] = useState<"all" | "chats" | "orders">("all");
+  const [crmNotifications, setCrmNotifications] = useState<any[]>([]);
+  const [readNotifIds, setReadNotifIds] = useState<Set<string>>(() => new Set());
+
 
   // Authentication State (MANDATORY LOGIN: Users MUST authenticate before accessing CRM)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -1731,6 +1734,16 @@ export default function PrajnaaMasterCrmApp() {
               ordersFromApi = json.orders;
             }
           } catch {}
+
+          // Sync CRM Notifications
+          try {
+            const notifRes = await fetch("/api/crm/notifications");
+            const notifJson = await notifRes.json();
+            if (notifJson && Array.isArray(notifJson.notifications)) {
+              setCrmNotifications(notifJson.notifications);
+            }
+          } catch {}
+
 
           let ordersFromLocal: any[] = [];
           const saved = localStorage.getItem("prajnaa_crm_orders");
@@ -4349,6 +4362,59 @@ export default function PrajnaaMasterCrmApp() {
     return customers.filter((c) => (c.unreadCount || 0) > 0);
   }, [customers]);
 
+  // Dedicated WhatsApp Order Notifications
+  const newWhatsAppOrderNotifications = useMemo(() => {
+    // 1. Notifications fetched from /api/crm/notifications
+    const apiNotifs = crmNotifications.filter(
+      (n) => !n.read && !readNotifIds.has(n.id) && !readNotifIds.has(n.orderNumber)
+    );
+
+    // 2. Orders created from WhatsApp Inbox in unifiedOrders
+    const orderNotifs = unifiedOrders.filter((o) => {
+      const isWhatsApp =
+        String(o.source || "").toLowerCase().includes("whatsapp") ||
+        (o as any).channel === "whatsapp_inbox";
+      const num = String(o.orderNumber || o.id || "").replace("#", "");
+      return isWhatsApp && !readNotifIds.has(num) && !readNotifIds.has(`#${num}`);
+    });
+
+    const notifMap = new Map<string, any>();
+
+    orderNotifs.forEach((ord) => {
+      const num = String(ord.orderNumber || ord.id || "").replace("#", "");
+      notifMap.set(num, {
+        id: `notif_${num}`,
+        orderNumber: `#${num}`,
+        customerName: ord.customerName || "Customer",
+        customerPhone: ord.customerPhone,
+        totalAmount: ord.amount,
+        itemsSummary:
+          Array.isArray(ord.items) && ord.items.length > 0
+            ? ord.items.map((it: any) => `${it.quantity || 1}x ${it.name}`).join(", ")
+            : `${ord.itemsCount || 1} items`,
+        createdAt: ord.date || "Just now",
+        source: "WhatsApp Inbox",
+        orderRef: ord,
+      });
+    });
+
+    apiNotifs.forEach((n) => {
+      const num = String(n.orderNumber || n.orderId || n.id || "").replace("#", "");
+      if (num && !notifMap.has(num)) {
+        const matchingOrd = unifiedOrders.find((o) =>
+          String(o.orderNumber || o.id || "").includes(num)
+        );
+        notifMap.set(num, {
+          ...n,
+          orderNumber: n.orderNumber?.startsWith("#") ? n.orderNumber : `#${n.orderNumber || num}`,
+          orderRef: matchingOrd,
+        });
+      }
+    });
+
+    return Array.from(notifMap.values());
+  }, [crmNotifications, readNotifIds, unifiedOrders]);
+
   const pendingPaymentNotifications = useMemo(() => {
     return unifiedOrders.filter((o) => {
       const s = String(o.orderStatus || "").toLowerCase();
@@ -4369,8 +4435,13 @@ export default function PrajnaaMasterCrmApp() {
   }, [unreadCustomerMessages]);
 
   const totalNotificationCount = useMemo(() => {
-    return totalUnreadChatCount + pendingPaymentNotifications.length + pendingDispatchNotifications.length;
-  }, [totalUnreadChatCount, pendingPaymentNotifications, pendingDispatchNotifications]);
+    return (
+      totalUnreadChatCount +
+      newWhatsAppOrderNotifications.length +
+      pendingPaymentNotifications.length +
+      pendingDispatchNotifications.length
+    );
+  }, [totalUnreadChatCount, newWhatsAppOrderNotifications.length, pendingPaymentNotifications, pendingDispatchNotifications]);
 
   const handleMarkAllNotificationsRead = () => {
     setCustomers((prev) =>
@@ -4379,8 +4450,18 @@ export default function PrajnaaMasterCrmApp() {
         unreadCount: 0,
       }))
     );
-    toast.success("All customer messages marked as read!");
+    const allNums = newWhatsAppOrderNotifications.map((n: any) =>
+      String(n.orderNumber || n.id).replace("#", "")
+    );
+    setReadNotifIds((prev) => new Set([...prev, ...allNums]));
+    fetch("/api/crm/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "mark_all_read" }),
+    }).catch(() => {});
+    toast.success("All notifications marked as read!");
   };
+
 
   // Unified Shipments List (combining verified shipments and dispatched orders)
   const unifiedShipments = useMemo(() => {
@@ -6191,7 +6272,7 @@ export default function PrajnaaMasterCrmApp() {
                         </span>
                       )}
                     </div>
-                    {unreadCustomerMessages.length > 0 && (
+                    {(unreadCustomerMessages.length > 0 || newWhatsAppOrderNotifications.length > 0) && (
                       <button
                         onClick={handleMarkAllNotificationsRead}
                         className="text-[11px] font-semibold text-emerald-700 hover:underline cursor-pointer"
@@ -6199,6 +6280,7 @@ export default function PrajnaaMasterCrmApp() {
                         Mark all as read
                       </button>
                     )}
+
                   </div>
 
                   {/* Filter Tabs */}
@@ -6231,7 +6313,7 @@ export default function PrajnaaMasterCrmApp() {
                           : "text-neutral-500 hover:bg-neutral-100"
                       }`}
                     >
-                      Orders & Shipping ({pendingPaymentNotifications.length + pendingDispatchNotifications.length})
+                      Orders & Shipping ({newWhatsAppOrderNotifications.length + pendingPaymentNotifications.length + pendingDispatchNotifications.length})
                     </button>
                   </div>
 
@@ -6247,11 +6329,78 @@ export default function PrajnaaMasterCrmApp() {
                       </div>
                     ) : (
                       <>
+                        {/* Section: New WhatsApp Order Notifications */}
+                        {(notificationTab === "all" || notificationTab === "orders") &&
+                          newWhatsAppOrderNotifications.length > 0 && (
+                            <div>
+                              <div className="px-3.5 py-1.5 bg-emerald-50/70 text-[10px] font-bold text-emerald-800 uppercase tracking-wider flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                  <ShoppingBag className="h-3 w-3 text-emerald-600" />
+                                  <span>New WhatsApp Orders ({newWhatsAppOrderNotifications.length})</span>
+                                </div>
+                                <span className="bg-emerald-600 text-white text-[9px] px-1.5 py-0.2 rounded font-mono">
+                                  Auto-Created
+                                </span>
+                              </div>
+                              {newWhatsAppOrderNotifications.map((notif: any) => (
+                                <button
+                                  key={notif.id || notif.orderNumber}
+                                  onClick={() => {
+                                    const num = String(notif.orderNumber || notif.id).replace("#", "");
+                                    setReadNotifIds((prev) => new Set([...prev, num, `#${num}`, notif.id]));
+                                    fetch("/api/crm/notifications", {
+                                      method: "POST",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ action: "mark_read", notificationId: notif.id || num }),
+                                    }).catch(() => {});
+
+                                    const matchingOrder =
+                                      notif.orderRef ||
+                                      unifiedOrders.find((o) =>
+                                        String(o.orderNumber || o.id).replace("#", "") === num
+                                      );
+
+                                    if (matchingOrder) {
+                                      setSelectedOrderForView(matchingOrder);
+                                      setActiveNav("order_details");
+                                    } else {
+                                      setActiveNav("orders");
+                                    }
+                                    setShowNotificationMenu(false);
+                                  }}
+                                  className="w-full text-left p-3 hover:bg-emerald-50/60 transition flex items-center justify-between group cursor-pointer border-b border-neutral-100 last:border-b-0"
+                                >
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-mono text-xs font-bold text-emerald-800">
+                                        {notif.orderNumber}
+                                      </span>
+                                      <span className="text-xs font-medium text-neutral-900 truncate">
+                                        {notif.customerName}
+                                      </span>
+                                      <span className="text-[9px] font-semibold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full">
+                                        WhatsApp
+                                      </span>
+                                    </div>
+                                    <p className="text-[10px] text-neutral-600 mt-0.5 font-medium">
+                                      {notif.itemsSummary} • ₹{(Number(notif.totalAmount) || 0).toLocaleString("en-IN")}
+                                    </p>
+                                    <p className="text-[9px] text-neutral-400 mt-0.5">
+                                      {notif.customerPhone ? `${notif.customerPhone} • ` : ""}A new order created automatically from WhatsApp
+                                    </p>
+                                  </div>
+                                  <ArrowRight className="h-3.5 w-3.5 text-neutral-400 group-hover:text-emerald-800 group-hover:translate-x-0.5 transition shrink-0" />
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
                         {/* Section: Unread WhatsApp Customer Messages */}
                         {(notificationTab === "all" || notificationTab === "chats") &&
                           unreadCustomerMessages.length > 0 && (
                             <div>
                               <div className="px-3.5 py-1.5 bg-neutral-50/50 text-[10px] font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
+
                                 <MessageSquare className="h-3 w-3 text-emerald-600" />
                                 <span>Unread WhatsApp Messages</span>
                               </div>
