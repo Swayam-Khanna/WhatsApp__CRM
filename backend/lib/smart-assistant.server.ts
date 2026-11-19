@@ -757,7 +757,13 @@ export function detectCustomerIntent(
     q.includes("lena chahti") ||
     q.includes("lena hai") ||
     q.includes("mangwana hai") ||
-    q.includes("book my order")
+    q.includes("book my order") ||
+    q.includes("create order") ||
+    q.includes("create an order") ||
+    q.includes("create a new order") ||
+    q.includes("new order") ||
+    q.includes("final order") ||
+    /\b(?:neew|new)\s*(?:ordeer|order)\b/i.test(q)
   ) {
     return "order_placement";
   }

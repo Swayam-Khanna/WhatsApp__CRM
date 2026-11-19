@@ -241,6 +241,10 @@ async function handleWebhookProcessing(messages: any[], statuses: any[], reqHost
           messageId: msg.id,
           reqHost,
         });
+
+        if (orderWorkflowResult?.isOrderWorkflow && fromClean) {
+          globalThis.__crmHumanTakeoverSessions?.delete(fromClean);
+        }
       } catch (orderEvalErr) {
         console.warn("[WhatsApp Webhook] Order workflow evaluation note:", orderEvalErr);
       }

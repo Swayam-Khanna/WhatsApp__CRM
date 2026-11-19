@@ -337,9 +337,35 @@ export function extractEntities(
   }
 
   // 4. Order Number extraction
-  const orderMatch = text.match(/(?:#?PM-\d{4,8})|(?:order\s*#?\s*([A-Za-z0-9_-]{4,15}))/i);
-  if (orderMatch) {
-    entities.orderNumber = orderMatch[1] || orderMatch[0].replace("#", "");
+  // Must match legitimate order identifiers:
+  // - Explicit order prefix: ORD-2026-..., PM-..., PJ-OD-..., etc.
+  // - Hash with letters/digits: #PJ-OD-2404, #PM-9021, #12345
+  // - "order #..." or "order no. ..." MUST contain digits and cannot be stop words like confirm/status/some/details/karna/book/etc.
+  const invalidOrderWords = new Set([
+    "confirm", "some", "status", "details", "karna", "kardo", "number", "create",
+    "placement", "cancel", "book", "items", "chahiye", "products", "hai", "batao",
+    "kijiye", "bhejo", "bhejiye", "wala", "wali"
+  ]);
+
+  let resolvedOrderNumber: string | undefined = undefined;
+
+  const prefixMatch = text.match(/\b((?:ORD|PM|PJ|OD)-\d{4,8}(?:-[A-Za-z0-9]+)?)\b/i);
+  if (prefixMatch) {
+    resolvedOrderNumber = prefixMatch[1];
+  } else {
+    const hashMatch = text.match(/#([A-Za-z0-9_-]{3,20})/);
+    if (hashMatch && !invalidOrderWords.has(hashMatch[1].toLowerCase()) && !/^[a-z]+$/i.test(hashMatch[1])) {
+      resolvedOrderNumber = hashMatch[1];
+    } else {
+      const orderMatch = text.match(/\border\s*(?:#|no\.?|id|num)?\s*([A-Za-z0-9_-]*\d+[A-Za-z0-9_-]*)\b/i);
+      if (orderMatch && !invalidOrderWords.has(orderMatch[1].toLowerCase())) {
+        resolvedOrderNumber = orderMatch[1];
+      }
+    }
+  }
+
+  if (resolvedOrderNumber) {
+    entities.orderNumber = resolvedOrderNumber;
   }
 
   // 5. Pincode extraction (Indian 6-digit PIN code)
@@ -985,6 +1011,12 @@ export function classifyCustomerIntent(
     q.includes("send me") ||
     q.includes("bhejo") ||
     q.includes("chahiye") ||
+    q.includes("create order") ||
+    q.includes("create an order") ||
+    q.includes("create a new order") ||
+    q.includes("new order") ||
+    q.includes("final order") ||
+    /\b(?:neew|new)\s*(?:ordeer|order)\b/i.test(q) ||
     /(?:ऑर्डर करना है|मुझे चाहिए|खरीदना है|भेज दीजिए)/i.test(q);
 
   if (isOrderWording || entities.quantity || entities.hasAddressIndicator) {
