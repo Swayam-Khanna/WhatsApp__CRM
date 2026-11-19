@@ -25,10 +25,15 @@ export const dynamic = "force-dynamic";
 declare global {
   // eslint-disable-next-line no-var
   var __globalWhatsAppFeed: any[] | undefined;
+  // eslint-disable-next-line no-var
+  var __dispatchedAutoReplyMsgIds: Set<string> | undefined;
 }
 
 if (!globalThis.__globalWhatsAppFeed) {
   globalThis.__globalWhatsAppFeed = [];
+}
+if (!globalThis.__dispatchedAutoReplyMsgIds) {
+  globalThis.__dispatchedAutoReplyMsgIds = new Set();
 }
 
 /**
@@ -149,25 +154,7 @@ export async function POST(req: NextRequest) {
       status: "SUCCESS"
     }));
 
-    // Universal Cross-Sync: If webhook arrived at one domain, forward to counterpart
-    const isForwarded = req.headers.get("x-webhook-forwarded") === "true";
-    if (!isForwarded && rawBody) {
-      const isVercel = reqHost?.includes("vercel.app");
-      const forwardTarget = isVercel
-        ? "https://crm.prajnaa.in/api/webhooks/whatsapp"
-        : "https://whatsapp-crm-qje9.vercel.app/api/webhooks/whatsapp";
-
-      fetch(forwardTarget, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-hub-signature-256": signature || "",
-          "x-webhook-forwarded": "true",
-          "x-crm-source": "cross-sync",
-        },
-        body: rawBody,
-      }).catch(() => {});
-    }
+    // Cross-sync forwarding removed: both deployments share MongoDB Atlas, preventing duplicate webhook execution.
 
     if (isAuthorizedInternalTest || req.headers.get("accept")?.includes("application/json")) {
       return NextResponse.json({
@@ -210,6 +197,19 @@ async function handleWebhookProcessing(messages: any[], statuses: any[], reqHost
     if (isAlreadyInFeed) {
       console.log(`[WhatsApp Webhook] Idempotency: Message ${msg.id} already in feed. Skipping.`);
       continue;
+    }
+
+    // Secondary database idempotency check to prevent duplicate processing across serverless instances
+    if (db) {
+      try {
+        const existingDoc = await db.collection("crm_messages").findOne({ id: msg.id });
+        if (existingDoc) {
+          console.log(`[WhatsApp Webhook] Idempotency: Message ${msg.id} already exists in DB. Skipping duplicate processing.`);
+          continue;
+        }
+      } catch (dbCheckErr) {
+        console.warn("[WhatsApp Webhook] Idempotency DB check note:", dbCheckErr);
+      }
     }
 
     console.log(`[WhatsApp Webhook] Inbound from ${msg.fromPhone}: ${msg.text}`);
@@ -372,6 +372,36 @@ async function handleWebhookProcessing(messages: any[], statuses: any[], reqHost
 
     // Automated customer bot reply if message is NOT from the store admin
     if (!isAdminSender && !isOutboundFromPhone && botResult && botResult.shouldSend && botResult.replyText) {
+      // In-memory check: Ensure only one auto-reply per message ID in the current process
+      if (globalThis.__dispatchedAutoReplyMsgIds?.has(msg.id)) {
+        console.log(`[WhatsApp Webhook] In-memory auto-reply lock: Already replied to ${msg.id}. Skipping.`);
+        continue;
+      }
+
+      // MongoDB atomic lock: Guarantees exactly-once execution across serverless lambdas and retries
+      let isReplyLocked = false;
+      if (db) {
+        try {
+          const lockResult = await db.collection("crm_auto_reply_locks").updateOne(
+            { _id: msg.id },
+            { $setOnInsert: { msgId: msg.id, createdAt: new Date() } },
+            { upsert: true }
+          );
+          if (lockResult.matchedCount > 0) {
+            isReplyLocked = true;
+            console.log(`[WhatsApp Webhook] Database atomic lock: Auto-reply already dispatched for message ${msg.id}. Skipping duplicate send.`);
+          }
+        } catch (lockErr) {
+          console.warn("[WhatsApp Webhook] Auto-reply lock check note:", lockErr);
+        }
+      }
+
+      if (isReplyLocked) {
+        continue;
+      }
+
+      globalThis.__dispatchedAutoReplyMsgIds?.add(msg.id);
+
       const autoReplyText = botResult.replyText;
 
       const autoReplyRecord = {

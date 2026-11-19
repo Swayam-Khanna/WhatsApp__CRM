@@ -2,6 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "crypto";
 
+process.env.TEST_MODE = "true";
+
 // Test suite for complete WhatsApp CRM message synchronization
 describe("PRAJNAA WHATSAPP CRM — END-TO-END MESSAGE SYNCHRONIZATION", () => {
   const adminPhone = "918091265690";
@@ -340,4 +342,59 @@ describe("PRAJNAA WHATSAPP CRM — END-TO-END MESSAGE SYNCHRONIZATION", () => {
     assert.ok(hasInbound, "Customer's inbound message is in the conversation");
     assert.ok(hasOutbound, "Store's outbound reply is in the conversation");
   });
+
+  it("7. Duplicate Inbound Webhook / Retry Never Generates Duplicate Outbound Auto-Replies", async () => {
+    const { POST } = await import("../app/api/webhooks/whatsapp/route.ts");
+
+    const wamid = `wamid.duplicate_lock_test_${Date.now()}`;
+    const testPhone = "919816044444";
+    const payload = {
+      object: "whatsapp_business_account",
+      entry: [
+        {
+          id: "1370000716197872",
+          changes: [
+            {
+              field: "messages",
+              value: {
+                messaging_product: "whatsapp",
+                contacts: [{ profile: { name: "Raman Kumar" }, wa_id: testPhone }],
+                messages: [
+                  {
+                    from: testPhone,
+                    id: wamid,
+                    timestamp: String(Math.floor(Date.now() / 1000)),
+                    type: "text",
+                    text: { body: "Badam chahiye 1kg" },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    // First arrival of webhook
+    const res1 = await POST(new Request("http://localhost:3000/api/webhooks/whatsapp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-crm-source": "internal-test" },
+      body: JSON.stringify(payload),
+    }));
+    assert.equal(res1.status, 200);
+
+    // Second arrival of identical webhook (e.g., Meta retry or concurrent lambda)
+    const res2 = await POST(new Request("http://localhost:3000/api/webhooks/whatsapp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-crm-source": "internal-test" },
+      body: JSON.stringify(payload),
+    }));
+    assert.equal(res2.status, 200);
+
+    // Inspect the outbound replies sent to this phone
+    const feed = globalThis.__globalWhatsAppFeed || [];
+    const outboundReplies = feed.filter((m) => (m.to || "").includes("9816044444") && m.direction === "outbound");
+    assert.equal(outboundReplies.length, 1, "Must send EXACTLY ONE automated reply, even when webhook is delivered multiple times");
+  });
 });
+
