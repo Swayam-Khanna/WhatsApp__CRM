@@ -73,11 +73,8 @@ export function verifyWebhookSignature(rawBody: string, signatureHeader?: string
   try {
     const sigBuf = Buffer.from(signature, "hex");
     const hmacBuf = Buffer.from(hmac, "hex");
-    if (sigBuf.length !== hmacBuf.length) {
-      console.error("[WhatsApp Webhook Signature Verification Error] Signature length mismatch");
-      return false;
-    }
-    const match = crypto.timingSafeEqual(sigBuf, hmacBuf);
+    const lengthMatch = sigBuf.length === hmacBuf.length;
+    const match = lengthMatch && crypto.timingSafeEqual(sigBuf, hmacBuf);
     if (!match && !customSecret) {
       console.warn("[WhatsApp Webhook] Signature hash mismatch against configured secret. Checking for authentic Meta WABA payload...");
       try {

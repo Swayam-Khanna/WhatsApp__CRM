@@ -127,7 +127,47 @@ export async function POST(req: NextRequest) {
 
     // 3. Process and persist synchronously so Serverless function commits to MongoDB Atlas before terminating
     const reqHost = req.headers.get("host") || undefined;
+    const startTime = Date.now();
     await handleWebhookProcessing(messages, statuses, reqHost);
+    const duration = Date.now() - startTime;
+
+    // Structured Diagnostic Log for observability
+    const maskedSender = messages[0]?.fromPhone
+      ? messages[0].fromPhone.slice(0, 4) + "****" + messages[0].fromPhone.slice(-3)
+      : "N/A";
+    console.log(JSON.stringify({
+      event: "WHATSAPP_WEBHOOK_PROCESSED",
+      timestamp: new Date().toISOString(),
+      type: messages.length > 0 ? "inbound_message" : (statuses.length > 0 ? "delivery_status" : "other"),
+      phoneId: messages[0]?.businessPhoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || "1395630476965721",
+      senderMasked: maskedSender,
+      messageId: messages[0]?.id || statuses[0]?.messageId || "N/A",
+      messagesCount: messages.length,
+      statusesCount: statuses.length,
+      durationMs: duration,
+      host: reqHost,
+      status: "SUCCESS"
+    }));
+
+    // Universal Cross-Sync: If webhook arrived at one domain, forward to counterpart
+    const isForwarded = req.headers.get("x-webhook-forwarded") === "true";
+    if (!isForwarded && rawBody) {
+      const isVercel = reqHost?.includes("vercel.app");
+      const forwardTarget = isVercel
+        ? "https://crm.prajnaa.in/api/webhooks/whatsapp"
+        : "https://whatsapp-crm-qje9.vercel.app/api/webhooks/whatsapp";
+
+      fetch(forwardTarget, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-hub-signature-256": signature || "",
+          "x-webhook-forwarded": "true",
+          "x-crm-source": "cross-sync",
+        },
+        body: rawBody,
+      }).catch(() => {});
+    }
 
     if (isAuthorizedInternalTest || req.headers.get("accept")?.includes("application/json")) {
       return NextResponse.json({
@@ -278,7 +318,11 @@ async function handleWebhookProcessing(messages: any[], statuses: any[], reqHost
     // 3. Persist to MongoDB Atlas
     if (db) {
       try {
-        await db.collection("crm_messages").insertOne(inboundRecord);
+        await db.collection("crm_messages").updateOne(
+          { id: inboundRecord.id },
+          { $setOnInsert: inboundRecord },
+          { upsert: true }
+        );
 
         // Update past customer name records if updated
         if (botResult?.updatedCustomerName && fromClean) {
@@ -382,7 +426,11 @@ async function handleWebhookProcessing(messages: any[], statuses: any[], reqHost
 
         if (db) {
           try {
-            await db.collection("crm_messages").insertOne(autoReplyRecord);
+            await db.collection("crm_messages").updateOne(
+              { id: autoReplyRecord.id },
+              { $setOnInsert: autoReplyRecord },
+              { upsert: true }
+            );
           } catch {}
         }
       } catch (sendErr) {
