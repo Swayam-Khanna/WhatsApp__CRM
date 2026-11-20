@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
       external_order_id,
       customer_name,
       customer_phone,
+      whatsapp_number,
       customer_email,
       delivery_address,
       items,
@@ -82,6 +83,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const waDigits = (whatsapp_number || "").replace(/\D/g, "");
+    const waPhoneClean = waDigits.length >= 10 ? waDigits.slice(-10) : phoneClean;
+
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
         { success: false, error: "EMPTY_ITEMS", message: "Order must contain at least 1 item." },
@@ -102,7 +106,7 @@ export async function POST(req: NextRequest) {
       const leadResult = await LeadsService.createLead({
         businessModel: "b2c_retail",
         contactName: customer_name || "Customer",
-        contactPhone: phoneClean,
+        contactPhone: waPhoneClean || phoneClean,
         contactEmail: customer_email || undefined,
         source: "website",
         sourceReference: external_order_id,
@@ -191,21 +195,20 @@ export async function POST(req: NextRequest) {
       `🌱 Our farmer team is harvesting & preparing your authentic Himalayan harvest. We will share your live tracking link as soon as your package is dispatched!\n\n` +
       `— Team Prajnaa Market 🌾`;
 
-    let waResult = { success: false, whatsappUrl: `https://wa.me/91${phoneClean}?text=${encodeURIComponent(crmWhatsAppText)}` };
+    let waResult = { success: false, whatsappUrl: `https://wa.me/91${waPhoneClean}?text=${encodeURIComponent(crmWhatsAppText)}` };
     if (whatsapp_notification_consent !== false) {
       try {
         const res = await sendWhatsAppTextMessage({
-          to: `91${phoneClean}`,
+          to: `91${waPhoneClean}`,
           text: crmWhatsAppText,
         });
 
         if (res.success) {
           waResult = { success: true, whatsappUrl: res.whatsappUrl || waResult.whatsappUrl };
         } else {
-          // If direct text rejected (e.g. 24hr window closed), fallback to CRM approved template
           console.warn("[CRM Ingestion] Text message rejected, falling back to 'prajnaa_welcome' template");
           const templateRes = await sendWhatsAppTextMessage({
-            to: `91${phoneClean}`,
+            to: `91${waPhoneClean}`,
             template: {
               name: "prajnaa_welcome",
               language: { code: "en_US" },
@@ -230,9 +233,9 @@ export async function POST(req: NextRequest) {
           lead_reference: generatedLead?.reference || null,
           is_existing_contact: isExistingContact,
           external_order_id,
-          customer_id: generatedLead?.contactId || `cust_${phoneClean}`,
+          customer_id: generatedLead?.contactId || `cust_${waPhoneClean}`,
           customer_name,
-          customer_phone: `+91 ${phoneClean}`,
+          customer_phone: `+91 ${waPhoneClean}`,
           customer_email: customer_email || null,
           total_amount,
           currency,
