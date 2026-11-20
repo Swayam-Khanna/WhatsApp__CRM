@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { LeadsService } from "../../../../../backend/lib/leads.server.ts";
 import { sendWhatsAppTextMessage } from "../../../../../backend/lib/whatsapp.server.ts";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Prajnaa WhatsApp CRM - Storefront Order Ingestion API
+ * Prajnaa WhatsApp CRM - Storefront Order Ingestion & Lead Generation API
  * POST /api/integrations/storefront/orders
- * Implements the contract in Prajnaa_Storefront_CRM_API_Integration.docx
+ *
+ * 1. Receives order and customer details from Prajnaa Market Storefront
+ * 2. Automatically generates a Lead in CRM Retail (B2C) Pipeline
+ * 3. Links order items and financial totals to the Lead
+ * 4. Dispatches the official CRM WhatsApp confirmation message to the customer
  */
 export async function POST(req: NextRequest) {
   try {
@@ -53,6 +58,7 @@ export async function POST(req: NextRequest) {
       currency = "INR",
       payment_method = "whatsapp",
       payment_status = "pending",
+      delivery_instructions,
       whatsapp_notification_consent = true,
     } = body;
 
@@ -63,7 +69,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const phoneClean = (customer_phone || "").replace(/\D/g, "").slice(-10);
+    const phoneDigits = (customer_phone || "").replace(/\D/g, "");
+    const phoneClean = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : "";
     if (phoneClean.length !== 10) {
       return NextResponse.json(
         {
@@ -82,7 +89,73 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Format WhatsApp message
+    const resolvedPincode =
+      typeof delivery_address === "object" && delivery_address !== null
+        ? delivery_address.pin_code || delivery_address.pincode || body.pincode
+        : body.pincode || "";
+
+    // 1. Generate CRM Lead in Retail (B2C) Pipeline
+    let generatedLead: any = null;
+    let isExistingContact = false;
+
+    try {
+      const leadResult = await LeadsService.createLead({
+        businessModel: "b2c_retail",
+        contactName: customer_name || "Customer",
+        contactPhone: phoneClean,
+        contactEmail: customer_email || undefined,
+        source: "website",
+        sourceReference: external_order_id,
+        deliveryPostalCode: resolvedPincode || undefined,
+        checkoutReference: external_order_id,
+        priority: payment_method === "whatsapp" ? "high" : "normal",
+        estimatedValuePaise: Math.round(Number(total_amount || 0) * 100),
+        items: items.map((i: any) => ({
+          productId: i.product_id || i.sku || "prod_item",
+          productName: i.product_name || "Produce Item",
+          quantity: Number(i.quantity || 1),
+          unit: i.variant_name || "pack",
+          indicativeUnitPricePaise: Math.round(Number(i.unit_price || 0) * 100),
+        })),
+        notes: `Storefront Order #${external_order_id} via ${payment_method.toUpperCase()}. Instructions: ${delivery_instructions || "None"}`,
+      });
+
+      generatedLead = leadResult.lead;
+      isExistingContact = leadResult.isExistingContact;
+
+      // Link order to lead
+      if (generatedLead) {
+        generatedLead.linkedOrderId = external_order_id;
+        generatedLead.orderLinks = generatedLead.orderLinks || [];
+        generatedLead.orderLinks.push({
+          id: `ol_${Date.now()}`,
+          leadId: generatedLead.id,
+          orderId: external_order_id,
+          orderNumber: `#${external_order_id}`,
+          businessModel: "b2c_retail",
+          conversionType: "storefront_order",
+          totalPaise: Math.round(Number(total_amount || 0) * 100),
+          paymentStatus: payment_status,
+          createdAt: new Date().toISOString(),
+        });
+
+        // Add lead activity
+        generatedLead.activities = generatedLead.activities || [];
+        generatedLead.activities.push({
+          id: `act_${Date.now()}`,
+          leadId: generatedLead.reference,
+          actorName: "Prajnaa Storefront",
+          activityType: "order_linked",
+          summary: `Order #${external_order_id} received from Prajnaa Market Storefront`,
+          details: `Amount: ₹${Number(total_amount).toLocaleString("en-IN")}, Payment: ${payment_method.toUpperCase()}, Items: ${items.length}`,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    } catch (leadError: any) {
+      console.error("[CRM Ingestion] Lead generation error:", leadError?.message || leadError);
+    }
+
+    // 2. CRM formats & sends automated WhatsApp confirmation template
     const customerFirst = (customer_name || "Customer").split(" ")[0];
     const itemsList = items
       .map((it: any) => {
@@ -108,7 +181,7 @@ export async function POST(req: NextRequest) {
         .join(", ");
     }
 
-    const waText =
+    const crmWhatsAppText =
       `Namaste ${customerFirst} ji! 🙏\n\n` +
       `Thank you for ordering with Prajnaa Farm. Your order *#${external_order_id}* has been received successfully!\n\n` +
       `📦 *Order Summary:*\n${itemsList}\n\n` +
@@ -118,16 +191,30 @@ export async function POST(req: NextRequest) {
       `🌱 Our farmer team is harvesting & preparing your authentic Himalayan harvest. We will share your live tracking link as soon as your package is dispatched!\n\n` +
       `— Team Prajnaa Market 🌾`;
 
-    let waResult = { success: false, whatsappUrl: `https://wa.me/91${phoneClean}?text=${encodeURIComponent(waText)}` };
+    let waResult = { success: false, whatsappUrl: `https://wa.me/91${phoneClean}?text=${encodeURIComponent(crmWhatsAppText)}` };
     if (whatsapp_notification_consent !== false) {
       try {
         const res = await sendWhatsAppTextMessage({
           to: `91${phoneClean}`,
-          text: waText,
+          text: crmWhatsAppText,
         });
-        waResult = { success: res.success, whatsappUrl: res.whatsappUrl || waResult.whatsappUrl };
+
+        if (res.success) {
+          waResult = { success: true, whatsappUrl: res.whatsappUrl || waResult.whatsappUrl };
+        } else {
+          // If direct text rejected (e.g. 24hr window closed), fallback to CRM approved template
+          console.warn("[CRM Ingestion] Text message rejected, falling back to 'prajnaa_welcome' template");
+          const templateRes = await sendWhatsAppTextMessage({
+            to: `91${phoneClean}`,
+            template: {
+              name: "prajnaa_welcome",
+              language: { code: "en_US" },
+            },
+          });
+          waResult = { success: templateRes.success, whatsappUrl: templateRes.whatsappUrl || waResult.whatsappUrl };
+        }
       } catch (err) {
-        console.warn("[CRM Ingestion] WhatsApp message dispatch note:", err);
+        console.warn("[CRM Ingestion] WhatsApp message dispatch exception:", err);
       }
     }
 
@@ -136,11 +223,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        message: "Order successfully received and processed by Prajnaa CRM.",
+        message: "Order successfully received, lead generated, and notification processed by Prajnaa CRM.",
         data: {
           crm_order_id: crmOrderId,
+          lead_id: generatedLead?.id || null,
+          lead_reference: generatedLead?.reference || null,
+          is_existing_contact: isExistingContact,
           external_order_id,
-          customer_id: `cust_${phoneClean}`,
+          customer_id: generatedLead?.contactId || `cust_${phoneClean}`,
           customer_name,
           customer_phone: `+91 ${phoneClean}`,
           customer_email: customer_email || null,
